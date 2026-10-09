@@ -3,15 +3,12 @@
   <defs>
     <style>
       .cls-1 {
-        fill: url(#Degradado_sin_nombre_27);
+        fill: url(#Degradado_sin_nombre_12);
       }
     </style>
-    <linearGradient id="Degradado_sin_nombre_27" data-name="Degradado sin nombre 27" x1="81.58" y1="332.93" x2="341.31" y2="118.35" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#f7931e"/>
-      <stop offset=".2" stop-color="#c1aa4e"/>
-      <stop offset=".59" stop-color="#5ad7ac"/>
-      <stop offset=".86" stop-color="#19f3e7"/>
-      <stop offset=".99" stop-color="aqua"/>
+    <linearGradient id="Degradado_sin_nombre_12" data-name="Degradado sin nombre 12" x1="0" y1="234.18" x2="402.21" y2="234.18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0071bc"/>
+      <stop offset="1" stop-color="aqua"/>
     </linearGradient>
   </defs>
   <g id="Capa_1-2" data-name="Capa 1">

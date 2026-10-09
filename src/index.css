@@ -1531,3 +1531,134 @@ html, body {
     right: 12px;
   }
 }
+
+/* ==========================================================================
+   HeroUI v3 Enhanced Component Refinements
+   ========================================================================== */
+
+.activity-heroui-avatar {
+  border-radius: 12px;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s;
+}
+
+.activity-heroui-avatar:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 16px rgba(45, 212, 191, 0.4);
+}
+
+.msg-heroui-avatar {
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-heroui-avatar {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px;
+}
+
+/* HeroUI Tooltip Theme */
+[data-slot="tooltip-content"] {
+  background: rgba(15, 23, 42, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px !important;
+  padding: 4px 10px !important;
+  font-size: 0.75rem !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+  z-index: 9999 !important;
+}
+
+[data-theme="light"] [data-slot="tooltip-content"] {
+  background: rgba(255, 255, 255, 0.98) !important;
+  color: #0f172a !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* HeroUI Accordion */
+[data-slot="accordion-item"] {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+[data-slot="accordion-item"]:last-child {
+  border-bottom: none;
+}
+
+[data-slot="accordion-trigger"] {
+  padding: 10px 0;
+  transition: color 0.15s ease;
+}
+
+[data-slot="accordion-trigger"]:hover {
+  color: var(--accent-cyan) !important;
+}
+
+/* HeroUI Alert */
+[data-slot="alert-root"] {
+  border-radius: 14px !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(45, 212, 191, 0.25) !important;
+  background: rgba(45, 212, 191, 0.06) !important;
+}
+
+/* HeroUI Kbd */
+[data-slot="kbd-root"] {
+  font-family: var(--font-code) !important;
+  border-radius: 6px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: var(--text-main) !important;
+  font-size: 0.72rem !important;
+  padding: 1px 6px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* HeroUI Switch */
+[data-slot="switch-root"] {
+  cursor: pointer;
+}
+
+[data-slot="switch-control"] {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  transition: background-color 0.2s ease !important;
+}
+
+[data-slot="switch-control"][data-selected="true"] {
+  background: var(--accent-cyan) !important;
+}
+
+[data-slot="switch-thumb"] {
+  background: #ffffff !important;
+}
+
+/* ==========================================================================
+   Android Phone Mockups & Screenshots Gallery
+   ========================================================================== */
+
+.phone-mockup-card {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s, box-shadow 0.25s;
+}
+
+.phone-mockup-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+}
+
+.device-frame {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition: border-color 0.2s;
+}
+
+.phone-mockup-card:hover .device-frame {
+  border-color: rgba(45, 212, 191, 0.4);
+}
+
+/* Ensure all project logos have contain fit and safety padding */
+img[src*="lionfitness"],
+img[src*="cerofiao"],
+img[src*="schwarckdev"] {
+  object-fit: contain !important;
+}
