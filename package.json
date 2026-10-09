@@ -3,11 +3,24 @@
   "version": "1.0.0",
   "description": "SchwarckDev - Official Developer Portfolio & Mobile App Showcase",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "deploy": "wrangler deploy"
   },
+  "dependencies": {
+    "@heroui/react": "^3.2.6",
+    "@heroui/styles": "^3.2.6",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.4",
     "wrangler": "^4.149.0"
   }
 }

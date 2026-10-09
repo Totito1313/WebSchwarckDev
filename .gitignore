@@ -1,5 +1,8 @@
 node_modules/
+dist/
+legacy_backup/
 .wrangler/
 .env*
 .DS_Store
 Thumbs.db
+desktop.ini
