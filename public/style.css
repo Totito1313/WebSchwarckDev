@@ -17,14 +17,15 @@
   --text-muted: #64748b;
 
   /* Accents & Brand Gradients */
-  --accent-cyan: #38bdf8;
+  --accent-cyan: #2dd4bf;
+  --accent-blue: #38bdf8;
   --accent-indigo: #818cf8;
   --accent-android: #3ddc84;
   --accent-cerofiao: #f97316;
   --accent-lion: #eab308;
   --accent-purple: #c084fc;
 
-  --grad-primary: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #3ddc84 100%);
+  --grad-primary: linear-gradient(135deg, #5eead4 0%, #2dd4bf 35%, #06b6d4 70%, #0284c7 100%);
   --grad-cerofiao: linear-gradient(135deg, #f97316 0%, #fb923c 50%, #f43f5e 100%);
   --grad-lion: linear-gradient(135deg, #eab308 0%, #f59e0b 50%, #ef4444 100%);
 
