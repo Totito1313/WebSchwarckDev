@@ -1,0 +1,13 @@
+{
+  "name": "webschwarckdev",
+  "version": "1.0.0",
+  "description": "SchwarckDev - Official Developer Portfolio & Mobile App Showcase",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.149.0"
+  }
+}
