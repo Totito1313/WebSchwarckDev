@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CeroFiao: tus cuentas en bolívares, dólares, euros y USDT</title>
+  <meta name="description" content="Lleva tus cuentas, deudas, metas y presupuestos en varias monedas con la tasa del día. Para Android. Tus datos se quedan en tu teléfono.">
+  <meta property="og:title" content="CeroFiao">
+  <meta property="og:description" content="Tus cuentas en bolívares, dólares, euros y USDT, en tu teléfono y sin nubes.">
+  <meta property="og:image" content="/img/cerofiao/og.jpg">
+  <meta name="theme-color" content="#cfe9f8">
+  <link rel="icon" href="/img/cerofiao/icon-180.png">
+  <link rel="apple-touch-icon" href="/img/cerofiao/icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/src/cerofiao.css">
+</head>
+<body>
+
+<header class="nav">
+  <a class="nav-brand" href="/cerofiao/" aria-label="CeroFiao, inicio">
+    <img src="/img/cerofiao/logo.svg" alt="" width="20" height="24">
+    CeroFiao
+  </a>
+  <nav class="nav-links" aria-label="Secciones">
+    <a href="#funciones">Funciones</a>
+    <a href="/cerofiao/privacidad/">Privacidad</a>
+    <a href="/">Schwarck</a>
+  </nav>
+  <a class="pill" href="#descarga" data-play="Descargar">
+    <svg viewBox="0 0 14 16" aria-hidden="true"><path fill="currentColor" d="M1.6.3A1 1 0 0 0 0 1.1v13.8a1 1 0 0 0 1.6.8l11.7-6.9a1 1 0 0 0 0-1.6z"/></svg>
+    <span data-play-label>Google Play</span>
+  </a>
+</header>
+
+<main>
+  <section class="hero">
+    <h1>Tus cuentas, en la moneda que sea</h1>
+    <p class="lede">Bolívares, dólares, euros y USDT con la tasa del día. Todo se queda en tu teléfono.</p>
+    <a class="pill lg" href="#descarga" data-play="Descargar en Google Play">
+      <svg viewBox="0 0 14 16" aria-hidden="true"><path fill="currentColor" d="M1.6.3A1 1 0 0 0 0 1.1v13.8a1 1 0 0 0 1.6.8l11.7-6.9a1 1 0 0 0 0-1.6z"/></svg>
+      <span data-play-label>Próximamente en Google Play</span>
+    </a>
+    <p class="hero-meta">Para Android 14 o superior. Sin registro y sin anuncios.</p>
+
+    <div class="devices">
+      <div class="phone"><img src="/img/cerofiao/tasas.webp" alt="Pantalla de tasas: conversor y tasas del día del dólar BCV, USDT, euro BCV y EURI" width="672" height="1496"></div>
+      <div class="phone"><img src="/img/cerofiao/home.webp" alt="Pantalla de inicio de CeroFiao con el balance total en dólares BCV, las tasas del día y el resumen del mes" width="672" height="1496" fetchpriority="high"></div>
+      <div class="phone"><img src="/img/cerofiao/deudas.webp" alt="Pantalla de deudas: lo que te deben y lo que debes, por persona" width="672" height="1496"></div>
+    </div>
+  </section>
+
+  <section class="band coins center">
+    <div class="wrap">
+      <h2>Lleva cada cuenta en su moneda</h2>
+      <ul class="coin-row">
+        <li><span>Bs</span>Bolívares</li>
+        <li><span>$</span>Dólar BCV</li>
+        <li><span>€</span>Euro BCV</li>
+        <li><span>₮</span>USDT</li>
+        <li><span>€</span>EURI</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap center stack-24">
+      <h2 class="display">Todo tu dinero, visto de una vez</h2>
+      <p class="lede wide">Efectivo, banco y cripto sumados en la moneda que elijas. Cambias de dólares a bolívares con un toque.</p>
+    </div>
+
+    <div class="strip" data-strip>
+      <div class="strip-track" data-track tabindex="0" role="group" aria-label="Pantallas de CeroFiao">
+        <figure class="shot"><img src="/img/cerofiao/cuentas.webp" alt="Cuentas: balance total, distribución por moneda y lista de cuentas" width="672" height="1496" loading="lazy"><figcaption>Cuentas</figcaption></figure>
+        <figure class="shot"><img src="/img/cerofiao/historial.webp" alt="Historial de movimientos con filtros por cuenta y categoría" width="672" height="1496" loading="lazy"><figcaption>Historial</figcaption></figure>
+        <figure class="shot"><img src="/img/cerofiao/analiticas.webp" alt="Analíticas: flujo neto del mes, ingresos contra gastos y cierre proyectado" width="672" height="1496" loading="lazy"><figcaption>Analíticas</figcaption></figure>
+        <figure class="shot"><img src="/img/cerofiao/tasas.webp" alt="Tasas: conversor y tasas del día" width="672" height="1496" loading="lazy"><figcaption>Tasas</figcaption></figure>
+        <figure class="shot"><img src="/img/cerofiao/deudas.webp" alt="Deudas agrupadas por persona, con vencimientos y cuotas" width="672" height="1496" loading="lazy"><figcaption>Deudas</figcaption></figure>
+        <figure class="shot"><img src="/img/cerofiao/ahorros.webp" alt="Ahorros: metas con su avance y el Baúl" width="672" height="1496" loading="lazy"><figcaption>Ahorros</figcaption></figure>
+      </div>
+      <div class="strip-nav">
+        <button type="button" data-dir="-1" aria-label="Pantallas anteriores"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" data-dir="1" aria-label="Pantallas siguientes"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="funciones">
+    <div class="wrap">
+      <div class="center stack-24">
+        <h2 class="display">Empieza el día sabiendo cuánto tienes</h2>
+        <p class="lede wide">La tasa de hoy, lo que te deben y lo que te queda del mes, sin sacar la calculadora.</p>
+      </div>
+
+      <div class="cards3">
+        <article class="card">
+          <img class="inset" src="/img/cerofiao/crop-tasas.webp" alt="Tasas del día: dólar BCV, USDT, euro BCV y EURI en bolívares" width="760" height="406" loading="lazy">
+          <h3>Tasas</h3>
+          <p>Dólar y euro BCV, USDT y EURI al día, con conversor e histórico.</p>
+        </article>
+        <article class="card">
+          <img class="inset" src="/img/cerofiao/crop-deudas.webp" alt="Resumen de deudas: lo que te deben y lo que debes, en cada moneda" width="760" height="406" loading="lazy">
+          <h3>Deudas</h3>
+          <p>Quién te debe y a quién le debes, con cuotas, vencimientos y mora.</p>
+        </article>
+        <article class="card">
+          <img class="inset" src="/img/cerofiao/crop-resumen.webp" alt="Resumen del mes: flujo neto, ingresos, gastos y cuánto puedes gastar por día" width="760" height="406" loading="lazy">
+          <h3>Tu mes</h3>
+          <p>Cuánto entró, cuánto salió y cuánto puedes gastar por día hasta el cierre.</p>
+        </article>
+      </div>
+
+      <div class="cards2">
+        <article class="card">
+          <div class="scan" role="img" aria-label="Una factura en bolívares se convierte en un gasto con sus productos y su equivalente en dólares">
+            <div class="ticket">
+              <b>FACTURA</b>
+              <div><span>2 × Harina de maíz</span><span>1 240,00</span></div>
+              <div><span>1 × Café 500 g</span><span>3 900,00</span></div>
+              <div class="sum"><span>TOTAL Bs</span><span>5 140,00</span></div>
+            </div>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="entry">
+              <small>Gasto en Comida</small>
+              <div><span>Harina de maíz × 2</span><span>Bs 1 240,00</span></div>
+              <div><span>Café 500 g</span><span>Bs 3 900,00</span></div>
+              <div class="sum"><span>Bs 5 140,00</span></div>
+              <em>≈ $5,87 a tasa BCV</em>
+            </div>
+          </div>
+          <h3>Escanea la factura</h3>
+          <p>Apunta a una factura o a un comprobante de pago y CeroFiao lee los productos, las cantidades y el total. Revisas, corriges y registras.</p>
+        </article>
+
+        <article class="card dark">
+          <div>
+            <h3>Tus datos se quedan contigo</h3>
+            <ul>
+              <li>Sin cuenta de usuario</li>
+              <li>Sin servidores propios</li>
+              <li>Sin anuncios ni seguimiento</li>
+            </ul>
+            <p>Hasta la factura que escaneas se lee dentro del teléfono.</p>
+          </div>
+          <p><a class="pill light" href="/cerofiao/privacidad/">Leer la política de privacidad</a></p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="center stack-24">
+        <h2 class="display">Y hay más</h2>
+        <p class="lede wide">Lo que vas necesitando cuando ya tienes las cuentas al día.</p>
+      </div>
+      <div class="more">
+        <div style="--c:var(--blue)"><i></i><h3>Metas y Baúl</h3><p>Aparta para lo que quieres y mira cuánto falta.</p></div>
+        <div style="--c:var(--expense)"><i></i><h3>Presupuestos</h3><p>Un tope por categoría y un aviso cuando te acercas.</p></div>
+        <div style="--c:var(--income)"><i></i><h3>Suscripciones</h3><p>Los cobros que vienen en los próximos 30 días.</p></div>
+        <div style="--c:var(--bs)"><i></i><h3>Carrito</h3><p>Suma la compra mientras la haces, antes de llegar a la caja.</p></div>
+        <div style="--c:var(--cyan)"><i></i><h3>Dividir la cuenta</h3><p>Reparte un gasto entre varios y anota quién debe qué.</p></div>
+        <div style="--c:var(--usdt)"><i></i><h3>Viajes</h3><p>Los gastos de un viaje, juntos y aparte del resto.</p></div>
+        <div style="--c:#8e5bd6"><i></i><h3>Analíticas</h3><p>Por semana, mes o año, comparado con tus meses anteriores.</p></div>
+        <div style="--c:var(--cyan)"><i></i><h3>Inicio a tu medida</h3><p>Elige y ordena los widgets que quieres ver al abrir.</p></div>
+        <div style="--c:var(--blue)"><i></i><h3>Respaldos</h3><p>Exporta tus datos y restáuralos en otro teléfono.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta" id="descarga">
+    <img src="/img/cerofiao/icon.webp" alt="" width="256" height="256" loading="lazy">
+    <h2 class="display">Ponte al día con tus cuentas</h2>
+    <p class="lede"><span class="only-soon">CeroFiao 1.1 está en prueba interna y llega pronto a Google Play.</span></p>
+    <a class="pill lg" href="mailto:soporte@schwarckdev.com?subject=Quiero%20probar%20CeroFiao" data-play="Descargar en Google Play">
+      <svg viewBox="0 0 14 16" aria-hidden="true"><path fill="currentColor" d="M1.6.3A1 1 0 0 0 0 1.1v13.8a1 1 0 0 0 1.6.8l11.7-6.9a1 1 0 0 0 0-1.6z"/></svg>
+      <span data-play-label>Pedir acceso a la prueba</span>
+    </a>
+    <small>Para Android 14 o superior.</small>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <a class="nav-brand" href="/cerofiao/"><img src="/img/cerofiao/logo.svg" alt="" width="20" height="24">CeroFiao</a>
+      </div>
+      <div>
+        <h2>CeroFiao</h2>
+        <ul>
+          <li><a href="#funciones">Funciones</a></li>
+          <li><a href="/cerofiao/privacidad/">Privacidad</a></li>
+          <li><a href="#descarga">Descarga</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Schwarck</h2>
+        <ul>
+          <li><a href="/">El estudio</a></li>
+          <li><a href="/lionfitness/">Lion Fitness</a></li>
+          <li><a href="mailto:soporte@schwarckdev.com">Contacto</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="foot-note">© 2026 Schwarck Developer. Las pantallas muestran datos de ejemplo.</p>
+  </div>
+</footer>
+
+<script type="module" src="/src/site.js"></script>
+</body>
+</html>
