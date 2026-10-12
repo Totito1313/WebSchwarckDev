@@ -4,27 +4,31 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CeroFiao: tus cuentas en bolívares, dólares, euros y USDT</title>
-  <meta name="description" content="Lleva tus cuentas, deudas, metas y presupuestos en varias monedas con la tasa del día. Para Android. Tus datos se quedan en tu teléfono.">
+  <meta name="description" content="Lleva tus cuentas, deudas, metas y presupuestos en bolívares, dólares, euros y USDT con la tasa del día. Para Android. Tus datos se guardan en tu teléfono.">
+  <link rel="canonical" href="https://schwarckdev.com/cerofiao/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://schwarckdev.com/cerofiao/">
   <meta property="og:title" content="CeroFiao">
-  <meta property="og:description" content="Tus cuentas en bolívares, dólares, euros y USDT, en tu teléfono y sin nubes.">
-  <meta property="og:image" content="/img/cerofiao/og.jpg">
+  <meta property="og:description" content="Tus cuentas en bolívares, dólares, euros y USDT, con la tasa del día y guardadas en tu teléfono.">
+  <meta property="og:image" content="https://schwarckdev.com/img/cerofiao/og.jpg">
   <meta name="theme-color" content="#cfe9f8">
   <link rel="icon" href="/img/cerofiao/icon-180.png">
   <link rel="apple-touch-icon" href="/img/cerofiao/icon-180.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="/src/cerofiao.css">
 </head>
 <body>
 
 <header class="nav">
   <a class="nav-brand" href="/cerofiao/" aria-label="CeroFiao, inicio">
-    <img src="/img/cerofiao/logo.svg" alt="" width="20" height="24">
+    <img src="/img/cerofiao/logo.svg" alt="" width="20" height="23">
     CeroFiao
   </a>
   <nav class="nav-links" aria-label="Secciones">
     <a href="#funciones">Funciones</a>
+    <a href="#venezuela">Para Venezuela</a>
     <a href="/cerofiao/privacidad/">Privacidad</a>
     <a href="/">Schwarck</a>
   </nav>
@@ -35,144 +39,326 @@
 </header>
 
 <main>
-  <section class="hero">
-    <h1>Tus cuentas, en la moneda que sea</h1>
-    <p class="lede">Bolívares, dólares, euros y USDT con la tasa del día. Todo se queda en tu teléfono.</p>
-    <a class="pill lg" href="#descarga" data-play="Descargar en Google Play">
-      <svg viewBox="0 0 14 16" aria-hidden="true"><path fill="currentColor" d="M1.6.3A1 1 0 0 0 0 1.1v13.8a1 1 0 0 0 1.6.8l11.7-6.9a1 1 0 0 0 0-1.6z"/></svg>
-      <span data-play-label>Próximamente en Google Play</span>
-    </a>
-    <p class="hero-meta">Para Android 14 o superior. Sin registro y sin anuncios.</p>
+  <!-- ══ Hero ══ -->
+  <section class="hero" data-hero>
+    <div class="hero-stage">
+      <div class="hero-sky" aria-hidden="true"><i></i><i></i><i></i></div>
 
-    <div class="devices">
-      <div class="phone"><img src="/img/cerofiao/tasas.webp" alt="Pantalla de tasas: conversor y tasas del día del dólar BCV, USDT, euro BCV y EURI" width="672" height="1496"></div>
-      <div class="phone"><img src="/img/cerofiao/home.webp" alt="Pantalla de inicio de CeroFiao con el balance total en dólares BCV, las tasas del día y el resumen del mes" width="672" height="1496" fetchpriority="high"></div>
-      <div class="phone"><img src="/img/cerofiao/deudas.webp" alt="Pantalla de deudas: lo que te deben y lo que debes, por persona" width="672" height="1496"></div>
+      <div class="hero-copy">
+        <h1>Tus cuentas, en la moneda que sea</h1>
+        <p class="lede">Bolívares, dólares, euros y USDT con la tasa del día. Tus datos se guardan en tu teléfono.</p>
+        <div class="hero-cta">
+          <a class="pill lg" href="#descarga" data-play="Descargar en Google Play">
+            <svg viewBox="0 0 14 16" aria-hidden="true"><path fill="currentColor" d="M1.6.3A1 1 0 0 0 0 1.1v13.8a1 1 0 0 0 1.6.8l11.7-6.9a1 1 0 0 0 0-1.6z"/></svg>
+            <span data-play-label>Próximamente en Google Play</span>
+          </a>
+          <p class="hero-meta">Para Android 14 o superior. Sin registro y sin anuncios.</p>
+        </div>
+      </div>
+
+      <div class="hero-scene">
+        <div class="chips" aria-hidden="true">
+          <div class="chip l" style="--x:-460px; --at:.16; --sp:1500px; --rot:8deg">
+            <div class="chip-in">
+              <span class="chip-ico" style="--c:var(--income)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 16 5-5 4 3 7-7"/><path d="M15 7h5v5"/></svg></span>
+              <span><small>Dólar BCV</small><b>Bs 875,65</b></span>
+            </div>
+          </div>
+          <div class="chip r" style="--x:230px; --at:.34; --sp:1900px; --rot:-9deg">
+            <div class="chip-in">
+              <svg class="chip-ring" viewBox="0 0 46 46"><circle cx="23" cy="23" r="19" fill="none" stroke="#dbe8f0" stroke-width="5"/><circle cx="23" cy="23" r="19" fill="none" stroke="#1f9d46" stroke-width="5" stroke-linecap="round" stroke-dasharray="81.2 119.4" transform="rotate(-90 23 23)"/></svg>
+              <span><b>68 %</b><small>Tasa de ahorro</small></span>
+            </div>
+          </div>
+          <div class="chip l" style="--x:-430px; --at:.5; --sp:1300px; --rot:-7deg">
+            <div class="chip-in">
+              <span class="chip-ico" style="--c:var(--blue)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8"/><path d="M16 5.2a3 3 0 0 1 0 5.6M18 14.6c1.5.7 2.4 2.2 2.8 4.4"/></svg></span>
+              <span><small>Te deben</small><b class="up">$310,32</b></span>
+            </div>
+          </div>
+          <div class="chip r" style="--x:250px; --at:.64; --sp:1700px; --rot:9deg">
+            <div class="chip-in">
+              <span><small>Flujo neto del mes</small><b class="up">+$220,05</b></span>
+            </div>
+          </div>
+          <div class="chip l" style="--x:-470px; --at:.8; --sp:2000px; --rot:6deg">
+            <div class="chip-in">
+              <span><small>Repuestos del carro</small><b>Bs 42 000,00</b><span class="chip-bar" style="--v:14%; --c:var(--income)"><i></i></span></span>
+            </div>
+          </div>
+          <div class="chip r" style="--x:220px; --at:.95; --sp:1500px; --rot:-8deg">
+            <div class="chip-in">
+              <span class="chip-ico" style="--c:var(--violet)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg></span>
+              <span><small>Meta</small><b>Playa en diciembre</b></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="phone hero-phone">
+          <div class="phone-screen">
+            <div class="reel">
+              <img src="/img/cerofiao/home-900.webp" srcset="/img/cerofiao/home-540.webp 540w, /img/cerofiao/home-900.webp 900w" sizes="(max-width: 560px) 70vw, 320px" alt="Pantalla de inicio de CeroFiao: balance total en dólares BCV, tasas del día y resumen del mes" width="900" height="2004" fetchpriority="high">
+              <img src="/img/cerofiao/tasas-900.webp" srcset="/img/cerofiao/tasas-540.webp 540w, /img/cerofiao/tasas-900.webp 900w" sizes="(max-width: 560px) 70vw, 320px" alt="Pantalla de tasas: conversor y tasas del día del dólar BCV, USDT, euro BCV y EURI" width="900" height="2004" decoding="async">
+              <img src="/img/cerofiao/deudas-900.webp" srcset="/img/cerofiao/deudas-540.webp 540w, /img/cerofiao/deudas-900.webp 900w" sizes="(max-width: 560px) 70vw, 320px" alt="Pantalla de deudas: lo que te deben y lo que debes, agrupado por persona" width="900" height="2004" decoding="async">
+              <img src="/img/cerofiao/ahorros-900.webp" srcset="/img/cerofiao/ahorros-540.webp 540w, /img/cerofiao/ahorros-900.webp 900w" sizes="(max-width: 560px) 70vw, 320px" alt="Pantalla de ahorros: metas con su avance y el Baúl" width="900" height="2004" decoding="async">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ol class="hero-steps" aria-hidden="true">
+        <li class="on">Inicio</li>
+        <li>Tasas</li>
+        <li>Deudas</li>
+        <li>Ahorros</li>
+      </ol>
     </div>
   </section>
 
-  <section class="band coins center">
+  <!-- ══ Monedas ══ -->
+  <section class="coins center">
     <div class="wrap">
-      <h2>Lleva cada cuenta en su moneda</h2>
+      <h2 data-reveal>Lleva cada cuenta en su moneda</h2>
       <ul class="coin-row">
-        <li><span>Bs</span>Bolívares</li>
-        <li><span>$</span>Dólar BCV</li>
-        <li><span>€</span>Euro BCV</li>
-        <li><span>₮</span>USDT</li>
-        <li><span>€</span>EURI</li>
+        <li data-reveal style="--i:1"><span>Bs</span>Bolívares</li>
+        <li data-reveal style="--i:2"><span>$</span>Dólar BCV</li>
+        <li data-reveal style="--i:3"><span>€</span>Euro BCV</li>
+        <li data-reveal style="--i:4"><span>₮</span>USDT</li>
+        <li data-reveal style="--i:5"><span>€</span>EURI</li>
       </ul>
     </div>
   </section>
 
+  <!-- ══ Todo junto ══ -->
   <section class="band">
-    <div class="wrap center stack-24">
-      <h2 class="display">Todo tu dinero, visto de una vez</h2>
-      <p class="lede wide">Efectivo, banco y cripto sumados en la moneda que elijas. Cambias de dólares a bolívares con un toque.</p>
+    <div class="wrap head">
+      <h2 class="display" data-reveal>Todo tu dinero, visto de una vez</h2>
+      <p class="lede" data-reveal style="--i:1">Efectivo, banco y cripto sumados en la moneda que elijas. Pruébalo: cambia la moneda.</p>
+    </div>
+
+    <div class="bal" data-balance data-reveal="zoom">
+      <p class="bal-label">Balance total</p>
+      <p class="bal-num" aria-live="polite"><span class="bal-sym">$</span><span class="bal-val">231,42</span></p>
+      <div class="seg" role="group" aria-label="Moneda en que se muestra el balance">
+        <span class="seg-thumb" aria-hidden="true"></span>
+        <button type="button" aria-pressed="true" data-sym="$" data-value="231.42">USD BCV</button>
+        <button type="button" aria-pressed="false" data-sym="Bs" data-value="202642.92">Bolívares</button>
+        <button type="button" aria-pressed="false" data-sym="₮" data-value="200.85">USDT</button>
+        <button type="button" aria-pressed="false" data-sym="€" data-value="206.65">Euro BCV</button>
+      </div>
+      <p class="bal-note">El mismo saldo de las capturas, con sus tasas de ejemplo: Bs 875,65 por dólar BCV.</p>
     </div>
 
     <div class="strip" data-strip>
       <div class="strip-track" data-track tabindex="0" role="group" aria-label="Pantallas de CeroFiao">
-        <figure class="shot"><img src="/img/cerofiao/cuentas.webp" alt="Cuentas: balance total, distribución por moneda y lista de cuentas" width="672" height="1496" loading="lazy"><figcaption>Cuentas</figcaption></figure>
-        <figure class="shot"><img src="/img/cerofiao/historial.webp" alt="Historial de movimientos con filtros por cuenta y categoría" width="672" height="1496" loading="lazy"><figcaption>Historial</figcaption></figure>
-        <figure class="shot"><img src="/img/cerofiao/analiticas.webp" alt="Analíticas: flujo neto del mes, ingresos contra gastos y cierre proyectado" width="672" height="1496" loading="lazy"><figcaption>Analíticas</figcaption></figure>
-        <figure class="shot"><img src="/img/cerofiao/tasas.webp" alt="Tasas: conversor y tasas del día" width="672" height="1496" loading="lazy"><figcaption>Tasas</figcaption></figure>
-        <figure class="shot"><img src="/img/cerofiao/deudas.webp" alt="Deudas agrupadas por persona, con vencimientos y cuotas" width="672" height="1496" loading="lazy"><figcaption>Deudas</figcaption></figure>
-        <figure class="shot"><img src="/img/cerofiao/ahorros.webp" alt="Ahorros: metas con su avance y el Baúl" width="672" height="1496" loading="lazy"><figcaption>Ahorros</figcaption></figure>
+        <figure class="shot"><img src="/img/cerofiao/cuentas-540.webp" alt="Cuentas: balance total, distribución por moneda y lista de cuentas" width="540" height="1202" loading="lazy" draggable="false"><figcaption><b>Cuentas</b><span>Cada una en su moneda</span></figcaption></figure>
+        <figure class="shot"><img src="/img/cerofiao/historial-540.webp" alt="Historial de movimientos con filtros por cuenta y categoría" width="540" height="1202" loading="lazy" draggable="false"><figcaption><b>Historial</b><span>Todo lo que entró y salió</span></figcaption></figure>
+        <figure class="shot"><img src="/img/cerofiao/analiticas-540.webp" alt="Analíticas: flujo neto del mes, ingresos contra gastos y cierre proyectado" width="540" height="1202" loading="lazy" draggable="false"><figcaption><b>Analíticas</b><span>Tu mes, comparado</span></figcaption></figure>
+        <figure class="shot"><img src="/img/cerofiao/deudas-540.webp" alt="Deudas agrupadas por persona, con vencimientos y cuotas" width="540" height="1202" loading="lazy" draggable="false"><figcaption><b>Deudas</b><span>Quién debe qué</span></figcaption></figure>
+        <figure class="shot"><img src="/img/cerofiao/ahorros-540.webp" alt="Ahorros: metas con su avance y el Baúl" width="540" height="1202" loading="lazy" draggable="false"><figcaption><b>Ahorros</b><span>Metas y Baúl</span></figcaption></figure>
+        <figure class="shot"><img src="/img/cerofiao/carrito-540.webp" alt="Carrito: lista de compra con cantidades y precios en dólares y bolívares" width="540" height="1202" loading="lazy" draggable="false"><figcaption><b>Carrito</b><span>La compra, sumada</span></figcaption></figure>
+        <figure class="shot"><img src="/img/cerofiao/tasas-540.webp" alt="Tasas: conversor y tasas del día" width="540" height="1202" loading="lazy" draggable="false"><figcaption><b>Tasas</b><span>Las de hoy y su historia</span></figcaption></figure>
       </div>
       <div class="strip-nav">
         <button type="button" data-dir="-1" aria-label="Pantallas anteriores"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <span class="strip-bar" aria-hidden="true"><i></i></span>
         <button type="button" data-dir="1" aria-label="Pantallas siguientes"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
     </div>
   </section>
 
+  <!-- ══ Funciones ══ -->
   <section class="band" id="funciones">
     <div class="wrap">
-      <div class="center stack-24">
-        <h2 class="display">Empieza el día sabiendo cuánto tienes</h2>
-        <p class="lede wide">La tasa de hoy, lo que te deben y lo que te queda del mes, sin sacar la calculadora.</p>
+      <div class="head">
+        <h2 class="display" data-reveal>Empieza el día sabiendo cuánto tienes</h2>
+        <p class="lede" data-reveal style="--i:1">La tasa de hoy, lo que te deben y lo que te queda del mes, sin sacar la calculadora.</p>
       </div>
 
       <div class="cards3">
-        <article class="card">
-          <img class="inset" src="/img/cerofiao/crop-tasas.webp" alt="Tasas del día: dólar BCV, USDT, euro BCV y EURI en bolívares" width="760" height="406" loading="lazy">
+        <article class="card" data-reveal>
+          <img class="inset" src="/img/cerofiao/crop-tasas.webp" alt="Tasas del día: dólar BCV, USDT, euro BCV y EURI en bolívares" width="820" height="438" loading="lazy">
           <h3>Tasas</h3>
-          <p>Dólar y euro BCV, USDT y EURI al día, con conversor e histórico.</p>
+          <p>Dólar y euro BCV, USDT y EURI del día, con conversor e histórico.</p>
         </article>
-        <article class="card">
-          <img class="inset" src="/img/cerofiao/crop-deudas.webp" alt="Resumen de deudas: lo que te deben y lo que debes, en cada moneda" width="760" height="406" loading="lazy">
+        <article class="card" data-reveal style="--i:1">
+          <img class="inset" src="/img/cerofiao/crop-deudas.webp" alt="Resumen de deudas: lo que te deben y lo que debes, en cada moneda" width="820" height="438" loading="lazy">
           <h3>Deudas</h3>
           <p>Quién te debe y a quién le debes, con cuotas, vencimientos y mora.</p>
         </article>
-        <article class="card">
-          <img class="inset" src="/img/cerofiao/crop-resumen.webp" alt="Resumen del mes: flujo neto, ingresos, gastos y cuánto puedes gastar por día" width="760" height="406" loading="lazy">
+        <article class="card" data-reveal style="--i:2">
+          <img class="inset" src="/img/cerofiao/crop-resumen.webp" alt="Resumen del mes: flujo neto, ingresos y gastos" width="820" height="438" loading="lazy">
           <h3>Tu mes</h3>
           <p>Cuánto entró, cuánto salió y cuánto puedes gastar por día hasta el cierre.</p>
         </article>
       </div>
 
       <div class="cards2">
-        <article class="card">
-          <div class="scan" role="img" aria-label="Una factura en bolívares se convierte en un gasto con sus productos y su equivalente en dólares">
-            <div class="ticket">
-              <b>FACTURA</b>
-              <div><span>2 × Harina de maíz</span><span>1 240,00</span></div>
-              <div><span>1 × Café 500 g</span><span>3 900,00</span></div>
-              <div class="sum"><span>TOTAL Bs</span><span>5 140,00</span></div>
-            </div>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <div class="entry">
-              <small>Gasto en Comida</small>
-              <div><span>Harina de maíz × 2</span><span>Bs 1 240,00</span></div>
-              <div><span>Café 500 g</span><span>Bs 3 900,00</span></div>
-              <div class="sum"><span>Bs 5 140,00</span></div>
-              <em>≈ $5,87 a tasa BCV</em>
-            </div>
-          </div>
-          <h3>Escanea la factura</h3>
-          <p>Apunta a una factura o a un comprobante de pago y CeroFiao lee los productos, las cantidades y el total. Revisas, corriges y registras.</p>
-        </article>
-
-        <article class="card dark">
+        <article class="card peek tint-a" data-reveal>
           <div>
-            <h3>Tus datos se quedan contigo</h3>
-            <ul>
-              <li>Sin cuenta de usuario</li>
-              <li>Sin servidores propios</li>
-              <li>Sin anuncios ni seguimiento</li>
-            </ul>
-            <p>Hasta la factura que escaneas se lee dentro del teléfono.</p>
+            <h3>Carrito</h3>
+            <p>Arma la lista con precios en dólares o en bolívares, mira cuánto suma mientras compras y regístrala como gasto al pagar.</p>
           </div>
-          <p><a class="pill light" href="/cerofiao/privacidad/">Leer la política de privacidad</a></p>
+          <div class="peek-view">
+            <div class="phone"><div class="phone-screen"><img src="/img/cerofiao/carrito-540.webp" alt="Carrito con seis productos, sus cantidades y precios" width="540" height="1202" loading="lazy"></div></div>
+          </div>
+        </article>
+        <article class="card peek tint-b" data-reveal style="--i:1">
+          <div>
+            <h3>Analíticas</h3>
+            <p>Tus ingresos y gastos por semana, mes o año, comparados con los períodos anteriores.</p>
+          </div>
+          <div class="peek-view">
+            <div class="phone"><div class="phone-screen"><img src="/img/cerofiao/analiticas-540.webp" alt="Analíticas del mes: flujo neto, ingresos contra gastos y comparaciones" width="540" height="1202" loading="lazy"></div></div>
+          </div>
         </article>
       </div>
     </div>
   </section>
 
+  <!-- ══ Para Venezuela: teléfono fijo, tarjetas que lo recortan ══ -->
+  <section class="deep" id="venezuela">
+    <div class="wrap head">
+      <h2 class="display" data-reveal>Pensada para cómo se vive aquí</h2>
+      <p class="lede" data-reveal style="--i:1">Varias monedas, una tasa que cambia cada día y una conexión que a veces falla. CeroFiao parte de ahí.</p>
+    </div>
+
+    <div class="stack">
+      <article class="panel" data-panel style="--tint:#d9efe6">
+        <div class="panel-copy">
+          <h3 data-reveal>Hecha para Venezuela</h3>
+          <p data-reveal style="--i:1">Cobras en dólares, pagas en bolívares y guardas en USDT. CeroFiao lleva todo junto y lo convierte a la tasa del día.</p>
+          <ul class="ticks" data-reveal style="--i:2">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>17 bancos venezolanos y 9 billeteras, con su logo</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>Pago móvil, Zelle, Binance y Zinli para cobrar</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>IVA, servicio e IGTF al dividir una cuenta</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>Deudas personales, de tarjeta, préstamos y fiado</li>
+          </ul>
+        </div>
+        <div class="panel-view">
+          <div class="panel-device">
+            <div class="phone"><div class="phone-screen"><img src="/img/cerofiao/conversor-900.webp" srcset="/img/cerofiao/conversor-540.webp 540w, /img/cerofiao/conversor-900.webp 900w" sizes="(max-width: 900px) 70vw, 360px" alt="Conversor: 100 dólares BCV son 87 565,05 bolívares, con el equivalente en USDT" width="900" height="2004" loading="lazy"></div></div>
+            <div class="pop pop-a" aria-hidden="true"><small>Dólar BCV</small><b>1 $ = Bs 875,65</b></div>
+            <div class="pop pop-b dark" aria-hidden="true"><b>Aviso de brecha</b><small>Si el USDT pasa del 20 %<br>sobre el dólar BCV</small></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel" data-panel style="--tint:#e2e4fb">
+        <div class="panel-copy">
+          <h3 data-reveal>Funciona sin conexión</h3>
+          <p data-reveal style="--i:1">Registrar, consultar, escanear y respaldar no necesita datos ni wifi. Internet solo hace falta para actualizar las tasas.</p>
+          <ul class="ticks" data-reveal style="--i:2">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>Sin señal, convierte con la última tasa guardada</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>Y te dice de qué día es esa tasa</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>Sin cuentas de usuario ni servidores propios</li>
+          </ul>
+        </div>
+        <div class="panel-view">
+          <div class="panel-device">
+            <div class="phone"><div class="phone-screen"><img src="/img/cerofiao/historial-900.webp" srcset="/img/cerofiao/historial-540.webp 540w, /img/cerofiao/historial-900.webp 900w" sizes="(max-width: 900px) 70vw, 360px" alt="Historial de movimientos guardado en el teléfono" width="900" height="2004" loading="lazy"></div></div>
+            <div class="pop pop-a row" aria-hidden="true">
+              <span class="chip-ico" style="--c:var(--blue)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3c.9 0 1.5.9 1.5 2.2V9l7 4.3v1.9l-7-2.1v4.3l2.2 1.6V21L12 20l-3.7 1v-2l2.2-1.6v-4.3l-7 2.1v-1.9l7-4.3V5.2C10.5 3.9 11.1 3 12 3Z"/></svg></span>
+              <span><b>Modo avión</b><small>Tus cuentas siguen ahí</small></span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel" data-panel style="--tint:#fbe9d7">
+        <div class="panel-copy">
+          <h3 data-reveal>Lee tus facturas sin enviarlas</h3>
+          <p data-reveal style="--i:1">Apunta a una factura o elige una foto. El texto se lee dentro del teléfono, sin Internet, y tú revisas antes de registrar.</p>
+          <ul class="ticks" data-reveal style="--i:2">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>Total, fecha, comercio y forma de pago</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>Productos con cantidad y precio</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>De un comprobante de pago móvil, el monto y la referencia</li>
+          </ul>
+        </div>
+        <div class="panel-view">
+          <div class="panel-device">
+            <div class="phone"><div class="phone-screen"><img src="/img/cerofiao/escaner-900.webp" srcset="/img/cerofiao/escaner-540.webp 540w, /img/cerofiao/escaner-900.webp 900w" sizes="(max-width: 900px) 70vw, 360px" alt="Pantalla Revisa y confirma: la foto de la factura con los montos resaltados y el total de 9 214 bolívares" width="900" height="2004" loading="lazy"></div></div>
+            <div class="pop pop-a paper" aria-hidden="true"><img src="/img/cerofiao/factura.webp" alt="" width="480" height="744" loading="lazy"></div>
+            <div class="pop pop-b" aria-hidden="true"><small>Leído en el teléfono</small><b>4 productos</b></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel" data-panel style="--tint:#dbeaf7">
+        <div class="panel-copy">
+          <h3 data-reveal>Tu respaldo, en tus manos</h3>
+          <p data-reveal style="--i:1">Un archivo .zip con tus datos, tus ajustes y las fotos que adjuntaste. Lo guardas donde quieras y lo restauras en este teléfono o en otro.</p>
+          <ul class="ticks" data-reveal style="--i:2">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>Restaurar comprueba el archivo antes de tocar nada</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>Movimientos, compras y abonos a CSV</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>Tu mes en un informe PDF</li>
+          </ul>
+        </div>
+        <div class="panel-view">
+          <div class="panel-device">
+            <div class="phone"><div class="phone-screen"><img src="/img/cerofiao/datos-900.webp" srcset="/img/cerofiao/datos-540.webp 540w, /img/cerofiao/datos-900.webp 900w" sizes="(max-width: 900px) 70vw, 360px" alt="Ajustes: ocultar saldos, crear respaldo, restaurar un respaldo, exportar o importar CSV e informe PDF" width="900" height="2004" loading="lazy"></div></div>
+            <div class="pop pop-a row" aria-hidden="true">
+              <span class="chip-ico" style="--c:var(--cyan)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 4v3M12 9.500v2M12 14v2"/></svg></span>
+              <span><b>Respaldo .zip</b><small>Datos, ajustes y fotos</small></span>
+            </div>
+            <div class="pop pop-b dark" aria-hidden="true"><b>Restaurar</b><small>En este teléfono o en otro</small></div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ══ Más funciones ══ -->
+  <section class="band" style="padding-top: var(--gap)">
+    <div class="wrap">
+      <div class="head">
+        <h2 class="display" data-reveal>Y hay más</h2>
+        <p class="lede" data-reveal style="--i:1">Lo que vas necesitando cuando ya tienes las cuentas al día.</p>
+      </div>
+      <ul class="more">
+        <li data-reveal style="--i:0; --c:var(--blue)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg></span><h3>Metas y Baúl</h3><p>Ahorra para una meta o aparta dinero en el Baúl: la app pide un motivo antes de usarlo.</p></li>
+        <li data-reveal style="--i:1; --c:var(--expense)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 16a8 8 0 1 1 15 0"/><path d="m12 13 3.5-4"/></svg></span><h3>Presupuestos</h3><p>Un tope por categoría, cuenta o evento, y un aviso cuando te acercas.</p></li>
+        <li data-reveal style="--i:2; --c:var(--income)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11V9a3 3 0 0 1 3-3h11l-2.5-2.5M20 13v2a3 3 0 0 1-3 3H6l2.5 2.5"/></svg></span><h3>Suscripciones</h3><p>Tus pagos fijos y los cobros que vienen en los próximos 30 días.</p></li>
+        <li data-reveal style="--i:0; --c:var(--cyan)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2.5 19c.5-2.6 2.6-4.2 5.5-4.2 1.6 0 3 .5 4 1.4 1-.9 2.4-1.4 4-1.4 2.9 0 5 1.6 5.5 4.2"/></svg></span><h3>Dividir la cuenta</h3><p>Reparte un gasto entre varios, con IVA, servicio y propina, y anota quién debe qué.</p></li>
+        <li data-reveal style="--i:1; --c:var(--usdt)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13.5 21 4l-5 16-3.5-6.5L3 13.5Z"/><path d="m12.5 13.5 4-4.5"/></svg></span><h3>Viajes</h3><p>Los gastos de cada viaje, juntos y con su propio presupuesto.</p></li>
+        <li data-reveal style="--i:2; --c:var(--violet)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="7.5" width="17" height="12" rx="2.5"/><path d="M9 7.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5M3.5 13h17"/></svg></span><h3>Trabajo</h3><p>Tus empleos por hora, por turno o con pago fijo, y lo que te deben.</p></li>
+        <li data-reveal style="--i:0; --c:var(--income)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14"/><path d="M5 19c2-4 5-7 9-9"/></svg></span><h3>Racha sin</h3><p>Cuenta los días sin un gasto que quieres dejar y lo que llevas ahorrado.</p></li>
+        <li data-reveal style="--i:1; --c:var(--charcoal)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="M3 10h18M7 15h3"/></svg></span><h3>Tarjetas</h3><p>Débito, crédito y prepagadas con sus próximos pagos. Solo guarda los últimos cuatro dígitos.</p></li>
+        <li data-reveal style="--i:2; --c:var(--blue)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1.2"/><rect x="14" y="4" width="6" height="6" rx="1.2"/><rect x="4" y="14" width="6" height="6" rx="1.2"/><path d="M14 14h2v2h-2zM18 18h2v2h-2zM18 14h2M14 18v2"/></svg></span><h3>Métodos de cobro</h3><p>Tus datos de pago móvil, Zelle o Binance, listos para compartir con su QR.</p></li>
+        <li data-reveal style="--i:0; --c:var(--violet)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg></span><h3>Inicio a tu medida</h3><p>26 widgets para elegir, ordenar y ajustar lo que ves al abrir.</p></li>
+        <li data-reveal style="--i:1; --c:var(--cyan)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="3" width="11" height="18" rx="2.6"/><rect x="9" y="6.5" width="6" height="4" rx="1"/><path d="M9 14h6"/></svg></span><h3>Widgets en tu teléfono</h3><p>Saldo y tasas en la pantalla de inicio de Android, sin abrir la app.</p></li>
+        <li data-reveal style="--i:2; --c:var(--bs)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span><h3>Avisos</h3><p>Vencimientos, cobros, presupuestos y la tasa BCV, cada uno con su interruptor.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══ Lo que no tiene ══ -->
   <section class="band">
     <div class="wrap">
-      <div class="center stack-24">
-        <h2 class="display">Y hay más</h2>
-        <p class="lede wide">Lo que vas necesitando cuando ya tienes las cuentas al día.</p>
+      <div class="head">
+        <h2 class="display" data-reveal>Tus datos se quedan contigo</h2>
+        <p class="lede" data-reveal style="--i:1">CeroFiao no tiene cuentas de usuario ni servidores propios. Lo que anotas se guarda en tu teléfono y nosotros no lo recibimos.</p>
       </div>
-      <div class="more">
-        <div style="--c:var(--blue)"><i></i><h3>Metas y Baúl</h3><p>Aparta para lo que quieres y mira cuánto falta.</p></div>
-        <div style="--c:var(--expense)"><i></i><h3>Presupuestos</h3><p>Un tope por categoría y un aviso cuando te acercas.</p></div>
-        <div style="--c:var(--income)"><i></i><h3>Suscripciones</h3><p>Los cobros que vienen en los próximos 30 días.</p></div>
-        <div style="--c:var(--bs)"><i></i><h3>Carrito</h3><p>Suma la compra mientras la haces, antes de llegar a la caja.</p></div>
-        <div style="--c:var(--cyan)"><i></i><h3>Dividir la cuenta</h3><p>Reparte un gasto entre varios y anota quién debe qué.</p></div>
-        <div style="--c:var(--usdt)"><i></i><h3>Viajes</h3><p>Los gastos de un viaje, juntos y aparte del resto.</p></div>
-        <div style="--c:#8e5bd6"><i></i><h3>Analíticas</h3><p>Por semana, mes o año, comparado con tus meses anteriores.</p></div>
-        <div style="--c:var(--cyan)"><i></i><h3>Inicio a tu medida</h3><p>Elige y ordena los widgets que quieres ver al abrir.</p></div>
-        <div style="--c:var(--blue)"><i></i><h3>Respaldos</h3><p>Exporta tus datos y restáuralos en otro teléfono.</p></div>
-      </div>
+      <ul class="nots">
+        <li data-reveal><b>Sin cuenta</b><span>No te registras ni inicias sesión. Abres la app y empiezas.</span></li>
+        <li data-reveal style="--i:1"><b>Sin anuncios</b><span>Ni publicidad ni herramientas que midan lo que haces.</span></li>
+        <li data-reveal style="--i:2"><b>Sin suscripción</b><span>Hoy no tiene planes de pago ni compras dentro de la app.</span></li>
+      </ul>
+      <ul class="safe" data-reveal>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>Oculta tus saldos con un toque, o haz que arranquen tapados</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>Cada registro se confirma deslizando sobre un resumen</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>De tus tarjetas solo se guardan los últimos cuatro dígitos</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>Borrar todos tus datos pide doble confirmación</li>
+      </ul>
+      <p class="nots-link" data-reveal><a class="link" href="/cerofiao/privacidad/">Leer la política de privacidad</a></p>
     </div>
   </section>
 
+  <!-- ══ Cierre ══ -->
   <section class="cta" id="descarga">
     <img src="/img/cerofiao/icon.webp" alt="" width="256" height="256" loading="lazy">
-    <h2 class="display">Ponte al día con tus cuentas</h2>
-    <p class="lede"><span class="only-soon">CeroFiao 1.1 está en prueba interna y llega pronto a Google Play.</span></p>
+    <h2 class="display" data-reveal>Ponte al día con tus cuentas</h2>
+    <p class="lede" data-reveal style="--i:1"><span class="only-soon">CeroFiao 1.1 está en prueba interna y llega pronto a Google Play.</span></p>
     <a class="pill lg" href="mailto:soporte@schwarckdev.com?subject=Quiero%20probar%20CeroFiao" data-play="Descargar en Google Play">
       <svg viewBox="0 0 14 16" aria-hidden="true"><path fill="currentColor" d="M1.6.3A1 1 0 0 0 0 1.1v13.8a1 1 0 0 0 1.6.8l11.7-6.9a1 1 0 0 0 0-1.6z"/></svg>
       <span data-play-label>Pedir acceso a la prueba</span>
@@ -185,12 +371,13 @@
   <div class="wrap">
     <div class="foot-grid">
       <div>
-        <a class="nav-brand" href="/cerofiao/"><img src="/img/cerofiao/logo.svg" alt="" width="20" height="24">CeroFiao</a>
+        <a class="nav-brand" href="/cerofiao/"><img src="/img/cerofiao/logo.svg" alt="" width="20" height="23">CeroFiao</a>
       </div>
       <div>
         <h2>CeroFiao</h2>
         <ul>
           <li><a href="#funciones">Funciones</a></li>
+          <li><a href="#venezuela">Para Venezuela</a></li>
           <li><a href="/cerofiao/privacidad/">Privacidad</a></li>
           <li><a href="#descarga">Descarga</a></li>
         </ul>
@@ -208,6 +395,6 @@
   </div>
 </footer>
 
-<script type="module" src="/src/site.js"></script>
+<script type="module" src="/src/cerofiao.js"></script>
 </body>
 </html>

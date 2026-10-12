@@ -5,28 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Schwarck: estudio de apps para Android</title>
   <meta name="description" content="Schwarck Developer hace apps nativas para Android. CeroFiao, para tus cuentas en varias monedas, y Lion Fitness, en desarrollo.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Schwarck: estudio de apps para Android">
+  <meta property="og:description" content="Apps nativas para Android que guardan tus datos en tu teléfono.">
   <meta name="theme-color" content="#ffffff">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="/src/studio.css">
 </head>
 <body>
 
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
 <header class="top">
   <div class="wrap">
     <a class="brand" href="/"><span class="mark"></span>Schwarck</a>
-    <nav aria-label="Principal">
+    <nav class="top-nav" aria-label="Principal">
       <a href="/#apps">Apps</a>
       <a href="/cerofiao/">CeroFiao</a>
       <a href="/lionfitness/">Lion Fitness</a>
     </nav>
-    <a class="btn dark pill" href="mailto:soporte@schwarckdev.com">Escríbenos</a>
+    <div class="top-end">
+      <a class="btn dark pill" href="mailto:soporte@schwarckdev.com">Escríbenos</a>
+      <details class="menu">
+        <summary aria-label="Menú"><i></i><i></i></summary>
+        <nav class="menu-panel" aria-label="Menú">
+          <a href="/#apps">Apps</a>
+          <a href="/cerofiao/">CeroFiao</a>
+          <a href="/lionfitness/">Lion Fitness</a>
+          <a href="mailto:soporte@schwarckdev.com">Escríbenos</a>
+        </nav>
+      </details>
+    </div>
   </div>
 </header>
 
-<main>
+<main id="contenido">
   <section class="hero">
     <div class="wrap">
       <div class="tags">
@@ -34,11 +50,14 @@
         <span class="tag plain">Kotlin y Jetpack Compose</span>
       </div>
       <div class="hero-grid">
-        <h1>Hacemos apps para <span data-rotate="tus cuentas|tu entrenamiento|tu día a día">tus cuentas</span></h1>
+        <h1 aria-label="Hacemos apps para tus cuentas, tu entrenamiento y tu día a día">
+          <span class="line" aria-hidden="true"><span>Hacemos apps para</span></span>
+          <span class="line rotor" aria-hidden="true" data-rotate="tus cuentas|tu entrenamiento|tu día a día"><span class="word is-on">tus cuentas</span></span>
+        </h1>
         <div class="hero-side">
           <p>Schwarck es un estudio de desarrollo. Diseñamos y programamos apps para Android que resuelven algo concreto y guardan tus datos en tu teléfono.</p>
           <div class="actions">
-            <a class="btn dark" href="#apps">Ver las apps</a>
+            <a class="btn dark" href="#apps">Ver las apps <svg class="ico down" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12m-5-5 5 5 5-5"/></svg></a>
             <a class="btn soft" href="/cerofiao/">Conocer CeroFiao</a>
           </div>
         </div>
@@ -46,76 +65,99 @@
     </div>
   </section>
 
-  <section class="section" id="apps">
-    <div class="wrap work">
-      <a class="product" href="/cerofiao/">
-        <div class="product-media cf">
-          <img src="/img/cerofiao/cuentas.webp" alt="" width="672" height="1496">
-          <img src="/img/cerofiao/home.webp" alt="Pantalla de inicio de CeroFiao" width="672" height="1496">
-          <img src="/img/cerofiao/tasas.webp" alt="" width="672" height="1496">
-        </div>
-        <div class="product-body">
-          <h3><u>CeroFiao</u> <span class="tag ember">1.1 en prueba</span></h3>
-          <p>Tus cuentas en bolívares, dólares, euros y USDT con la tasa del día. Deudas, metas, presupuestos y un escáner de facturas, sin nubes.</p>
-          <div class="tags">
-            <span class="tag">Finanzas personales</span>
-            <span class="tag">Varias monedas</span>
-            <span class="tag">Android 14+</span>
+  <section class="section" id="apps" aria-labelledby="apps-titulo">
+    <div class="wrap">
+      <h2 class="sr-only" id="apps-titulo">Las apps del estudio</h2>
+      <div class="work">
+        <a class="product" href="/cerofiao/" aria-labelledby="cf-nombre" aria-describedby="cf-resumen" data-reveal>
+          <div class="product-media cf" data-drift>
+            <span class="shot"><img src="/img/cerofiao/cuentas.webp" alt="" width="672" height="1496"></span>
+            <span class="shot"><img src="/img/cerofiao/home.webp" alt="Pantalla de inicio de CeroFiao" width="672" height="1496"></span>
+            <span class="shot"><img src="/img/cerofiao/tasas.webp" alt="" width="672" height="1496"></span>
+            <span class="go" aria-hidden="true"><svg class="ico" viewBox="0 0 20 20"><path d="M6 14 14 6M7 6h7v7"/></svg></span>
           </div>
-        </div>
-      </a>
+          <div class="product-body">
+            <h3 id="cf-nombre"><span class="name">CeroFiao</span> <span class="tag ember">1.1 en prueba</span></h3>
+            <p id="cf-resumen">Tus cuentas en bolívares, dólares, euros y USDT con la tasa del día. Deudas, metas, presupuestos y un escáner de facturas, sin nubes.</p>
+            <div class="tags">
+              <span class="tag">Finanzas personales</span>
+              <span class="tag">Varias monedas</span>
+              <span class="tag">Android 14+</span>
+            </div>
+          </div>
+        </a>
 
-      <a class="product" href="/lionfitness/">
-        <div class="product-media lf"><img src="/img/lionfitness/logo.webp" alt="" width="567" height="720" loading="lazy"><div>Lion<br>Fitness<small>Página en camino</small></div></div>
-        <div class="product-body">
-          <h3><u>Lion Fitness</u> <span class="tag fill">En desarrollo</span></h3>
-          <p>Nuestra app de entrenamiento. Todavía la estamos construyendo.</p>
-          <div class="tags">
-            <span class="tag">Entrenamiento</span>
-            <span class="tag">Android</span>
+        <a class="product" href="/lionfitness/" aria-labelledby="lf-nombre" aria-describedby="lf-resumen" data-reveal style="--i:1">
+          <div class="product-media lf" data-drift>
+            <img src="/img/lionfitness/logo.webp" alt="" width="567" height="720">
+            <div class="lf-name">Lion<br>Fitness<small>Página en camino</small></div>
+            <span class="go" aria-hidden="true"><svg class="ico" viewBox="0 0 20 20"><path d="M6 14 14 6M7 6h7v7"/></svg></span>
           </div>
-        </div>
-      </a>
+          <div class="product-body">
+            <h3 id="lf-nombre"><span class="name">Lion Fitness</span> <span class="tag fill">En desarrollo</span></h3>
+            <p id="lf-resumen">Nuestra app de entrenamiento. Todavía la estamos construyendo.</p>
+            <div class="tags">
+              <span class="tag">Entrenamiento</span>
+              <span class="tag">Android</span>
+            </div>
+          </div>
+        </a>
+      </div>
     </div>
   </section>
 
-  <section class="section">
+  <section class="section" aria-labelledby="como-titulo">
     <div class="wrap dark-block">
-      <div class="panel night">
-        <h2>Cómo hacemos una app</h2>
+      <div class="panel night" data-reveal>
+        <h2 id="como-titulo">Cómo hacemos una app</h2>
         <p>Pocas reglas, las mismas en cada proyecto.</p>
       </div>
-      <ul class="panel list">
-        <li><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Nativa, escrita en Kotlin para Android</li>
-        <li><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Tus datos en tu teléfono, no en nuestros servidores</li>
-        <li><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Diseño propio en cada pantalla, en claro y en oscuro</li>
-        <li><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Sin anuncios y sin medir lo que haces</li>
+      <ul class="panel list" data-reveal style="--i:1">
+        <li data-reveal style="--i:2"><svg class="ico" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg> Nativa, escrita en Kotlin para Android</li>
+        <li data-reveal style="--i:3"><svg class="ico" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg> Tus datos en tu teléfono, no en nuestros servidores</li>
+        <li data-reveal style="--i:4"><svg class="ico" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg> Diseño propio en cada pantalla, en claro y en oscuro</li>
+        <li data-reveal style="--i:5"><svg class="ico" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg> Sin anuncios y sin medir lo que haces</li>
       </ul>
     </div>
   </section>
 
-  <section class="section">
+  <section class="section" aria-labelledby="cifras-titulo">
     <div class="wrap">
-      <div class="head">
-        <h2>CeroFiao en números</h2>
+      <div class="head" data-reveal>
+        <h2 id="cifras-titulo">CeroFiao en números</h2>
         <p>Lo que hay hoy dentro de la primera app del estudio.</p>
       </div>
       <div class="stats">
-        <div class="stat"><b>5</b><span>monedas con<br>su tasa del día</span></div>
-        <div class="stat"><b>22</b><span>widgets para armar<br>tu pantalla de inicio</span></div>
-        <div class="stat"><b>1 561</b><span>pruebas automáticas<br>antes de cada entrega</span></div>
+        <div class="stat" data-reveal><b data-count>5</b><span>monedas en<br>una misma app</span></div>
+        <div class="stat" data-reveal style="--i:1"><b data-count>26</b><span>widgets para armar<br>tu pantalla de inicio</span></div>
+        <div class="stat" data-reveal style="--i:2"><b data-count>1 563</b><span>pruebas automáticas<br>de sus cálculos</span></div>
       </div>
     </div>
   </section>
 
-  <section class="section">
+  <section class="section" aria-labelledby="contacto-titulo">
     <div class="wrap">
-      <div class="contact">
+      <div class="contact" data-reveal>
         <div>
-          <h2>¿Hablamos?</h2>
+          <h2 id="contacto-titulo">¿Hablamos?</h2>
           <p>Dudas, ideas o ganas de probar una app antes de que salga.</p>
         </div>
-        <a class="btn dark" href="mailto:soporte@schwarckdev.com">Escribir a soporte@schwarckdev.com</a>
+        <div class="actions">
+          <a class="btn dark" href="mailto:soporte@schwarckdev.com"><span class="wide">Escribir a&nbsp;</span>soporte@schwarckdev.com</a>
+          <button class="btn soft copy" type="button" data-copy="soporte@schwarckdev.com" hidden>
+            <span class="swap" aria-hidden="true">
+              <svg class="ico" data-when="idle" viewBox="0 0 20 20"><path d="M8 7V5.5A1.5 1.5 0 0 1 9.500 4h5A1.500 1.500 0 0 1 16 5.500v5a1.500 1.500 0 0 1-1.500 1.500H13M5.500 8h5A1.500 1.500 0 0 1 12 9.500v5a1.500 1.500 0 0 1-1.500 1.500h-5A1.500 1.500 0 0 1 4 14.500v-5A1.500 1.500 0 0 1 5.500 8Z"/></svg>
+              <svg class="ico" data-when="done" viewBox="0 0 20 20"><path d="m4.500 10.500 3.500 3.500 7.500-8"/></svg>
+              <svg class="ico" data-when="fail" viewBox="0 0 20 20"><path d="m5.500 5.500 9 9m0-9-9 9"/></svg>
+            </span>
+            <span class="swap">
+              <span data-when="idle">Copiar correo</span>
+              <span data-when="done" aria-hidden="true">Copiado</span>
+              <span data-when="fail" aria-hidden="true">No se pudo</span>
+            </span>
+          </button>
+          <span class="sr-only" role="status" data-copy-status></span>
+        </div>
       </div>
     </div>
   </section>
@@ -123,16 +165,22 @@
 
 <footer class="foot">
   <div class="wrap">
-    <span>© 2026 Schwarck Developer</span>
-    <nav aria-label="Pie">
-      <a href="/cerofiao/">CeroFiao</a>
-      <a href="/cerofiao/privacidad/">Privacidad de CeroFiao</a>
-      <a href="/lionfitness/">Lion Fitness</a>
-      <a href="mailto:soporte@schwarckdev.com">soporte@schwarckdev.com</a>
-    </nav>
+    <div class="foot-top">
+      <a class="brand" href="/"><span class="mark"></span>Schwarck</a>
+      <nav aria-label="Pie">
+        <a href="/cerofiao/">CeroFiao</a>
+        <a href="/cerofiao/privacidad/">Privacidad de CeroFiao</a>
+        <a href="/lionfitness/">Lion Fitness</a>
+        <a href="mailto:soporte@schwarckdev.com">soporte@schwarckdev.com</a>
+      </nav>
+    </div>
+    <div class="foot-end">
+      <span>© 2026 Schwarck Developer</span>
+      <a class="up" href="#top">Volver arriba <svg class="ico" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4m-5 5 5-5 5 5"/></svg></a>
+    </div>
   </div>
 </footer>
 
-<script type="module" src="/src/site.js"></script>
+<script type="module" src="/src/studio.js"></script>
 </body>
 </html>

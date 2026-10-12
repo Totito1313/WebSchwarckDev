@@ -5,46 +5,76 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Página no encontrada | Schwarck</title>
   <meta name="description" content="Esta dirección no existe.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Página no encontrada | Schwarck">
+  <meta property="og:description" content="Esta dirección no existe.">
   <meta name="theme-color" content="#ffffff">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="/src/studio.css">
 </head>
 <body>
 
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
 <header class="top">
   <div class="wrap">
     <a class="brand" href="/"><span class="mark"></span>Schwarck</a>
-    <nav aria-label="Principal">
+    <nav class="top-nav" aria-label="Principal">
       <a href="/#apps">Apps</a>
       <a href="/cerofiao/">CeroFiao</a>
       <a href="/lionfitness/">Lion Fitness</a>
     </nav>
-    <a class="btn dark pill" href="mailto:soporte@schwarckdev.com">Escríbenos</a>
+    <div class="top-end">
+      <a class="btn dark pill" href="mailto:soporte@schwarckdev.com">Escríbenos</a>
+      <details class="menu">
+        <summary aria-label="Menú"><i></i><i></i></summary>
+        <nav class="menu-panel" aria-label="Menú">
+          <a href="/#apps">Apps</a>
+          <a href="/cerofiao/">CeroFiao</a>
+          <a href="/lionfitness/">Lion Fitness</a>
+          <a href="mailto:soporte@schwarckdev.com">Escríbenos</a>
+        </nav>
+      </details>
+    </div>
   </div>
 </header>
 
-<main class="wrap solo">
-  <div class="tags"><span class="tag plain">Error 404</span></div>
-  <h1>Aquí no hay nada</h1>
-  <p>La dirección no existe o cambió de sitio. Estas sí funcionan:</p>
-  <div class="actions">
-    <a class="btn dark" href="/">Ir al estudio</a>
-    <a class="btn soft" href="/cerofiao/">Ir a CeroFiao</a>
+<main id="contenido" class="wrap solo">
+  <div class="solo-copy">
+    <div class="tags"><span class="tag plain">Error 404</span></div>
+    <h1>Aquí no hay nada</h1>
+    <p>La dirección no existe o cambió de sitio. Estas sí funcionan:</p>
+    <div class="actions">
+      <a class="btn dark" href="/">Ir al estudio</a>
+      <a class="btn soft" href="/cerofiao/">Ir a CeroFiao</a>
+    </div>
+  </div>
+  <div class="solo-art sheet" aria-hidden="true">
+    <div class="solo-code"><span>4</span><span>0</span><span>4</span></div>
   </div>
 </main>
 
 <footer class="foot">
   <div class="wrap">
-    <span>© 2026 Schwarck Developer</span>
-    <nav aria-label="Pie">
-      <a href="/cerofiao/">CeroFiao</a>
-      <a href="/cerofiao/privacidad/">Privacidad de CeroFiao</a>
-      <a href="/lionfitness/">Lion Fitness</a>
-      <a href="mailto:soporte@schwarckdev.com">soporte@schwarckdev.com</a>
-    </nav>
+    <div class="foot-top">
+      <a class="brand" href="/"><span class="mark"></span>Schwarck</a>
+      <nav aria-label="Pie">
+        <a href="/cerofiao/">CeroFiao</a>
+        <a href="/cerofiao/privacidad/">Privacidad de CeroFiao</a>
+        <a href="/lionfitness/">Lion Fitness</a>
+        <a href="mailto:soporte@schwarckdev.com">soporte@schwarckdev.com</a>
+      </nav>
+    </div>
+    <div class="foot-end">
+      <span>© 2026 Schwarck Developer</span>
+      <a class="up" href="#top">Volver arriba <svg class="ico" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4m-5 5 5-5 5 5"/></svg></a>
+    </div>
   </div>
 </footer>
-</body></html>
+
+<script type="module" src="/src/studio.js"></script>
+</body>
+</html>
