@@ -1,7 +1,9 @@
 import { initMotion, onScroll, through, setVar, clamp, easeOut } from './motion.js';
+import { initTheme } from './theme.js';
 
 const root = document.documentElement;
 const motion = initMotion();
+initTheme();
 
 // Cabecera: línea y vidrio en cuanto la página se mueve.
 onScroll(() => root.classList.toggle('scrolled', scrollY > 8));
@@ -141,4 +143,19 @@ for (const btn of document.querySelectorAll('[data-copy]')) {
       if (status) status.textContent = '';
     }, 2000);
   });
+}
+
+// Preguntas: sin JS están todas abiertas; aquí se pliegan y cada una abre con su botón.
+const questions = [...document.querySelectorAll('.faq-item')];
+if (questions.length) {
+  const set = (item, open) => {
+    item.classList.toggle('is-open', open);
+    item.querySelector('.faq-q').setAttribute('aria-expanded', String(open));
+    item.querySelector('.faq-a').inert = !open;
+  };
+  for (const item of questions) {
+    set(item, false);
+    item.querySelector('.faq-q').addEventListener('click', () => set(item, !item.classList.contains('is-open')));
+  }
+  root.classList.add('faq-ready');
 }

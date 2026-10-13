@@ -1,0 +1,56 @@
+[
+  {
+    "id": "v1-1",
+    "title": "Versión 1.1",
+    "date": "2026-10-12",
+    "tag": "En prueba interna",
+    "published": true,
+    "items": [
+      "Escanea una factura: apunta con la cámara, o elige una foto, y CeroFiao lee el total, la fecha, el comercio y la lista de productos, con cuántos llevaste de cada uno y a cuánto.",
+      "Revisa y confirma en una sola página: toca cualquier dato o producto para corregirlo y desliza para registrar.",
+      "También lee la captura de un pago móvil o de tu billetera: el monto, la referencia y si el dinero entró o salió.",
+      "Lo que corriges se aprende: la próxima factura de ese comercio llega con su nombre y su categoría.",
+      "Todo se lee en tu teléfono: las fotos no salen de él. Lo que dejes para después queda en «Por revisar»."
+    ]
+  },
+  {
+    "id": "v1-0",
+    "title": "Versión 1.0",
+    "date": "2026-10-11",
+    "tag": "",
+    "published": true,
+    "items": [
+      "Tasas a tu manera: una página de bloques con conversor y calculadora, histórico de hasta un año, la brecha cambiaria y un aviso cuando pasa de lo que elijas.",
+      "Cada cuenta con el logo de su banco o billetera, y cada movimiento dice de dónde viene: una deuda, una meta, una suscripción o una compra.",
+      "Carrito completo: listas que se repiten, cobro con recibo y foto de la factura, compras que se corrigen y el precio de cada producto en el tiempo.",
+      "Ahorros reúne Metas y Baúl: aportes con destino, ahorrar con alguien más, el ritmo que necesitas y aportes automáticos.",
+      "Trabajo: empleos por hora o con pago fijo, tareas con cronómetro, calendario del mes y recibo de pago para un cliente.",
+      "Suscripciones con su historial de pagos, y deudas con interés, mora, comprobantes con foto y estado de cuenta.",
+      "Dividir cuenta guarda cada división, anota lo que te deben y sabe quién ya pagó.",
+      "Racha sin: insignias, diario, recaídas con su gasto y un aviso cuando ganas una insignia.",
+      "Compartir es la misma hoja en toda la app: seis diseños, en imagen, texto o PDF, con tus métodos de cobro y su QR.",
+      "Entra más rápido: atajos en el icono, widgets de saldo y de tasas, mosaicos en el panel rápido, enlaces para tus rutinas y compartir una captura con CeroFiao.",
+      "El respaldo lleva también tus fotos, y puedes exportar a CSV tus compras, abonos y rachas."
+    ]
+  },
+  {
+    "id": "rediseno-2026",
+    "title": "Rediseño 2026",
+    "date": "2026-09-25",
+    "tag": "",
+    "published": true,
+    "items": [
+      "Un inicio a tu medida: widgets de cada sección que agregas, quitas, ordenas y ajustas (mantén presionado uno), con «Para hoy» y un conversor.",
+      "La isla ya no tapa nada y cada pantalla tiene su encabezado fijo.",
+      "Cada moneda con su tasa: USD y EUR a BCV, USDT y EURI a su mercado. Puedes compartir como imagen.",
+      "Categorías con su detalle, palabras clave sin acentos y borrado con destino para sus movimientos.",
+      "Presupuestos por cuenta, evento o meta, el Plan del mes y el Baúl para el dinero que no se toca.",
+      "Personas, deudas con cuotas y recibos para compartir, y un divisor de cuentas con IVA, servicio e IGTF.",
+      "Deudas más claras: confirmas cada registro deslizando, ves qué cuotas paga un abono y puedes deshacer un borrado.",
+      "Gastos, ingresos y transferencias también se confirman deslizando, con un resumen de lo que se guarda (puedes apagarlo en Ajustes › Registro).",
+      "Suscripciones por pasos con planes compartidos, ingresos recurrentes y un carrito con catálogo.",
+      "Analíticas en una sola pantalla, búsqueda por montos y fechas, y un perfil con logros.",
+      "Ajustes que funcionan: cuenta por defecto, montos grandes, ubicación, tamaño del texto, avisos y respaldo completo."
+    ]
+  }
+]

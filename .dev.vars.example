@@ -1,0 +1,3 @@
+# Copia este archivo como .dev.vars para probar el panel en local (npx wrangler dev).
+# En producción la contraseña es un secreto de Cloudflare, no un archivo.
+ADMIN_PASSWORD=pon-aqui-una-contrasena-de-prueba

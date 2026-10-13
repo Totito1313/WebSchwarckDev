@@ -6,3 +6,4 @@ legacy_backup/
 .DS_Store
 Thumbs.db
 desktop.ini
+.dev.vars

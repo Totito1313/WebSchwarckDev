@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Política de privacidad de CeroFiao</title>
   <meta name="description" content="CeroFiao guarda tus datos en tu teléfono. Sin cuentas de usuario, sin servidores propios, sin anuncios y sin seguimiento.">
+  <meta name="theme-color" content="#ffffff" data-light="#ffffff" data-dark="#0b0d10">
+  <script>try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="canonical" href="https://schwarckdev.com/cerofiao/privacidad/">
   <link rel="icon" href="/img/cerofiao/icon-180.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,6 +27,7 @@
     <a href="/cerofiao/privacidad/" aria-current="page">Privacidad</a>
     <a href="/">Schwarck</a>
   </nav>
+  <button class="theme-btn" type="button" data-theme-toggle hidden><svg class="moon" viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 11.6A6.5 6.5 0 0 1 8.4 3.5a6.5 6.5 0 1 0 8.1 8.1Z"/></svg><svg class="sun" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.4"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7 6 6M14 14l1.3 1.3M4.7 15.3 6 14M14 6l1.3-1.3"/></svg></button>
   <a class="pill" href="/cerofiao/#descarga">La app</a>
 </header>
 
@@ -66,6 +70,14 @@
   <h2>Menores de edad</h2>
   <p>CeroFiao es una herramienta de finanzas personales para adultos. No está dirigida a menores de 13 años.</p>
 
+  <h2>Este sitio web</h2>
+  <p>Lo anterior habla de la app. Esta página web, <code>schwarckdev.com</code>, es otra cosa y recoge lo mínimo:</p>
+  <ul>
+    <li><strong>Sin seguimiento.</strong> El sitio no usa cookies de publicidad ni herramientas de analítica.</li>
+    <li><strong>Tipografías.</strong> Las letras se cargan desde Google Fonts, así que Google ve la dirección IP desde la que se visita la página.</li>
+    <li><strong>Reseñas.</strong> Si envías una, guardamos el nombre o alias que escribas, tu calificación, el texto y la fecha. Se guardan en Cloudflare, que aloja este sitio, y se publican solo después de revisarlas. No pedimos correo. Para frenar abusos se conserva durante un día una huella anónima derivada de tu dirección IP; la IP no se guarda. Para que borremos tu reseña, escribe al correo de contacto.</li>
+    <li><strong>Tema claro u oscuro.</strong> Tu elección se guarda en tu navegador y no sale de él.</li>
+  </ul>
   <h2>Cambios en esta política</h2>
   <p>Si la app cambia de forma que afecte a tus datos —por ejemplo, si algún día ofrece sincronización—, esta página se actualizará antes y la app lo avisará en sus novedades.</p>
 </main>
@@ -75,5 +87,6 @@
     <p class="foot-note">© 2026 Schwarck Developer. <a href="/cerofiao/">CeroFiao</a> · <a href="/">El estudio</a></p>
   </div>
 </footer>
+<script type="module" src="/src/privacy.js"></script>
 </body>
 </html>
