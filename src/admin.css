@@ -1,7 +1,11 @@
 /* Panel de administración. Se apoya en los tokens y botones de studio.css. */
 
 .adm { max-width: 920px; padding-block: calc(var(--top) + 40px) 96px; }
-.adm-where { color: var(--fog); font-size: 15px; }
+
+/* El panel no tiene menú desplegable: en móvil sus secciones bajan a una fila bajo la cabecera. */
+.adm-switch { display: none; gap: 2px; margin-bottom: 24px; padding: 4px; border-radius: 16px; background: var(--hover); }
+.adm-switch a { flex: 1; padding: 9px 10px; border-radius: 12px; color: var(--steel); font-size: 14px; font-weight: 500; text-align: center; text-decoration: none; }
+.adm-switch a[aria-current] { background: var(--snow); color: var(--obsidian); box-shadow: 0 0 0 1px var(--cloud); }
 .adm-note { padding-block: 64px; color: var(--steel); text-align: center; }
 
 .adm-card { display: grid; gap: 16px; max-width: 560px; margin: 48px auto 0; padding: 36px; border: 1px solid var(--cloud); border-radius: 36px; background: var(--snow); }
@@ -69,5 +73,8 @@
 @media (max-width: 720px) {
   .adm-row { grid-template-columns: minmax(0, 1fr); }
   .adm-card { padding: 28px 24px; border-radius: 28px; }
-  .adm-where { display: none; }
+}
+@media (max-width: 600px) {
+  .adm-top .theme-btn { display: grid; }
+  .adm-switch { display: flex; }
 }

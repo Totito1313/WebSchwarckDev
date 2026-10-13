@@ -13,6 +13,7 @@ Cada `git push` a `main` se publica solo en Cloudflare.
 | `/cerofiao/privacidad/` | `cerofiao/privacidad/index.html` | Política de privacidad (la URL que pide Play Console) |
 | `/lionfitness/` | `lionfitness/index.html` | Marcador |
 | `/admin/` | `admin/index.html` | Panel: novedades y reseñas |
+| `/admin/tienda/` | `admin/tienda/index.html` | Estudio de gráficos para la ficha de Google Play |
 | `/api/*` | `worker/index.js` | La API que usan la página y el panel |
 
 Son páginas HTML con CSS y un poco de JavaScript, construidas con Vite. No hay framework.
@@ -21,6 +22,7 @@ Son páginas HTML con CSS y un poco de JavaScript, construidas con Vite. No hay 
 - `src/theme.js`: tema claro u oscuro. Sin elección guardada sigue al sistema.
 - `data/changelog.json`: las novedades de CeroFiao tal como salen sin panel. Vite las pinta en la página al construir.
 - `public/img/cerofiao/`: capturas reales de la app, en claro y en oscuro (`-dark`).
+- `public/img/cerofiao/store/`: las mismas capturas a 1080 px de ancho, para el estudio de gráficos.
 
 ## Trabajar en local
 
@@ -60,6 +62,23 @@ La contraseña no está en el repositorio. Se define en Cloudflare:
 3. Guarda. A los pocos segundos `/admin/` deja entrar con ella.
 
 Mientras no exista, el panel muestra estas mismas instrucciones y nadie puede entrar.
+
+### Gráficos para Google Play
+
+En `/admin/tienda/` se componen las imágenes de la ficha con las capturas de la app y se descargan en la medida que pide Play Console:
+
+- **Capturas de teléfono**: 1080 × 1920 px (9:16). Play admite de 2 a 8.
+- **Gráfico de funciones**: 1024 × 500 px.
+
+Hay varias plantillas, fondos, adornos y letras; «Ideas» enseña el mismo contenido en otros estilos y «Proponer una serie» arma las ocho capturas con el estilo elegido. «Descargar todo» entrega un `.zip` con la serie y el gráfico de funciones.
+
+Los archivos salen en PNG de 24 bits sin transparencia (Play rechaza los PNG con canal alfa) o en JPEG. Todo se dibuja en el navegador: no se sube nada y no hace falta contraseña. El trabajo se guarda en ese navegador; las capturas subidas a mano solo duran lo que dure la pestaña.
+
+- `src/store-render.js`: las plantillas. Cada una es una función que pinta en un `<canvas>`; para añadir otra basta sumarla a `PHONE_TEMPLATES` o `FEATURE_TEMPLATES`.
+- `src/store-export.js`: escribe el PNG, el JPEG y el `.zip`.
+- `src/store-studio.js`: los controles de la página.
+
+Para añadir una captura nueva, guárdala en `public/img/cerofiao/store/` como `nombre.webp` (1080 px de ancho), `nombre-thumb.webp` (216 px) y, si existe en oscuro, `nombre-dark.webp` y `nombre-dark-thumb.webp`; luego añádela a `LIBRARY` en `src/store-studio.js`.
 
 ### Dónde se guardan los datos
 
