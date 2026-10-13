@@ -127,6 +127,8 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: calc(var(--top) + 24px); -webkit-text-size-adjust: 100%; }
+/* Con el scroll con inercia activo (src/smooth.js), los saltos los anima él. */
+html.lenis { scroll-behavior: auto; }
 
 body {
   margin: 0;

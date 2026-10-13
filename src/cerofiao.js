@@ -1,5 +1,6 @@
 import { initMotion, onScroll, pinned, through, range, easeOut, setVar, reducedMotion } from './motion.js';
 import { initTheme } from './theme.js';
+import { initSmoothScroll } from './smooth.js';
 import { renderChangelog } from './changelog-render.js';
 
 // Enlace de CeroFiao en Google Play. Mientras esté vacío, los botones dicen
@@ -19,6 +20,7 @@ if (PLAY_URL) {
 
 const motion = initMotion();
 initTheme();
+initSmoothScroll();
 
 // ── Navegación: gana cuerpo al dejar el borde superior ──
 const nav = document.querySelector('.nav');

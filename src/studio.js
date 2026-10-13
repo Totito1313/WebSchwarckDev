@@ -1,9 +1,11 @@
 import { initMotion, onScroll, through, setVar, clamp, easeOut } from './motion.js';
 import { initTheme } from './theme.js';
+import { initSmoothScroll } from './smooth.js';
 
 const root = document.documentElement;
 const motion = initMotion();
 initTheme();
+initSmoothScroll();
 
 // Cabecera: línea y vidrio en cuanto la página se mueve.
 onScroll(() => root.classList.toggle('scrolled', scrollY > 8));
