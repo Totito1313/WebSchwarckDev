@@ -37,6 +37,92 @@ export const DEFAULT_STAGES = ['Arranque', 'En curso', 'Revisión', 'Entregado']
 
 const has = (v) => v != null && v !== '';
 
+// ── Claves (al estilo de Linear) ──
+// Cada proyecto tiene una clave corta (CF, WEB…) y cada tarea un número dentro
+// de su proyecto: CF-12. Las tareas sin proyecto usan TAR. Si un proyecto cambia
+// de clave o una tarea de proyecto, las claves viejas siguen llevando a la tarea.
+
+export const NO_PROJECT_CODE = 'TAR';
+const plain = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+
+/** Clave libre a partir del nombre: iniciales de dos o tres palabras, o las tres primeras letras. */
+const SMALL_WORDS = new Set(['Y', 'E', 'O', 'U', 'A', 'AL', 'DE', 'DEL', 'LA', 'LAS', 'EL', 'LOS', 'EN', 'PARA', 'POR', 'CON', 'UN', 'UNA', 'TU', 'MI', 'SU', 'THE', 'OF', 'AND']);
+
+export function codeFrom(name, taken = new Set()) {
+  const all = plain(name).split(/[^A-Z0-9]+/).filter(Boolean);
+  const words = all.filter((w) => !SMALL_WORDS.has(w)).length ? all.filter((w) => !SMALL_WORDS.has(w)) : all;
+  let code = words.length > 1 ? words.slice(0, 3).map((w) => w[0]).join('') : (words[0] || 'PRY').slice(0, 3);
+  if (!/^[A-Z]/.test(code)) code = `P${code}`.slice(0, 4);
+  if (code === NO_PROJECT_CODE) code = 'TA';
+  let out = code;
+  for (let i = 2; taken.has(out); i++) out = `${code}${i}`;
+  return out;
+}
+
+export const cleanCode = (text) => plain(text).replace(/[^A-Z0-9]/g, '').slice(0, 6);
+export const projectCode = (p) => p?.code || codeFrom(p?.name);
+export const takenCodes = (except = '') => new Set(state.projects.filter((p) => p.id !== except).flatMap((p) => [projectCode(p), ...(p.oldCodes || [])]));
+
+const prefixOf = (task) => {
+  const p = task?.projectId && find('projects', task.projectId);
+  return p ? projectCode(p) : NO_PROJECT_CODE;
+};
+export const taskKey = (task) => (task?.num ? `${prefixOf(task)}-${task.num}` : '');
+
+/** El siguiente número libre del proyecto. Los de tareas que se fueron a otro proyecto no se reutilizan. */
+export function nextNum(projectId) {
+  const p = projectId && find('projects', projectId);
+  const codes = p ? [projectCode(p), ...(p.oldCodes || [])] : [NO_PROJECT_CODE];
+  let top = 0;
+  for (const t of state.tasks) {
+    if ((t.projectId || '') === (projectId || '')) top = Math.max(top, Number(t.num) || 0);
+    for (const key of t.oldKeys || []) {
+      const [prefix, n] = key.split('-');
+      if (codes.includes(prefix)) top = Math.max(top, Number(n) || 0);
+    }
+  }
+  return top + 1;
+}
+
+/** La tarea de una clave, también de las viejas. */
+export function findTaskByKey(key) {
+  const m = /^([A-Z][A-Z0-9]{0,5})-(\d{1,5})$/.exec(String(key || '').toUpperCase());
+  if (!m) return null;
+  const [, prefix, n] = m;
+  const num = Number(n);
+  const codes = (t) => {
+    const p = t.projectId && find('projects', t.projectId);
+    return p ? [projectCode(p), ...(p.oldCodes || [])] : [NO_PROJECT_CODE];
+  };
+  return state.tasks.find((t) => t.num === num && codes(t).includes(prefix))
+    || state.tasks.find((t) => (t.oldKeys || []).includes(`${prefix}-${num}`))
+    || null;
+}
+
+/** La primera vez: clave a cada proyecto y número a cada tarea, por orden de creación. */
+export function ensureKeys() {
+  const taken = new Set(state.projects.map((p) => p.code).filter(Boolean));
+  for (const p of state.projects) {
+    if (p.code) continue;
+    p.code = codeFrom(p.name, taken);
+    taken.add(p.code);
+    put('projects', p);
+  }
+  const groups = new Map();
+  for (const t of state.tasks) {
+    const k = t.projectId || '';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(t);
+  }
+  for (const list of groups.values()) {
+    let top = Math.max(0, ...list.map((t) => Number(t.num) || 0));
+    for (const t of list.filter((x) => !x.num).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))) {
+      t.num = ++top;
+      put('tasks', t);
+    }
+  }
+}
+
 // ── Proyectos ──
 
 export function newProject(customer = null) {
@@ -44,6 +130,7 @@ export function newProject(customer = null) {
   return {
     id: uid(),
     name: '',
+    code: '',
     customerId: customer?.id || '',
     status: 'pending',
     currency: customer?.currency || s.currency || 'USD',
@@ -91,10 +178,12 @@ export function removeProject(p) {
 
 // ── Tareas ──
 
-export function newTask({ projectId = '', status = 'todo' } = {}) {
+export function newTask({ projectId = '', status = 'todo', parentId = '' } = {}) {
   return {
     id: uid(),
+    num: nextNum(projectId),
     projectId,
+    parentId,
     title: '',
     status,
     priority: '',
@@ -105,10 +194,77 @@ export function newTask({ projectId = '', status = 'todo' } = {}) {
     description: '',
     checklist: [],
     comments: [],
+    links: [],
+    refs: [],
+    cover: null,
     order: nextOrder(status),
     doneAt: status === 'done' ? nowISO() : '',
     invoiceId: '',
   };
+}
+
+// ── Subtareas y relaciones ──
+
+export const subtasksOf = (id) => state.tasks.filter((t) => t.parentId === id);
+export const parentOf = (task) => (task?.parentId ? find('tasks', task.parentId) : null);
+
+/** La tarea y todas las que cuelgan de ella, a cualquier profundidad. */
+export function familyOf(task) {
+  const out = [task];
+  for (let i = 0; i < out.length; i++) out.push(...subtasksOf(out[i].id));
+  return out;
+}
+
+export const RELATIONS = {
+  blocks: ['Bloquea a', 'Bloqueada por', 'var(--expense)'],
+  related: ['Relacionada con', 'Relacionada con', 'var(--blue)'],
+  duplicate: ['Duplicado de', 'Tiene un duplicado', 'var(--body)'],
+};
+
+/** Las relaciones se guardan en una de las dos tareas; aquí se ven desde las dos. */
+export function relationsOf(task) {
+  const out = [];
+  for (const link of task.links || []) {
+    const other = find('tasks', link.to);
+    if (other && RELATIONS[link.type]) out.push({ link, owner: task, other, label: RELATIONS[link.type][0], color: RELATIONS[link.type][2] });
+  }
+  for (const t of state.tasks) {
+    for (const link of t.links || []) {
+      if (link.to === task.id && RELATIONS[link.type]) out.push({ link, owner: t, other: t, label: RELATIONS[link.type][1], color: RELATIONS[link.type][2] });
+    }
+  }
+  return out;
+}
+
+/** Bloqueada: otra tarea sin terminar la bloquea. */
+export const blockersOf = (task) => state.tasks.filter((t) => t.status !== 'done' && (t.links || []).some((l) => l.type === 'blocks' && l.to === task.id));
+
+/** `kind`: blocks, blockedBy, related o duplicate. */
+export function addRelation(task, kind, other) {
+  if (!other || other.id === task.id) return;
+  const [owner, type, to] = kind === 'blockedBy' ? [other, 'blocks', task.id] : [task, kind, other.id];
+  if (relationsOf(task).some((r) => r.other.id === other.id && (r.link.type === type))) return;
+  owner.links = [...(owner.links || []), { id: uid(), type, to }];
+  put('tasks', owner);
+}
+
+export function removeRelation(owner, linkId) {
+  owner.links = (owner.links || []).filter((l) => l.id !== linkId);
+  put('tasks', owner);
+}
+
+/** Cambia de proyecto la tarea y sus subtareas. Su clave nueva sigue las viejas. */
+export function moveTask(task, projectId) {
+  for (const t of familyOf(task)) {
+    if ((t.projectId || '') === (projectId || '')) continue;
+    const old = taskKey(t);
+    const num = nextNum(projectId);
+    t.projectId = projectId;
+    t.num = num;
+    if (old) t.oldKeys = [...new Set([...(t.oldKeys || []), old])].slice(-10);
+    for (const e of taskEntries(t.id)) if (!billedDocOf(e)) put('time', { ...e, projectId });
+    put('tasks', t);
+  }
 }
 
 /** El hueco al final de una columna del tablero. */
@@ -144,10 +300,16 @@ export function billedDocOf(item) {
   return doc && doc.status !== 'void' ? doc : null;
 }
 
+/** Borra la tarea con sus subtareas. Sus horas se quedan en el proyecto, sin tarea. */
 export function removeTask(task) {
-  // Las horas de la tarea se quedan en el proyecto, sin tarea.
-  for (const e of taskEntries(task.id)) put('time', { ...e, taskId: '' });
-  remove('tasks', task.id);
+  const gone = new Set(familyOf(task).map((t) => t.id));
+  for (const id of gone) {
+    for (const e of taskEntries(id)) put('time', { ...e, taskId: '' });
+    remove('tasks', id);
+  }
+  for (const t of state.tasks) {
+    if ((t.links || []).some((l) => gone.has(l.to))) put('tasks', { ...t, links: t.links.filter((l) => !gone.has(l.to)) });
+  }
 }
 
 // ── Horas ──

@@ -7,11 +7,12 @@ import {
 } from './negocio-core.js';
 import {
   PROJECT_STATUS, newProject, projectStats, customerOf, toggleStage, setProjectStatus, removeProject, runningEntry,
-  startTimer, stopTimer,
+  startTimer, stopTimer, codeFrom, cleanCode, takenCodes, projectCode,
 } from './negocio-work.js';
 import { taskBoard, createTask } from './negocio-tasks.js';
 import { projectHours, timeForm, billDialog } from './negocio-time.js';
 import { head, searchBox, groupedDocs, createDoc, customerForm, go } from './negocio-views.js';
+import { pagesCard, createPage } from './negocio-paginas.js';
 
 const STATUS_RANK = { active: 0, pending: 1, paused: 2, completed: 3 };
 const statusOf = (p) => PROJECT_STATUS[p.status] || PROJECT_STATUS.pending;
@@ -36,7 +37,16 @@ const savePref = (key, value) => {
 export function projectForm(project, onSaved, { customer = null } = {}) {
   const p = project ? structuredClone(project) : newProject(customer);
   let currencyTouched = Boolean(project);
+  let codeTouched = Boolean(project?.code);
   const name = input({ value: p.name, required: true, maxLength: 120, placeholder: 'Rediseño de la web' });
+  const code = input({ value: p.code || '', maxLength: 6, placeholder: 'WEB', class: 'ng-code-in', 'aria-label': 'Clave del proyecto' });
+  name.addEventListener('input', () => {
+    if (!codeTouched) code.value = name.value.trim() ? codeFrom(name.value, takenCodes(p.id)) : '';
+  });
+  code.addEventListener('input', () => {
+    codeTouched = true;
+    code.value = cleanCode(code.value);
+  });
   const customerOptions = () => [['', 'Elige un cliente'], ...[...state.customers].sort((a, b) => a.name.localeCompare(b.name)).map((c) => [c.id, c.company ? `${c.name} · ${c.company}` : c.name])];
   const customerSel = select(customerOptions(), p.customerId, { 'aria-label': 'Cliente' });
   const currency = select(CURRENCY_CODES.map((k) => [k, k]), p.currency, { 'aria-label': 'Moneda', onchange: () => { currencyTouched = true; } });
@@ -65,7 +75,8 @@ export function projectForm(project, onSaved, { customer = null } = {}) {
   dialog({
     title: project ? 'Editar proyecto' : 'Nuevo proyecto',
     body: el('div', { class: 'ng-form' },
-      field('Nombre', name),
+      el('div', { class: 'ng-grid2 is-code' }, field('Nombre', name), field('Clave', code)),
+      el('small', { class: 'ng-hint', text: 'La clave va delante del número de cada tarea: WEB-12. Escríbela en otra tarea o en una página para enlazarla.' }),
       el('div', { class: 'ng-field' }, el('span', { text: 'Cliente' }), el('div', { class: 'ng-inline' }, customerSel, newCustomer)),
       el('div', { class: 'ng-grid2' }, field('Estado', status), field('Tarifa por hora', rate, 'La de las horas que cronometres.')),
       el('div', { class: 'ng-grid2 is-price' }, field('Presupuesto', budget, 'Opcional. La ficha avisa si te pasas.'), field('Moneda', currency)),
@@ -92,6 +103,20 @@ export function projectForm(project, onSaved, { customer = null } = {}) {
     onSubmit: () => {
       p.name = name.value.trim();
       if (!p.name) return false;
+      const nextCode = cleanCode(code.value) || codeFrom(p.name, takenCodes(p.id));
+      if (!/^[A-Z][A-Z0-9]{0,5}$/.test(nextCode)) {
+        toast('La clave tiene que empezar por una letra.', 'error');
+        code.focus();
+        return false;
+      }
+      if (takenCodes(p.id).has(nextCode)) {
+        toast(`La clave ${nextCode} ya la usa otro proyecto.`, 'error');
+        code.focus();
+        return false;
+      }
+      // La clave vieja sigue llevando a sus tareas.
+      if (project?.code && project.code !== nextCode) p.oldCodes = [...new Set([...(p.oldCodes || []), project.code])].filter((c) => c !== nextCode).slice(-10);
+      p.code = nextCode;
       if (!customerSel.value) {
         toast('Elige de qué cliente es el proyecto.', 'error');
         customerSel.focus();
@@ -223,6 +248,7 @@ function summary(id) {
   const stagesCard = el('section', { class: 'ng-card ng-phases-card' });
   const docsCard = el('section', { class: 'ng-card ng-list' });
   const aboutCard = el('section', { class: 'ng-card ng-notes' });
+  const pagesBox = el('div', { class: 'ng-slot' });
   let focusStage = '';
 
   function drawKpis(p, s) {
@@ -345,9 +371,10 @@ function summary(id) {
     drawDocs(p, s);
     aboutCard.hidden = !p.description;
     aboutCard.replaceChildren(el('h2', { text: 'Descripción' }), el('p', { text: p.description || '' }));
+    pagesBox.replaceChildren(pagesCard({ projectId: p.id }));
   };
   draw();
-  return { node: el('div', { class: 'ng-tab' }, kpis, note, stagesCard, docsCard, aboutCard), refresh: draw };
+  return { node: el('div', { class: 'ng-tab' }, kpis, note, stagesCard, docsCard, pagesBox, aboutCard), refresh: draw };
 }
 
 const TABS = [['resumen', 'Resumen'], ['tareas', 'Tareas'], ['horas', 'Horas']];
@@ -392,6 +419,7 @@ export function projectPage(id, initialTab = 'resumen') {
     const newBtn = el('button', { type: 'button', class: 'pill' }, icon('plus'), 'Nuevo', icon('down'));
     newBtn.addEventListener('click', () => menu(newBtn, [
       { label: 'Tarea', icon: 'tasks', run: () => createTask({ projectId: p.id }) },
+      { label: 'Página', icon: 'page', run: () => createPage({ projectId: p.id, customerId: p.customerId }) },
       { label: 'Registrar horas', icon: 'clock', run: () => timeForm(null, { projectId: p.id }) },
       { label: 'Facturar horas', icon: 'timer', run: () => billDialog(p.id) },
       '-',
@@ -399,6 +427,7 @@ export function projectPage(id, initialTab = 'resumen') {
       { label: 'Cotización', icon: 'quote', run: () => createDoc('quote', c, { projectId: p.id }) },
     ], { align: 'end' }));
     const facts = [
+      ['hash', `Clave ${projectCode(p)}`],
       ['calendar', datesText(p)],
       ['dollar', p.budget ? `Presupuesto de ${money(p.budget, p.currency)}` : ''],
       ['timer', p.rate ? `${money(p.rate, p.currency)} por hora` : 'Sin tarifa por hora'],

@@ -10,6 +10,8 @@ addIcons({
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
   pen: '<path d="M4 20c3-1 4.5-3.5 7-6l5.5-5.5a2.1 2.1 0 0 0-3-3L8 11c-2.5 2.5-5 4-6 7z"/><path d="M14 20h6"/>',
+  bookmark: '<path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/>',
+  drag: '<circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/>',
 });
 
 const item = (fields) => ({ id: uid(), ...fields });
@@ -22,6 +24,7 @@ export const BLOCKS = {
   team: { label: 'Equipo', icon: 'users', make: () => ({ title: 'Quién lo hace', items: [item({ name: '', role: '', text: '' })] }) },
   testimonials: { label: 'Testimonios', icon: 'message', make: () => ({ title: 'Lo que dicen', items: [item({ quote: '', name: '', role: '' })] }) },
   work: { label: 'Trabajos', icon: 'image', make: () => ({ title: 'Trabajos anteriores', items: [item({ title: '', text: '', image: '' })] }) },
+  image: { label: 'Imagen', icon: 'image', make: () => ({ title: '', image: '', caption: '' }) },
   pricing: { label: 'Precio', icon: 'dollar', make: () => ({ title: 'Inversión' }) },
   text: { label: 'Texto libre', icon: 'edit', make: () => ({ title: '', body: '' }) },
 };
@@ -109,7 +112,7 @@ const initials = (name) => (name || '?').split(/\s+/).filter(Boolean).map((w) =>
  * edit: true para el panel; F: los campos; pricing(): lo que va en el bloque de precio;
  * redraw(): repinta tras un cambio de estructura; pickImage(item, done): elige imagen de un trabajo.
  */
-export function renderBlocks(doc, { edit = false, F = VIEW, pricing, redraw, touch, pickImage } = {}) {
+export function renderBlocks(doc, { edit = false, F = VIEW, pricing, redraw, touch, pickImage, saveBlock, library } = {}) {
   const blocks = doc.blocks || [];
   const changed = () => {
     touch?.();
@@ -178,6 +181,13 @@ export function renderBlocks(doc, { edit = false, F = VIEW, pricing, redraw, tou
           F.area(it.text, set(it, 'text'), { cls: 'is-soft', placeholder: 'Qué se hizo y qué se logró', 'aria-label': 'Resultado' }),
           itemTools(b, it),
         ))), addItem(b)];
+      case 'image':
+        if (!edit && !b.image) return null;
+        return el('figure', { class: 'pb-figure' },
+          b.image ? el('img', { src: b.image, alt: b.caption || b.title || '' }) : el('button', { type: 'button', class: 'pb-figure-empty no-print', onclick: () => pickImage?.(b, changed) }, icon('upload'), 'Subir una imagen'),
+          edit && b.image && el('button', { type: 'button', class: 'sh-chip no-print pb-shot-pick', onclick: () => pickImage?.(b, changed) }, icon('upload'), 'Cambiar imagen'),
+          F.text(b.caption, set(b, 'caption'), { cls: 'pb-caption is-soft', placeholder: 'Pie de foto (opcional)', 'aria-label': 'Pie de foto' }),
+        );
       case 'pricing':
         return pricing ? pricing() : null;
       default:
@@ -201,6 +211,7 @@ export function renderBlocks(doc, { edit = false, F = VIEW, pricing, redraw, tou
         edit && el('span', { class: 'pb-tools no-print' },
           iconButton('up', 'Subir bloque', () => move(-1), i === 0 ? 'is-hidden' : ''),
           iconButton('down', 'Bajar bloque', () => move(1), i === blocks.length - 1 ? 'is-hidden' : ''),
+          saveBlock && b.kind !== 'pricing' && iconButton('bookmark', 'Guardar en la biblioteca', () => saveBlock(b)),
           iconButton('trash', 'Quitar bloque', () => { doc.blocks = blocks.filter((x) => x !== b); changed(); }),
         ),
       ),
@@ -210,16 +221,31 @@ export function renderBlocks(doc, { edit = false, F = VIEW, pricing, redraw, tou
 
   if (edit) {
     const addBtn = el('button', { type: 'button', class: 'sh-chip is-dashed no-print' }, icon('plus'), 'Añadir bloque');
-    addBtn.addEventListener('click', () => menu(addBtn, Object.entries(BLOCKS)
-      .filter(([kind]) => kind !== 'pricing' || !blocks.some((b) => b.kind === 'pricing'))
-      .map(([kind, def]) => ({
-        label: def.label,
-        icon: def.icon,
-        run: () => {
-          doc.blocks = [...blocks, block(kind)];
-          changed();
-        },
-      }))));
+    addBtn.addEventListener('click', () => {
+      const saved = library?.() || [];
+      menu(addBtn, [
+        ...Object.entries(BLOCKS)
+          .filter(([kind]) => kind !== 'pricing' || !blocks.some((b) => b.kind === 'pricing'))
+          .map(([kind, def]) => ({
+            label: def.label,
+            icon: def.icon,
+            run: () => {
+              doc.blocks = [...blocks, block(kind)];
+              changed();
+            },
+          })),
+        saved.length > 0 && '-',
+        ...saved.map((x) => ({
+          label: x.label,
+          note: x.note,
+          icon: 'bookmark',
+          run: () => {
+            doc.blocks = [...blocks, x.make()];
+            changed();
+          },
+        })),
+      ]);
+    });
     nodes.push(el('div', { class: 'pb-addblock no-print' }, addBtn));
   }
   return nodes.filter(Boolean);

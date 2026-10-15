@@ -14,7 +14,7 @@ Cada `git push` a `main` se publica solo en Cloudflare.
 | `/lionfitness/` | `lionfitness/index.html` | Marcador |
 | `/admin/` | `admin/index.html` | Panel: novedades y reseñas |
 | `/admin/tienda/` | `admin/tienda/index.html` | Estudio de gráficos para la ficha de Google Play |
-| `/admin/negocio/` | `admin/negocio/index.html` | Negocio: clientes, catálogo, facturas, cotizaciones y cobros |
+| `/admin/negocio/` | `admin/negocio/index.html` | Negocio: clientes, leads, facturas, proyectos, tareas, páginas y marketing |
 | `/documento/#…` | `documento/index.html` | Lo que abre el cliente con un enlace: ver, pagar o firmar |
 | `/api/*` | `worker/index.js` | La API que usan la página y el panel |
 
@@ -89,10 +89,12 @@ En `/admin/negocio/` se llevan los clientes y se emiten facturas, cotizaciones y
 - **Facturas y cotizaciones**: se editan sobre la hoja misma. Llevan descuento, impuesto, retención, otros cargos y una equivalencia en otra moneda con su tasa (BCV, paralelo…). Se numeran solas por tipo y año (`FAC-2026-0001`, `COT-…`, `REC-…`) y se imprimen o guardan en PDF desde el navegador.
 - **Cobros**: cada factura admite pagos parciales; cada pago puede generar su recibo. Una cotización aceptada se convierte en factura con un clic.
 - **Formas de cobro** (en Ajustes): Pago Móvil, Zelle, Binance Pay… Si llevan enlace de pago, la factura enseña un botón y un código QR.
-- **Clientes y catálogo**: los datos del cliente y los servicios con su precio se rellenan solos en cada documento. Un documento guarda su propia copia: editar un cliente no cambia lo ya emitido.
+- **Clientes y catálogo**: los datos del cliente y los servicios con su precio (y su foto, si la tiene) se rellenan solos en cada documento. Un documento guarda su propia copia: editar un cliente no cambia lo ya emitido.
+- **Editor**: cada línea tiene un asa (a su izquierda) para arrastrarla a otro sitio o abrir su menú: poner una foto, duplicarla, subirla o bajarla, o guardarla en el catálogo. Las secciones del pie (términos, garantía…) se ordenan y se guardan en la **biblioteca**; desde «De la biblioteca» se añaden a cualquier factura, cotización o propuesta. En las propuestas también se guarda un bloque entero (con el marcador de su barra) y hay un bloque de imagen. La biblioteca se ordena en Ajustes.
 
 - **Proyectos**: cada uno es de un cliente. El listado cuenta activos, pendientes y completados; la ficha tiene seis cifras (presupuesto restante, ganado, facturado, cobrado, horas y tareas), etapas que se completan en orden (Arranque → En curso → Revisión → Entregado, editables) y sus documentos. En el editor, el chip «Proyecto» enlaza una factura o cotización a un proyecto.
 - **Tareas**: tablero (Solicitud, Por hacer, En curso, Revisión, Hecho) con arrastrar y soltar, o lista. Cada tarea tiene prioridad, fechas, valor fijo o tarifa por hora, checklist, comentarios y sus horas. En `#/tareas` están las de todos los proyectos.
+- **Al estilo de Linear**: cada proyecto tiene una clave (WEB, CF…; se propone sola y se cambia en el proyecto) y cada tarea un número dentro de él: `WEB-12`. `#/tareas/WEB-12` abre esa tarea. Una tarea tiene **portada** (un color o una imagen), **subtareas** (dentro de su ficha; en el tablero se ven con «Subtareas») y **enlaces**: relaciones con otras tareas (bloquea a, bloqueada por, relacionada, duplicado de), páginas, documentos o webs. Escribir la clave de otra tarea, el número de un documento (`FAC-2026-0001`) o `[[el título de una página]]` en la descripción o en un comentario la enlaza; escribir `[[` abre un buscador. La ficha enseña también quién la menciona. Si una tarea cambia de proyecto o un proyecto de clave, las claves viejas siguen llevando a ella.
 - **Horas**: el temporizador del riel (uno a la vez; vive en los datos, así que sobrevive a recargar) o el registro a mano. La tarifa sale de la entrada, la tarea, el proyecto o Ajustes, en ese orden. «Facturar horas» crea una factura con lo pendiente, agrupado por tarea, por día o por entrada, y lo marca como facturado; si esa factura se borra o se anula, las horas vuelven a quedar pendientes.
 
 Ajustes también tiene «Descargar copia», que baja todo en un JSON.
@@ -103,6 +105,29 @@ Ajustes también tiene «Descargar copia», que baja todo en un JSON.
 - `src/negocio-doc.js`: el editor de documentos.
 - `src/negocio-work.js`: proyectos, tareas y horas: cuentas, temporizador y facturar horas.
 - `src/negocio-projects.js`, `src/negocio-tasks.js`, `src/negocio-time.js`: sus pantallas; estilos en `src/negocio-trabajo.css`.
+- `src/negocio-enlaces.js`: claves, enlaces entre tareas, páginas y documentos, el texto con enlaces y las portadas.
+
+### Páginas
+
+En «Páginas» (`#/paginas`) se escriben notas, guías, briefs y actas de reunión, como las páginas de Runey o Notion. Cada página tiene icono, portada, subpáginas (el árbol de la izquierda), favoritas y, si se quiere, un cliente y un proyecto: entonces sale también en su ficha.
+
+- **Bloques**: texto, títulos, listas, listas numeradas, pendientes, citas, destacados, código, separadores, imágenes (también pegándolas o arrastrándolas) y enlaces a una tarea, página o documento. «/» elige el tipo; empezar una línea con `#`, `##`, `###`, `-`, `1.`, `[]`, `>`, ```` ``` ```` o `---` la convierte. Cada bloque se arrastra por su asa o se cambia desde su menú. `Ctrl+B` y `Ctrl+I` ponen negrita y cursiva.
+- **Enlaces**: igual que en las tareas, la clave de una tarea, el número de un documento o `[[otra página]]` se leen como enlaces, y un `[[título]]` que no existe crea la página al tocarlo. Al renombrar una página, sus enlaces cambian con ella. Al pie se ven las subpáginas y quién la menciona.
+- **Plantillas**: en blanco, notas de reunión, brief de proyecto, guía, checklist de lanzamiento, idea de contenido y retrospectiva.
+- Se copian como Markdown o se imprimen.
+
+- `src/negocio-paginas.js` y `src/negocio-paginas.css`.
+
+### Leads
+
+En «Leads» (`#/leads`) se lleva a quien todavía no es cliente: de dónde llegó (Instagram, WhatsApp, la web, una recomendación…; la marca, la campaña y la publicación), qué le interesa, cuánto vale y cuándo toca volver a escribirle.
+
+- **Embudo**: Nuevo, Contactado, Calificado, Propuesta, Negociación, Ganado y Perdido, con lo que suma cada columna. Se arrastra de una etapa a otra; al perder uno se pide el motivo.
+- **Ficha**: el siguiente paso con su fecha (hoy, mañana, en 3 días…) y «Hecho»; registrar un mensaje, una llamada, un correo o una reunión; el historial con cada cambio de etapa; «Pasar a cliente» y crearle una propuesta o una cotización a su nombre.
+- **Para hoy**: los seguimientos del día y los atrasados, arriba de la página, en el inicio y en el calendario de marketing.
+- **Análisis**: leads nuevos y ganados (con la variación frente al periodo anterior), conversión, valor del embudo ponderado por la probabilidad de cada etapa, embudo de conversión, leads por mes, por fuente, por marca y por campaña (con el coste por lead) y los motivos de pérdida.
+
+- `src/negocio-leads.js` y `src/negocio-leads.css`.
 - `src/cf-tokens.css`: los colores de CeroFiao, compartidos con su página.
 
 ### Gastos e inicio
@@ -142,16 +167,22 @@ En «Marketing» se planifica el contenido de las tres marcas del estudio (CeroF
 - **Feed**: cómo quedará la cuadrícula del perfil de Instagram de cada marca, y el equilibrio entre atracción, autoridad, conversión y comunidad del mes.
 - **Marcas**: colores, tipografía, tono, público, pilares, llamada a la acción, hashtags y pautas, más sus imágenes (en claro y en oscuro) y sus logos en SVG para copiar o descargar.
 
-Cada publicación lleva título, marca, fecha y hora, formato, categoría, rol en el embudo, estado, responsable, imagen o color de portada, guion visual, copy de Instagram, hashtags y copy de Facebook. El copy de Instagram puede empezar desde una plantilla (AIDA, PAS o lanzamiento) y el de Facebook se adapta desde él con un clic: quita el bloque de hashtags y pone el enlace de la marca donde decía «link en la bio».
+Cada publicación lleva título, marca, fecha y hora, formato, categoría, rol en el embudo, estado, responsable, campaña, pilar de contenido, imagen o color de portada, guion visual, copy de Instagram, hashtags y copy de Facebook. El copy de Instagram puede empezar desde una plantilla (AIDA, PAS o lanzamiento) y el de Facebook se adapta desde él con un clic: quita el bloque de hashtags y pone el enlace de la marca donde decía «link en la bio». Los grupos de hashtags de la marca se añaden con un toque, y «Duplicar» la copia una semana después.
+
+- **Resultados de cada publicación**: alcance, me gusta, comentarios, guardados, compartidos, clics y seguidores nuevos (se apuntan a mano desde las estadísticas de Instagram o Facebook), el enlace a la publicación y los leads que trajo, con un botón para apuntar uno nuevo.
+- **Calendario**: por mes, por semana (con miniaturas) o como agenda de los próximos 30 días. Las campañas en marcha se ven como una franja de su color y, si la marca tiene una cadencia (publicaciones por semana), el resumen dice si se va al día. Además de tareas y cobros, enseña los seguimientos de leads.
+- **Campañas**: un lanzamiento, una promoción o un mes de contenido, con marca, fechas, objetivo, presupuesto, lo gastado y los leads que se esperan. Cada campaña cuenta sus publicaciones, sus leads, el coste por lead, las ventas de los leads ganados y el retorno.
+- **Resultados**: las publicadas del periodo, su alcance, la interacción media, los leads de redes y las que mejor funcionaron; y qué papel del embudo y qué formato enganchan más.
+- **Copias**: ahora también «Publicada», para marcarla al pegarla. **Feed**: arrastrar una casilla sobre otra intercambia sus fechas.
 
 - `src/negocio-contenido.js`: marcas, publicaciones, plantillas y el formulario.
 - `src/negocio-calendario.js`: el calendario y el tablero.
-- `src/negocio-marketing.js`: la página, las copias, el feed y las marcas.
+- `src/negocio-marketing.js`: la página, las campañas, los resultados, las copias, el feed y las marcas.
 - `src/negocio-marketing.css`: sus estilos.
 
 ### Dónde se guardan los datos
 
-En un espacio KV de Cloudflare enlazado como `SITE` (lo crea `wrangler deploy` la primera vez). Guarda la lista de novedades, las reseñas y los datos del negocio (cada colección en una clave `crm:*`, cada recibo en `crm:file:*`, cada enlace público en `crm:share:*`, y lo que pasa en él en `crm:pub:*` y `crm:sig:*`). Las reseñas llevan el nombre que escribió la persona, su calificación, el texto y la fecha; no se guarda correo ni dirección IP.
+En un espacio KV de Cloudflare enlazado como `SITE` (lo crea `wrangler deploy` la primera vez). Guarda la lista de novedades, las reseñas y los datos del negocio (cada colección en una clave `crm:*`, también las páginas, los leads y las campañas; cada archivo subido —recibos, fotos de líneas, portadas e imágenes— en `crm:file:*`, cada enlace público en `crm:share:*`, y lo que pasa en él en `crm:pub:*` y `crm:sig:*`). Las reseñas llevan el nombre que escribió la persona, su calificación, el texto y la fecha; no se guarda correo ni dirección IP.
 
 ## Cuando CeroFiao esté en Google Play
 

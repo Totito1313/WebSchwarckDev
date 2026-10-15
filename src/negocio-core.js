@@ -26,7 +26,7 @@ export async function api(path, { method = 'GET', body } = {}) {
 
 // ── Estado ──
 
-export const COLS = ['customers', 'catalog', 'paytemplates', 'docs', 'projects', 'tasks', 'time', 'expenses', 'vendors', 'categories', 'brands', 'posts'];
+export const COLS = ['customers', 'catalog', 'paytemplates', 'docs', 'projects', 'tasks', 'time', 'expenses', 'vendors', 'categories', 'brands', 'posts', 'pages', 'leads', 'campaigns'];
 
 export const DEFAULT_STYLE = { layout: 'bold', font: 'inter', accent: 'ink', cover: 'none', logoSize: 44 };
 const DEFAULT_SETTINGS = {

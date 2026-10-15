@@ -18,6 +18,7 @@
 .pb-tools .ng-ibtn { width: 30px; height: 30px; background: var(--sh-band); color: var(--sh-soft); }
 .pb-tools .ng-ibtn:hover { background: #e7edf2; color: var(--sh-ink); }
 .pb-tools .ng-ibtn .ic svg { width: 15px; height: 15px; }
+.pb-tools .ng-ibtn[aria-label='Guardar en la biblioteca']:hover { color: #0071bc; }
 .pb-tools .is-hidden { visibility: hidden; }
 .pb-t { display: block; padding: 3px 0; }
 .pb-p { margin: 0; padding: 3px 0; white-space: pre-wrap; }
@@ -57,6 +58,14 @@
 .pb-shot-empty { display: grid; place-items: center; background: var(--sh-band); color: var(--sh-faint); }
 .pb-shot-empty svg { width: 28px; height: 28px; }
 .pb-shot-pick { position: absolute; top: 10px; left: 10px; background: #fff; }
+
+.pb-figure { position: relative; display: grid; gap: 6px; margin: 0; }
+.pb-figure img { width: 100%; max-height: 520px; object-fit: cover; border-radius: 18px; }
+.pb-figure-empty { display: flex; align-items: center; justify-content: center; gap: 8px; height: 180px; border: 1.5px dashed #c8d0d7; border-radius: 18px; background: none; color: var(--sh-soft); font-size: 14px; font-weight: 500; cursor: pointer; }
+.pb-figure-empty:hover { border-color: var(--sh-soft); color: var(--sh-ink); }
+.pb-figure .pb-shot-pick { top: 12px; left: 12px; }
+.pb-caption { text-align: center; font-size: 14px; }
+.sh-in.pb-caption { text-align: center; }
 
 /* Hoja de solo lectura */
 .sh-line { display: block; padding: 3px 0; overflow-wrap: anywhere; }

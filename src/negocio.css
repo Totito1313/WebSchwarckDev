@@ -102,6 +102,14 @@ img { display: block; max-width: 100%; }
 }
 .ng-add:hover { border-color: var(--ink); }
 
+/* Chip de filtro: se queda oscuro mientras está activo */
+.ng-fchip { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border: 0; border-radius: 19px; background: var(--paper); color: var(--body); font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background 0.2s, color 0.2s; }
+.ng-fchip .ic svg { width: 16px; height: 16px; }
+.ng-fchip.has-mark { padding-left: 7px; }
+.ng-fchip:hover { color: var(--ink); background: var(--cloud-deep); }
+.ng-fchip[aria-pressed='true'] { background: var(--inverse-bg); color: var(--inverse-fg); }
+.ng-fchip.is-soft { height: 34px; background: var(--cloud); }
+
 /* ── Control segmentado (el de CeroFiao) ── */
 .seg { position: relative; display: inline-flex; max-width: 100%; padding: 4px; border-radius: 24px; background: var(--seg-bg); }
 .seg button {
@@ -444,6 +452,12 @@ img { display: block; max-width: 100%; }
 .ng-logo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 360px; }
 .ng-logo-actions small { width: 100%; color: var(--body); font-size: 13px; }
 .ng-settings .ng-card > .pill { justify-self: start; }
+.ng-logo-pick.is-photo img { width: 100%; height: 100%; object-fit: cover; }
+.ng-row-ico.is-photo { overflow: hidden; background: none; }
+.ng-row-ico.is-photo img { width: 100%; height: 100%; object-fit: cover; }
+.ng-row.is-lib { gap: 12px; cursor: default; }
+.ng-lib-open { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ng-row.is-lib .is-hidden { visibility: hidden; }
 
 /* ── Menús, ventanas y avisos ── */
 .ng-pop { inset: auto; margin: 0; padding: 0; border: 0; background: none; overflow: visible; }
@@ -741,7 +755,22 @@ span.ng-gchip { cursor: default; }
 }
 .sh-items-head span:not(:first-child) { text-align: right; }
 .sh-item { padding: 14px 0; border-bottom: 1px solid var(--sh-line); }
+.sh-item { position: relative; }
 .sh-item-desc { display: grid; min-width: 0; }
+.sh-item-desc.has-media { grid-template-columns: 56px minmax(0, 1fr); align-items: start; gap: 12px; }
+.sh-item-fields { display: grid; min-width: 0; }
+.sh-item-media { position: relative; width: 56px; height: 56px; overflow: hidden; border-radius: 12px; background: var(--sh-band); }
+.sh-item-media img { width: 100%; height: 100%; object-fit: cover; }
+.sh-media-x { position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: rgba(15, 20, 25, 0.6); color: #fff; cursor: pointer; opacity: 0; transition: opacity 0.2s; }
+.sh-media-x .ic svg { width: 12px; height: 12px; }
+.sh-item:hover .sh-media-x, .sh-media-x:focus-visible { opacity: 1; }
+.sh-handle { position: absolute; top: 16px; left: calc(-1 * min(var(--pad), 34px)); display: grid; place-items: center; width: 22px; height: 26px; padding: 0; border: 0; border-radius: 7px; background: none; color: var(--sh-faint); cursor: grab; opacity: 0; transition: opacity 0.2s, background 0.2s, color 0.2s; }
+.sh-handle .ic svg { width: 15px; height: 15px; }
+.sh-item:hover .sh-handle, .sh-handle:focus-visible { opacity: 1; }
+.sh-handle:hover { background: var(--sh-band); color: var(--sh-ink); }
+.sh-item.is-dragging { opacity: 0.35; }
+.sh-drop { height: 3px; margin: -1px 0; border-radius: 2px; background: #0071bc; }
+@media (hover: none) { .sh-handle, .sh-media-x { opacity: 0.7; } }
 .sh-amount { padding: 3px 0; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .sh-del {
   display: grid;

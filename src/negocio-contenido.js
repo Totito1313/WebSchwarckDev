@@ -6,8 +6,8 @@
 // y sus recursos: capturas e imágenes por URL y logos en SVG.
 
 import {
-  state, find, put, remove, uid, el, icon, field, input, select, dialog, confirmBox, toast, autosize,
-  addIcons, dateText, todayISO, menu,
+  state, find, put, remove, uid, bus, el, icon, field, input, select, dialog, confirmBox, toast, autosize,
+  addIcons, dateText, todayISO, addDays, menu, money, amountText, parseNum, round2, numText, CURRENCY_CODES,
 } from './negocio-core.js';
 import { uploadFile, fileUrl } from './negocio-gastos.js';
 
@@ -22,6 +22,9 @@ addIcons({
   facebook: '<path d="M14 8h3V4h-3a4 4 0 0 0-4 4v3H7v4h3v6h4v-6h3l1-4h-4V8z"/>',
   code: '<path d="m8 8-5 4 5 4M16 8l5 4-5 4M14 5l-4 14"/>',
   palette2: '<circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><circle cx="12" cy="15.5" r="3"/>',
+  rocket: '<path d="M12 15.5 8.5 12C10 7 13.5 4 19.5 4.5 20 10.5 17 14 12 15.5z"/><path d="M8.5 12 5 11.5l2.5-3h3.5M12 15.5l.5 3.5 3-2.5V13"/><circle cx="15" cy="9" r="1.5"/><path d="M6.5 17.5c-1 .5-1.5 2-1.5 2s1.5-.5 2-1.5"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
 });
 
 const list = (col) => state[col] || [];
@@ -171,9 +174,155 @@ export function newPost(over = {}) {
     copyFb: '',
     hashtags: b?.hashtags || '',
     notes: '',
+    campaignId: '',
+    pillar: '',
+    url: '',
+    metrics: {},
     ...over,
   };
 }
+
+// ── Resultados de una publicación ──
+
+export const METRICS = [
+  ['reach', 'Alcance'],
+  ['likes', 'Me gusta'],
+  ['comments', 'Comentarios'],
+  ['saves', 'Guardados'],
+  ['shares', 'Compartidos'],
+  ['clicks', 'Clics en el enlace'],
+  ['follows', 'Seguidores nuevos'],
+];
+
+/** Interacción sobre alcance: me gusta, comentarios, guardados y compartidos. */
+export function engagement(p) {
+  const m = p?.metrics || {};
+  const reach = Number(m.reach) || 0;
+  const touches = ['likes', 'comments', 'saves', 'shares'].reduce((sum, k) => sum + (Number(m[k]) || 0), 0);
+  return reach ? touches / reach : null;
+}
+export const hasMetrics = (p) => METRICS.some(([k]) => Number(p?.metrics?.[k]) > 0);
+export const pctText = (v) => (v == null ? '—' : `${numText(round2(v * 100))} %`);
+export const leadsOf = (post) => (state.leads || []).filter((l) => l.postId === post.id);
+
+// ── Campañas ──
+// Agrupan publicaciones y leads de una marca con un objetivo, unas fechas y un
+// presupuesto: así se ve cuánto costó cada lead y cuánto se vendió.
+
+export const CAMPAIGN_STATUS = {
+  planned: ['Planificada', 'var(--violet)'],
+  active: ['En marcha', 'var(--blue)'],
+  done: ['Terminada', 'var(--income)'],
+};
+export const CAMPAIGN_COLORS = ['#00b8d4', '#0071bc', '#8e5bd6', '#1f9d46', '#f97316', '#d9a406', '#e0352b', '#1d2126'];
+
+export const campaigns = () => [...(state.campaigns || [])].sort((a, b) => (b.start || '').localeCompare(a.start || '') || (a.name || '').localeCompare(b.name || ''));
+export const campaignOf = (x) => (x?.campaignId ? find('campaigns', x.campaignId) : null);
+/** Activa en una fecha: entre su inicio y su final (o sin final). */
+export const campaignOn = (c, iso) => Boolean(c.start) && c.start <= iso && (!c.end || c.end >= iso) && c.status !== 'done';
+
+export function newCampaign(over = {}) {
+  const today = todayISO();
+  return { id: uid(), name: '', brandId: brands()[0]?.id || '', status: 'planned', start: today, end: addDays(today, 30), goal: '', budget: 0, spent: 0, currency: state.settings.currency || 'USD', leadsTarget: 0, color: CAMPAIGN_COLORS[(state.campaigns || []).length % CAMPAIGN_COLORS.length], notes: '', ...over };
+}
+
+/** Las cifras de una campaña: publicaciones, leads, ventas y coste por lead. */
+export function campaignStats(c) {
+  const posts = (state.posts || []).filter((p) => p.campaignId === c.id);
+  const published = posts.filter((p) => p.status === 'publicado');
+  const leads = (state.leads || []).filter((l) => l.campaignId === c.id);
+  const won = leads.filter((l) => l.stage === 'won');
+  const wonValue = round2(won.reduce((sum, l) => sum + (l.currency === c.currency || !l.currency ? Number(l.value) || 0 : 0), 0));
+  const spent = Number(c.spent) || 0;
+  const cost = spent || Number(c.budget) || 0;
+  const reach = published.reduce((sum, p) => sum + (Number(p.metrics?.reach) || 0), 0);
+  return {
+    posts, published, leads, won, wonValue, spent, cost, reach,
+    cpl: leads.length && cost ? cost / leads.length : null,
+    // El retorno se ve cuando ya hay ventas o la campaña terminó: antes sería siempre −100 %.
+    roi: spent && (won.length || c.status === 'done') ? (wonValue - spent) / spent : null,
+    target: Number(c.leadsTarget) || 0,
+  };
+}
+
+export function campaignForm(campaign, onSaved, over = {}) {
+  ensureBrands();
+  const c = campaign ? structuredClone(campaign) : newCampaign(over);
+  const name = input({ value: c.name, required: true, maxLength: 120, placeholder: 'Lanzamiento de la versión 2' });
+  const brand = select(brands().map((b) => [b.id, b.name]), c.brandId, { 'aria-label': 'Marca' });
+  const status = select(Object.entries(CAMPAIGN_STATUS).map(([k, [label]]) => [k, label]), c.status, { 'aria-label': 'Estado' });
+  const start = input({ type: 'date', value: c.start || '' });
+  const end = input({ type: 'date', value: c.end || '' });
+  const goal = autosize(el('textarea', { value: c.goal || '', rows: 2, maxLength: 1000, placeholder: 'Qué quieres conseguir: 50 descargas, 10 clientes nuevos…' }));
+  const amount = (v) => input({ value: v ? amountText(v) : '', inputmode: 'decimal', placeholder: '0,00' });
+  const budget = amount(c.budget);
+  const spent = amount(c.spent);
+  const currency = select(CURRENCY_CODES.map((k) => [k, k]), c.currency, { 'aria-label': 'Moneda' });
+  const target = input({ value: c.leadsTarget ? String(c.leadsTarget) : '', inputmode: 'numeric', maxLength: 6, placeholder: '0' });
+  const notes = autosize(el('textarea', { value: c.notes || '', rows: 2, maxLength: 4000 }));
+  let color = c.color;
+  const colors = el('div', { class: 'ng-swatches', role: 'group', 'aria-label': 'Color' });
+  const drawColors = () => colors.replaceChildren(...CAMPAIGN_COLORS.map((x) => el('button', { type: 'button', class: 'ng-swatch', style: { '--c': x }, 'aria-label': `Color ${x}`, 'aria-pressed': String(color === x), onclick: () => { color = x; drawColors(); } })));
+  drawColors();
+  return dialog({
+    title: campaign ? 'Editar campaña' : 'Nueva campaña',
+    wide: true,
+    submit: campaign ? 'Guardar' : 'Crear campaña',
+    body: el('div', { class: 'ng-form' },
+      field('Nombre', name),
+      el('div', { class: 'ng-grid3' }, field('Marca', brand), field('Estado', status), el('div', { class: 'ng-field' }, el('span', { text: 'Color' }), colors)),
+      el('div', { class: 'ng-grid2' }, field('Empieza', start), field('Termina', end)),
+      field('Objetivo', goal),
+      el('div', { class: 'ng-grid3' }, field('Presupuesto', budget), field('Gastado hasta hoy', spent, 'En anuncios, diseño…'), field('Moneda', currency)),
+      field('Leads que esperas', target, 'Para ver el avance y el coste por lead.'),
+      field('Notas', notes),
+    ),
+    danger: campaign && {
+      label: 'Eliminar',
+      run: () => {
+        confirmBox(`¿Eliminar la campaña «${campaign.name}»? Sus publicaciones y leads se quedan, sin campaña.`).then((yes) => {
+          if (!yes) return;
+          for (const p of (state.posts || []).filter((x) => x.campaignId === campaign.id)) put('posts', { ...p, campaignId: '' });
+          for (const l of (state.leads || []).filter((x) => x.campaignId === campaign.id)) put('leads', { ...l, campaignId: '' });
+          remove('campaigns', campaign.id);
+          toast('Campaña eliminada.');
+          onSaved?.(null);
+        });
+      },
+    },
+    onSubmit: () => {
+      c.name = name.value.trim();
+      if (!c.name) return false;
+      Object.assign(c, {
+        brandId: brand.value,
+        status: status.value,
+        start: start.value,
+        end: end.value,
+        goal: goal.value.trim(),
+        budget: round2(parseNum(budget.value)),
+        spent: round2(parseNum(spent.value)),
+        currency: currency.value,
+        leadsTarget: Math.max(0, Math.round(parseNum(target.value))),
+        notes: notes.value.trim(),
+        color,
+      });
+      put('campaigns', c);
+      toast(campaign ? 'Campaña guardada.' : 'Campaña creada.');
+      onSaved?.(c);
+      return true;
+    },
+  });
+}
+
+/** Grupos de hashtags de una marca: «Nombre: #uno #dos», uno por línea. */
+export function hashtagSets(b) {
+  return String(b?.hashtagSets || '').split('\n').map((line) => {
+    const m = /^\s*([^:#]+?)\s*:\s*(.+)$/.exec(line);
+    return m ? { name: m[1], tags: m[2].trim() } : null;
+  }).filter((x) => x && /#/.test(x.tags));
+}
+
+export const pillarsOf = (b) => String(b?.pillars || '').split('\n').map((x) => x.trim()).filter(Boolean);
 
 export const postsOf = (filter = {}) => list('posts').filter((p) => (!filter.brand || filter.brand === 'all' || p.brandId === filter.brand)
   && (!filter.role || filter.role === 'all' || p.role === filter.role)
@@ -306,6 +455,8 @@ export function postForm(post, onSaved) {
     }
     drawAssets();
     drawPreview();
+    fillBrandLists();
+    drawTagSets();
   });
   const date = bind(input({ type: 'date', value: p.date, required: true }), 'date');
   const time = bind(input({ type: 'time', value: p.time }), 'time');
@@ -315,12 +466,69 @@ export function postForm(post, onSaved) {
   const roleHint = el('small', { text: ROLES[p.role]?.[3] || '' });
   role.addEventListener('change', () => { roleHint.textContent = ROLES[role.value]?.[3] || ''; });
   const status = bind(select(STATUS_ORDER.map((k) => [k, POST_STATUS[k][0]]), p.status, { 'aria-label': 'Estado' }), 'status');
+  const campaignSel = select([], '', { 'aria-label': 'Campaña' });
+  const pillarSel = select([], '', { 'aria-label': 'Pilar de contenido' });
+  const fillBrandLists = () => {
+    const list = campaigns().filter((c) => !c.brandId || c.brandId === p.brandId || c.id === p.campaignId);
+    campaignSel.replaceChildren(...[['', 'Sin campaña'], ...list.map((c) => [c.id, c.name])].map(([v, t]) => el('option', { value: v, text: t, selected: v === (p.campaignId || '') })));
+    const pillars = pillarsOf(find('brands', p.brandId));
+    if (p.pillar && !pillars.includes(p.pillar)) pillars.push(p.pillar);
+    pillarSel.replaceChildren(...[['', 'Sin pilar'], ...pillars.map((x) => [x, x])].map(([v, t]) => el('option', { value: v, text: t, selected: v === (p.pillar || '') })));
+  };
+  fillBrandLists();
+  campaignSel.addEventListener('change', () => { p.campaignId = campaignSel.value; });
+  pillarSel.addEventListener('change', () => { p.pillar = pillarSel.value; });
   const assignee = bind(input({ value: p.assignee, maxLength: 60, placeholder: 'Quién lo prepara' }), 'assignee');
   const script = bind(autosize(el('textarea', { value: p.visualScript, rows: 3, maxLength: 6000, placeholder: 'Plano 1: … · Plano 2: … · Texto en pantalla: …' })), 'visualScript');
   const copyIg = bind(autosize(el('textarea', { value: p.copyIg, rows: 5, maxLength: 2200 })), 'copyIg');
   const copyFb = bind(autosize(el('textarea', { value: p.copyFb, rows: 4, maxLength: 6000 })), 'copyFb');
   const hashtags = bind(autosize(el('textarea', { value: p.hashtags, rows: 1, maxLength: 1500 })), 'hashtags');
   const notes = bind(autosize(el('textarea', { value: p.notes, rows: 2, maxLength: 4000 })), 'notes');
+
+  // Grupos de hashtags de la marca: se añaden con un toque.
+  const tagSets = el('div', { class: 'ng-tagsets' });
+  function drawTagSets() {
+    const sets = hashtagSets(find('brands', p.brandId));
+    tagSets.replaceChildren(...sets.map((x) => el('button', {
+      type: 'button',
+      class: 'ng-fchip is-soft',
+      title: x.tags,
+      onclick: () => {
+        const have = new Set((hashtags.value.match(/#[\p{L}\p{N}_]+/gu) || []).map((t) => t.toLowerCase()));
+        const add = (x.tags.match(/#[\p{L}\p{N}_]+/gu) || []).filter((t) => !have.has(t.toLowerCase()));
+        if (!add.length) return toast('Ya los tiene todos.');
+        hashtags.value = `${hashtags.value.trim()} ${add.join(' ')}`.trim();
+        hashtags.dispatchEvent(new Event('input'));
+        return null;
+      },
+    }, icon('hash'), x.name)));
+  }
+
+  // Resultados: se apuntan a mano al publicarse (alcance, me gusta…).
+  p.metrics = { ...(p.metrics || {}) };
+  const engageOut = el('b');
+  const drawEngage = () => {
+    const e = engagement(p);
+    engageOut.textContent = e == null ? 'Pon el alcance para calcular la interacción.' : `Interacción: ${pctText(e)}`;
+  };
+  const metricInputs = METRICS.map(([k, label]) => {
+    const box = input({ value: p.metrics[k] ? String(p.metrics[k]) : '', inputmode: 'numeric', maxLength: 9, placeholder: '0', 'aria-label': label });
+    box.addEventListener('input', () => {
+      const v = Math.max(0, Math.round(parseNum(box.value)));
+      if (v) p.metrics[k] = v;
+      else delete p.metrics[k];
+      drawEngage();
+    });
+    return field(label, box);
+  });
+  drawEngage();
+  const url = bind(input({ type: 'url', value: p.url || '', maxLength: 500, placeholder: 'https://instagram.com/p/…' }), 'url');
+  const postLeads = leadsOf(p);
+  const leadBtn = !isNew && el('button', {
+    type: 'button',
+    class: 'pill ghost sm',
+    onclick: () => bus.dispatchEvent(new CustomEvent('new-lead', { detail: { brandId: p.brandId, postId: p.id, campaignId: p.campaignId, source: p.format === 'video' ? 'other' : 'instagram', interest: '' } })),
+  }, icon('plus'), 'Añadir un lead');
 
   const igCount = el('small');
   const tagCount = el('small');
@@ -333,6 +541,7 @@ export function postForm(post, onSaved) {
   copyIg.addEventListener('input', counts);
   hashtags.addEventListener('input', counts);
   counts();
+  drawTagSets();
 
   const setIg = (text) => {
     copyIg.value = text;
@@ -428,12 +637,24 @@ export function postForm(post, onSaved) {
         el('div', { class: 'ng-grid3' }, field('Marca', brand), field('Fecha', date), field('Hora', time)),
         el('div', { class: 'ng-grid3' }, field('Formato', format), field('Categoría', category), field('Estado', status)),
         el('div', { class: 'ng-grid2' }, el('label', { class: 'ng-field' }, el('span', { text: 'Rol en el embudo' }), role, roleHint), field('Responsable', assignee)),
+        el('div', { class: 'ng-grid2' }, field('Campaña', campaignSel), field('Pilar de contenido', pillarSel, 'Los pilares se escriben en la ficha de la marca.')),
         el('div', { class: 'ng-field' }, el('span', { text: 'Imagen' }), assetsBox, el('small', { text: 'Elige una captura de la marca o sube una. Sin imagen, la portada es este color:' }), colors),
         field('Guion visual', script),
         copyRow('Copy para Instagram', templatesBtn, copyIg, igCount, () => copyText(igText(p), 'Copy de Instagram')),
         copyRow('Hashtags', null, hashtags, tagCount, () => copyText(p.hashtags || '', 'Hashtags')),
+        tagSets,
         copyRow('Copy para Facebook', adapt, copyFb, null, () => copyText(p.copyFb || '', 'Copy de Facebook')),
         field('Notas', notes),
+        el('section', { class: 'ng-results' },
+          el('div', { class: 'ng-field-head' }, el('span', { text: 'Resultados' }), el('small', { class: 'ng-results-note' }, engageOut)),
+          el('div', { class: 'ng-results-grid' }, metricInputs),
+          field('Enlace a la publicación', url),
+          el('div', { class: 'ng-results-leads' },
+            el('span', { text: isNew ? 'Guárdala para apuntar los leads que traiga.' : postLeads.length ? `Trajo ${postLeads.length} ${postLeads.length === 1 ? 'lead' : 'leads'}${postLeads.filter((l) => l.stage === 'won').length ? `, ${postLeads.filter((l) => l.stage === 'won').length} ganados` : ''}.` : 'Todavía no hay leads de esta publicación.' }),
+            postLeads.length > 0 && el('a', { class: 'pill ghost sm', href: '#/leads/lista' }, 'Ver leads'),
+            leadBtn,
+          ),
+        ),
       ),
       preview,
     ),
@@ -451,6 +672,8 @@ export function postForm(post, onSaved) {
     onSubmit: () => {
       p.title = title.value.trim();
       if (!p.title) return false;
+      p.campaignId = campaignSel.value;
+      p.pillar = pillarSel.value;
       put('posts', p);
       toast(isNew ? 'Publicación creada.' : 'Publicación guardada.');
       onSaved?.(p);
@@ -458,6 +681,23 @@ export function postForm(post, onSaved) {
     },
   });
   dlg.classList.add('is-xwide');
+  if (!isNew) {
+    // Duplicar: la misma idea en otra fecha o para otra marca.
+    const dup = el('button', {
+      type: 'button',
+      class: 'pill ghost',
+      onclick: () => {
+        const copy = { ...structuredClone(p), id: uid(), title: `${p.title || 'Sin título'} (copia)`, status: 'idea', url: '', metrics: {}, date: addDays(p.date || todayISO(), 7) };
+        delete copy.createdAt;
+        delete copy.updatedAt;
+        put('posts', copy);
+        dlg.close();
+        toast('Duplicada una semana después, como idea.');
+        postForm(copy, onSaved);
+      },
+    }, icon('copy'), 'Duplicar');
+    dlg.querySelector('.ng-dialog-foot .ng-grow')?.after(dup);
+  }
   return dlg;
 }
 

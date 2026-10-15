@@ -1,0 +1,116 @@
+/* Negocio · Leads: el embudo, la lista, el análisis y la ficha de cada lead.
+   Usa las piezas de negocio.css (tarjetas nube, filas en papel) y el tablero
+   de negocio-trabajo.css. Lo que toca hoy se marca en cian; lo atrasado, en rojo. */
+
+.ld-page { grid-template-columns: minmax(0, 1fr); }
+
+/* Fuente, seguimiento y valor */
+.ld-source { display: inline-flex; align-items: center; gap: 4px; color: var(--body); font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+.ld-source .ic svg { width: 13px; height: 13px; }
+.ld-follow { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; background: var(--cloud); color: var(--body); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.ld-follow .ic svg { width: 12px; height: 12px; }
+.ld-follow.is-today { background: color-mix(in srgb, var(--cyan) 16%, var(--paper)); color: var(--live, var(--cyan)); }
+.ld-follow.is-late { background: color-mix(in srgb, var(--expense) 12%, var(--paper)); color: color-mix(in srgb, var(--expense) 80%, var(--ink)); }
+.ld-prob { color: var(--body); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Tablero */
+.ld-board { grid-auto-columns: minmax(236px, 1fr); }
+.ld-col-head h3 { white-space: nowrap; }
+.ld-col-sum { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: -4px 0 2px; padding: 0 6px; }
+.ld-col-sum b { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.ld-col-sum small { color: var(--body); font-size: 12px; }
+.ld-col-more { padding: 6px; color: var(--body); font-size: 12.5px; text-align: center; }
+.ld-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 18px;
+  background: var(--paper);
+  cursor: grab;
+  transition: transform 0.2s var(--ease), box-shadow 0.2s, opacity 0.2s;
+}
+@media (hover: hover) {
+  .ld-card:hover { transform: translateY(-1px); box-shadow: 0 12px 24px -18px rgba(15, 45, 70, 0.5); }
+}
+.ld-card:focus-visible { outline: 2px solid var(--blue); }
+.ld-card.is-dragging { opacity: 0.35; }
+.ld-card.is-due { box-shadow: inset 3px 0 0 var(--cyan); }
+.ld-card-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ld-card-top .ng-avatar { width: 34px; height: 34px; border-radius: 12px; font-size: 12px; }
+.ld-card-name { display: grid; min-width: 0; }
+.ld-card-name b { overflow: hidden; font-size: 14.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.ld-card-name small { overflow: hidden; color: var(--body); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.ld-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.ld-brand { display: inline-flex; }
+.ld-card-value { margin-left: auto; font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ld-card-age { color: var(--body); font-size: 11.5px; }
+
+/* Lista y seguimientos */
+.ng-row.is-lead { grid-template-columns: 40px minmax(0, 1.4fr) 130px 150px 90px minmax(100px, auto); }
+.ld-row-source { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.ld-due { display: grid; gap: 4px; }
+.ld-due .ng-card-head { margin-bottom: 6px; }
+.ng-row.ld-due-row { grid-template-columns: 40px minmax(0, 1fr) auto auto; }
+.ld-reasons { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Análisis */
+.ld-analysis { display: grid; gap: 16px; }
+.ld-bars li { grid-template-columns: minmax(110px, 0.9fr) minmax(0, 1.6fr) 54px 92px; }
+.ld-bars .ng-bars-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ld-bars .ng-bars-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ld-camp-row { grid-template-columns: 14px minmax(0, 1fr) 120px 120px; }
+.ld-camp-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+
+/* Ficha */
+.ld-sheet .ng-ttitle { margin-bottom: -10px; }
+.ld-next { display: grid; gap: 10px; padding: 14px 16px; border-radius: 20px; background: var(--cloud); }
+.ld-next.is-today { background: color-mix(in srgb, var(--cyan) 12%, var(--cloud)); }
+.ld-next.is-late { background: color-mix(in srgb, var(--expense) 9%, var(--cloud)); }
+.ld-next.is-won { display: flex; align-items: center; gap: 12px; background: color-mix(in srgb, var(--income) 12%, var(--cloud)); }
+.ld-next.is-lost { display: flex; align-items: center; gap: 12px; background: color-mix(in srgb, var(--expense) 9%, var(--cloud)); }
+.ld-next.is-won > div, .ld-next.is-lost > div { display: grid; }
+.ld-next small { color: var(--body); font-size: 13px; }
+.ld-next-head { display: flex; align-items: center; gap: 10px; }
+.ld-next-head b { font-size: 15px; font-weight: 600; }
+.ld-next-ico { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 11px; background: var(--paper); color: var(--body); }
+.ld-next.is-today .ld-next-ico { color: var(--cyan); }
+.ld-next.is-late .ld-next-ico, .ld-next.is-lost .ld-next-ico { color: var(--expense); }
+.ld-next.is-won .ld-next-ico { color: var(--income); }
+.ld-next-row { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 8px; }
+.ld-next-row input { width: 100%; padding: 10px 12px; border: 1.5px solid transparent; border-radius: 12px; background: var(--paper); color: var(--ink); font-size: 14px; }
+.ld-next-row input:focus-visible { outline: none; border-color: var(--blue); }
+.ld-next-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.ld-next-quick .ng-fchip { height: 30px; padding: 0 12px; background: var(--paper); font-size: 13px; }
+.ld-value { grid-template-columns: minmax(0, 1fr) 100px 120px; }
+.ld-timeline { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.ld-timeline li { display: flex; align-items: flex-start; gap: 10px; padding: 8px 6px 8px 4px; border-radius: 14px; }
+.ld-timeline li:hover { background: var(--cloud); }
+.ld-timeline li > div { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.ld-timeline p { overflow-wrap: anywhere; white-space: pre-wrap; }
+.ld-timeline small { color: var(--body); font-size: 12px; }
+.ld-tl-ico { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 10px; background: var(--cloud); color: var(--body); }
+.ld-tl-ico .ic svg { width: 15px; height: 15px; }
+.ld-timeline li.is-stage p { color: var(--body); font-size: 14px; }
+.ld-timeline .ng-ibtn { opacity: 0; }
+.ld-timeline li:hover .ng-ibtn, .ld-timeline .ng-ibtn:focus-visible { opacity: 1; }
+@media (hover: none) { .ld-timeline .ng-ibtn { opacity: 1; } }
+.ld-sheet .ng-history li .ng-tag { flex: none; }
+
+@media (max-width: 1180px) {
+  .ng-row.is-lead { grid-template-columns: 40px minmax(0, 1fr) 130px 90px minmax(100px, auto); }
+  .ng-row.is-lead .ld-row-source { display: none; }
+}
+@media (max-width: 760px) {
+  .ld-board { grid-auto-columns: minmax(236px, 84%); }
+  .ng-row.is-lead { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  .ng-row.is-lead > .ng-row-amount, .ng-row.is-lead > .ng-row-tag { display: none; }
+  .ng-row.ld-due-row { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  .ng-row.ld-due-row .ng-row-tag { display: none; }
+  .ld-bars li { grid-template-columns: minmax(90px, 1fr) minmax(0, 1fr) 40px; }
+  .ld-bars li small { display: none; }
+  .ld-camp-row { grid-template-columns: 14px minmax(0, 1fr) 100px; }
+  .ld-camp-row .ng-row-stat:last-child { display: none; }
+  .ld-next-row, .ld-value { grid-template-columns: minmax(0, 1fr); }
+}
+.ld-bars small { color: var(--body); font-size: 12.5px; text-align: right; white-space: nowrap; }

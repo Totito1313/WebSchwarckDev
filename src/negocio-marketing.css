@@ -11,10 +11,6 @@
 .ng-mkt-filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
 .ng-mkt-filters:empty { display: none; }
 .ng-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.ng-chipbtn { display: inline-flex; align-items: center; gap: 8px; padding: 7px 13px; border: 0; border-radius: 18px; background: var(--cloud); color: var(--body); font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background 0.2s, color 0.2s; }
-.ng-chipbtn.has-mark { padding-left: 6px; }
-.ng-chipbtn:hover { color: var(--ink); background: var(--cloud-deep); }
-.ng-chipbtn[aria-pressed='true'] { background: var(--inverse-bg); color: var(--inverse-fg); }
 .ng-chk { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; font-weight: 500; cursor: pointer; }
 .ng-chk input { width: 18px; height: 18px; margin: 0; accent-color: var(--ink); }
 .ng-link { padding: 0; border: 0; background: none; color: var(--blue); font: inherit; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
@@ -222,14 +218,120 @@ textarea.is-code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-
 .ng-ig-cover b { color: #fff; font-size: 20px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; text-align: center; }
 .ng-ig > p { max-height: 240px; padding: 10px 12px 14px; overflow: auto; font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 
+
+/* ── Calendario: franjas de campaña, cadencia y extras ── */
+.ng-cal-tools .seg button { padding: 6px 12px; font-size: 13px; }
+.ng-day { position: relative; }
+.ng-day-camps { display: flex; gap: 2px; margin: -4px -4px 0; }
+.ng-day-camps i { flex: 1; height: 4px; border-radius: 2px; background: var(--c); opacity: 0.85; }
+.ng-cadence { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 3px; border-radius: 14px; background: var(--paper); color: var(--body); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ng-cadence.is-ok { color: var(--income); }
+.ng-cal-camp { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 14px; background: color-mix(in srgb, var(--c) 14%, var(--paper)); color: color-mix(in srgb, var(--c) 70%, var(--ink)); font-size: 13px; font-weight: 500; text-decoration: none; }
+.ng-cal-camp .ic svg { width: 13px; height: 13px; }
+.ng-xchip { border-width: 1px; background: none; font: inherit; font-size: 11.5px; text-align: left; cursor: pointer; }
+button.ng-xchip { width: 100%; }
+.ng-xchip.is-lead { border-color: color-mix(in srgb, var(--violet) 45%, transparent); color: color-mix(in srgb, var(--violet) 70%, var(--ink)); }
+
+/* Semana */
+.ng-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.ng-week-day { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 320px; padding: 10px 8px; border-radius: 18px; background: var(--paper); transition: background 0.2s, box-shadow 0.2s; }
+.ng-week-day.is-past { background: color-mix(in srgb, var(--paper) 60%, transparent); }
+.ng-week-day.is-over { background: color-mix(in srgb, var(--blue) 8%, var(--paper)); box-shadow: inset 0 0 0 2px var(--blue); }
+.ng-week-day > header { display: flex; align-items: baseline; gap: 6px; padding: 0 2px; }
+.ng-week-wd { color: var(--body); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.ng-week-num { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.ng-week-day.is-today .ng-week-num { color: var(--blue); }
+.ng-week-day > header .ng-day-add { margin-left: auto; }
+.ng-week-day:hover .ng-day-add { opacity: 1; }
+.ng-week-day .ng-day-camps { margin: -4px 0 0; }
+.ng-pchip.is-rich { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'media media media' 'ico title dot'; gap: 6px 6px; padding: 6px; border-left-width: 3px; border-radius: 12px; }
+.ng-pchip.is-rich .ng-pchip-media { grid-area: media; display: block; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 8px; background: var(--cloud); }
+.ng-pchip.is-rich .ng-pchip-media img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.ng-pchip.is-rich .ng-pchip-media i { display: block; width: 100%; height: 100%; background: linear-gradient(150deg, var(--c), color-mix(in srgb, var(--c) 55%, #000)); }
+.ng-pchip.is-rich .ng-pchip-time { display: none; }
+.ng-pchip.is-rich .ng-pchip-title { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.ng-pchip-leads { display: inline-flex; align-items: center; gap: 2px; color: var(--violet); font-size: 11px; font-weight: 600; }
+.ng-pchip.is-rich .ng-pchip-leads { grid-column: 2; }
+
+/* Agenda */
+.ng-agenda { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ng-agenda > li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding: 12px; border-radius: 20px; background: var(--paper); }
+.ng-agenda > li.is-today { box-shadow: inset 0 0 0 2px var(--blue); }
+.ng-agenda-day { display: grid; align-content: start; justify-items: center; padding-top: 2px; }
+.ng-agenda-day b { font-size: 26px; font-weight: 600; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.ng-agenda-day span { color: var(--body); font-size: 12px; font-weight: 600; text-transform: uppercase; }
+.ng-agenda-items { display: grid; gap: 6px; min-width: 0; }
+.ng-agenda-post { display: grid; grid-template-columns: 44px auto minmax(0, 1fr) auto; align-items: center; gap: 10px; min-width: 0; padding: 8px 10px 8px 8px; border: 0; border-left: 3px solid var(--c); border-radius: 14px; background: var(--cloud); color: var(--ink); text-align: left; cursor: pointer; }
+.ng-agenda-post:hover { background: var(--cloud-deep); }
+.ng-agenda-time { color: var(--body); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ng-agenda-main { display: grid; min-width: 0; }
+.ng-agenda-main b { overflow: hidden; font-size: 14.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.ng-agenda-main small { overflow: hidden; color: var(--body); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.ng-agenda-extras { display: flex; flex-wrap: wrap; gap: 6px; }
+.ng-agenda-extras:empty { display: none; }
+.ng-agenda-extras .ng-xchip { width: auto; max-width: 100%; }
+
+/* Feed: intercambiar casillas */
+.ng-tile.is-dragging { opacity: 0.4; }
+.ng-tile.is-over { outline: 3px solid var(--blue); outline-offset: -3px; }
+.ng-tile[draggable='true'] { cursor: grab; }
+
+/* ── Campañas ── */
+.ng-camps-view { display: grid; gap: 18px; }
+.ng-camps { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.ng-camp { position: relative; display: grid; align-content: start; gap: 10px; min-width: 0; overflow: hidden; padding: 18px 18px 16px; border-radius: 26px; background: var(--cloud); text-decoration: none; transition: transform 0.25s var(--ease), box-shadow 0.25s; }
+.ng-camp::before { content: ''; position: absolute; inset: 0 0 auto; height: 5px; background: var(--c); }
+.ng-camp:hover { transform: translateY(-2px); box-shadow: 0 18px 30px -22px rgba(15, 45, 70, 0.5); }
+.ng-camp-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ng-camp-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--c); }
+.ng-camp-name { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+.ng-camp > small { margin-top: -8px; color: var(--body); font-size: 13px; }
+.ng-camp-bar { display: grid; gap: 6px; }
+.ng-camp-bar > div { display: flex; justify-content: space-between; color: var(--body); font-size: 13px; }
+.ng-camp-bar b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ng-camp-bar .ng-bar i { background: var(--c); }
+.ng-camp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--soft); }
+.ng-camp-stats span { display: grid; min-width: 0; }
+.ng-camp-stats small { color: var(--body); font-size: 11.5px; }
+.ng-camp-stats b { overflow: hidden; font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ng-camp-stats b.is-bad { color: var(--expense); }
+.ng-camp-mark { display: grid; place-items: center; width: 84px; height: 84px; border-radius: 28px; background: color-mix(in srgb, var(--c) 16%, var(--paper)); color: color-mix(in srgb, var(--c) 75%, var(--ink)); }
+.ng-camp-mark .ic svg { width: 36px; height: 36px; }
+.ng-row.ng-camp-post { grid-template-columns: 40px minmax(0, 1fr) auto; }
+
+/* ── Resultados ── */
+.ng-results-view { display: grid; gap: 16px; }
+.ng-row.ng-res-row { grid-template-columns: 48px minmax(0, 1fr) 90px 100px 60px; }
+.ng-res-media { display: block; width: 48px; height: 48px; overflow: hidden; border-radius: 12px; background: var(--cloud); }
+.ng-res-media img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.ng-res-media i { display: block; width: 100%; height: 100%; background: linear-gradient(150deg, var(--c), color-mix(in srgb, var(--c) 55%, #000)); }
+.ng-res-bars li { grid-template-columns: minmax(120px, 1fr) minmax(0, 1.4fr) 64px 70px; }
+.ng-res-bars small { color: var(--body); font-size: 12.5px; text-align: right; }
+.ng-res-bars .ng-bars-name .ic svg { width: 16px; height: 16px; color: var(--body); }
+
+/* Formulario de publicación: grupos de hashtags y resultados */
+.ng-tagsets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -6px; }
+.ng-tagsets:empty { display: none; }
+.ng-tagsets .ng-fchip { height: 30px; padding: 0 12px; font-size: 13px; }
+.ng-results { display: grid; gap: 12px; padding: 16px; border-radius: 20px; background: var(--cloud); --field-bg: var(--paper); }
+.ng-results-note b { color: var(--income); font-weight: 600; }
+.ng-results-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.ng-results-grid .ng-field input { padding: 9px 12px; }
+.ng-results-leads { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--body); font-size: 14px; }
+.ng-results-leads > span { flex: 1; min-width: 180px; }
+
 @media (max-width: 1180px) {
   .ng-feed-sim { grid-template-columns: minmax(0, 1fr); justify-items: center; }
   .ng-feed-side { width: 100%; }
   .ng-postform { grid-template-columns: minmax(0, 1fr); }
   .ng-postform-side { position: static; max-width: 340px; }
+  .ng-week { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
   .ng-copy-cols, .ng-colors { grid-template-columns: minmax(0, 1fr); }
+  .ng-results-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ng-row.ng-res-row { grid-template-columns: 48px minmax(0, 1fr) 90px 60px; }
+  .ng-row.ng-res-row > .ng-row-stat:nth-of-type(3) { display: none; }
 }
 @media (max-width: 760px) {
   .ng-cal-grid { display: block; }
@@ -243,4 +345,17 @@ textarea.is-code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-
   .ng-cal-nav h2 { min-width: 0; font-size: 19px; }
   .ng-phone { width: min(360px, 100%); }
   .ng-phone-screen { min-height: 560px; }
+  .ng-week { grid-template-columns: minmax(0, 1fr); }
+  .ng-week-day { min-height: 0; }
+  .ng-week-day:not(.is-today):not(:has(.ng-pchip, .ng-xchip)) { display: none; }
+  .ng-pchip.is-rich { grid-template-columns: 56px auto minmax(0, 1fr) auto; grid-template-areas: 'media ico title dot'; }
+  .ng-pchip.is-rich .ng-pchip-media { aspect-ratio: 1; }
+  .ng-agenda > li { grid-template-columns: 44px minmax(0, 1fr); padding: 10px; }
+  .ng-agenda-post { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .ng-agenda-post .ng-agenda-time { display: none; }
+  .ng-row.ng-res-row { grid-template-columns: 48px minmax(0, 1fr) 60px; }
+  .ng-row.ng-res-row > .ng-row-stat:nth-of-type(2) { display: none; }
+  .ng-res-bars li { grid-template-columns: minmax(90px, 1fr) minmax(0, 1fr) 54px; }
+  .ng-res-bars small { display: none; }
+  .ng-camp-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

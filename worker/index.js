@@ -13,9 +13,10 @@
 //   crm:share:<token>    a qué documento lleva un enlace público, y su contraseña
 //   crm:pub:<docId>      aperturas, firma o rechazo de ese enlace (en metadatos)
 //   crm:sig:<docId>      la firma dibujada, como imagen PNG en texto
+//   crm:file:<id>        un archivo subido (recibo, imagen de una línea o de una tarea…)
 //   crm:<colección>      clientes, catálogo, formas de cobro, documentos, proyectos,
-//                        tareas y horas, cada colección en una sola clave (ver CRM
-//                        más abajo)
+//                        tareas, horas, páginas, leads, campañas…, cada colección en una sola clave
+//                        (ver CRM más abajo)
 //
 // Limitadores (opcionales, ver `ratelimits` en wrangler.jsonc): LOGIN_LIMIT y
 // WRITE_LIMIT frenan ráfagas por visitante sin escribir nada en el almacén.
@@ -294,6 +295,9 @@ const CRM = {
   categories: { key: 'crm:categories', max: 200 },
   brands: { key: 'crm:brands', max: 50 },
   posts: { key: 'crm:posts', max: 10000 },
+  pages: { key: 'crm:pages', max: 1000, bytes: 150_000 },
+  leads: { key: 'crm:leads', max: 5000 },
+  campaigns: { key: 'crm:campaigns', max: 300 },
 };
 const CRM_ITEM_BYTES = 80_000;
 const CRM_SETTINGS_BYTES = 400_000; // el logo va dentro, como imagen en texto
@@ -406,7 +410,7 @@ async function writeCrm(env, ops) {
     if (op.col === 'docs') numberDoc(item, list, before);
     item.createdAt = before?.createdAt || now;
     item.updatedAt = now;
-    if (enc.encode(JSON.stringify(item)).length > CRM_ITEM_BYTES) throw new HttpError(413, 'Ese elemento pesa demasiado.');
+    if (enc.encode(JSON.stringify(item)).length > (spec.bytes || CRM_ITEM_BYTES)) throw new HttpError(413, 'Ese elemento pesa demasiado.');
     if (before) list[at] = item;
     else if (list.length >= spec.max) throw new HttpError(400, 'Llegaste al máximo de elementos de esa lista.');
     else list.push(item);

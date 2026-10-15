@@ -405,6 +405,60 @@
 }
 .ng-comment-new textarea:focus-visible { outline: none; border-color: var(--blue); }
 
+/* ── Claves, portadas, subtareas y enlaces (al estilo de Linear) ── */
+.ng-tkey { color: var(--body); font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11.5px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+.ng-tkey-parent { font-family: var(--font); font-weight: 500; }
+.ng-row-main b .ng-tkey { margin-right: 8px; font-size: 12px; }
+.ng-tcard-head { display: grid; gap: 2px; min-width: 0; }
+.ng-tcard-cover { height: 96px; margin-bottom: 2px; border-radius: 12px; }
+.ng-tcard.has-cover { padding-top: 8px; }
+.ng-tcard.is-done .ng-tcard-cover { opacity: 0.55; }
+.ng-keybtn {
+  flex: none;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--cloud);
+  color: var(--body);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: copy;
+  transition: background 0.2s, color 0.2s;
+}
+.ng-keybtn:hover { background: var(--cloud-deep); color: var(--ink); }
+.ng-crumb { max-width: 130px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12.5px; }
+.ng-tsheet-cover-slot:empty, .ng-blocked-slot:empty { display: none; }
+.ng-tsheet-cover { position: relative; margin: -18px -22px 0; }
+.ng-tsheet-cover .ln-cover { height: 160px; }
+.ng-tsheet-cover-tools { position: absolute; right: 14px; bottom: 14px; opacity: 0; transition: opacity 0.2s; }
+.ng-tsheet-cover:hover .ng-tsheet-cover-tools, .ng-tsheet-cover-tools:focus-within { opacity: 1; }
+.ng-tsheet-cover-tools .pill.ghost, .pg-cover-tools .pill.ghost { background: var(--glass-strong); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: var(--glass-shadow); }
+@media (hover: none) { .ng-tsheet-cover-tools { opacity: 1; } }
+.ng-blocked { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 16px; background: color-mix(in srgb, var(--expense) 9%, var(--paper)); color: color-mix(in srgb, var(--expense) 78%, var(--ink)); font-size: 14px; font-weight: 500; }
+.ng-blocked .ic svg { width: 16px; height: 16px; }
+.ng-subs { display: grid; gap: 2px; }
+.ng-subs li { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 3px 8px 3px 10px; border-radius: 12px; }
+.ng-subs li:hover { background: var(--cloud); }
+.ng-sub-open { display: flex; flex: 1; align-items: baseline; gap: 8px; min-width: 0; padding: 7px 0; border: 0; background: none; color: var(--ink); font-size: 15px; text-align: left; cursor: pointer; }
+.ng-sub-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ng-sub-open small { flex: none; color: var(--body); font-size: 12px; }
+.ng-subs li.is-done .ng-sub-title { color: var(--body); text-decoration: line-through; }
+.ng-subs .ng-tag { flex: none; padding: 2px 8px; font-size: 12px; }
+.ng-links { display: grid; gap: 6px; }
+.ng-links li { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 6px 4px 6px 12px; border-radius: 14px; background: var(--cloud); }
+.ng-link-kind { flex: none; width: 116px; color: color-mix(in srgb, var(--c, var(--body)) 78%, var(--ink)); font-size: 12.5px; font-weight: 600; }
+.ng-links .ln-chip { flex: 0 1 auto; min-width: 0; }
+.ng-links .ng-ibtn { margin-left: auto; }
+.ng-backlinks { display: grid; gap: 8px; }
+.ng-backlinks > small { color: var(--body); font-size: 12.5px; font-weight: 600; }
+.ng-backlinks > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.ng-grid2.is-code { grid-template-columns: minmax(0, 1fr) 110px; }
+.ng-field input.ng-code-in { font-family: 'JetBrains Mono', ui-monospace, monospace; letter-spacing: 0.04em; text-transform: uppercase; }
+.ng-form > small.ng-hint { margin-top: -6px; font-size: 13px; }
+.ng-checklist .ng-ibtn + .ng-ibtn { margin-left: -6px; }
+
 /* ── Horas ── */
 .ng-row.is-time { grid-template-columns: 40px minmax(0, 1fr) 130px 100px 130px 110px; }
 .ng-row-dur { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
@@ -458,6 +512,9 @@
   .ng-sheet-body { padding: 16px 16px 28px; }
   .ng-ttitle { font-size: 21px; }
   .ng-bill-qty { display: none; }
+  .ng-link-kind { width: 92px; }
+  .ng-grid2.is-code { grid-template-columns: minmax(0, 1fr) 96px; }
+  .ng-sheet-head .ng-keybtn { display: none; }
   .ng-timer-clock { font-size: 40px; }
 }
 @media (max-width: 520px) {

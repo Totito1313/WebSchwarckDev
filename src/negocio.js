@@ -10,8 +10,11 @@ import { homePage } from './negocio-inicio.js';
 import { marketingPage } from './negocio-marketing.js';
 import { postForm, newPost } from './negocio-contenido.js';
 import { projectsPage, projectPage, projectForm } from './negocio-projects.js';
-import { tasksPage, createTask } from './negocio-tasks.js';
+import { tasksPage, createTask, openTaskByKey } from './negocio-tasks.js';
 import { hoursPage, mountTimer, timeForm, guessProject } from './negocio-time.js';
+import { pagesPage, createPage } from './negocio-paginas.js';
+import { leadsPage, createLead } from './negocio-leads.js';
+import { ensureKeys } from './negocio-work.js';
 
 initTheme();
 
@@ -72,8 +75,10 @@ newButton.addEventListener('click', () => menu(newButton, [
   '-',
   { label: 'Nuevo proyecto', icon: 'folder', run: () => projectForm(null, (p) => go(`#/proyectos/${p.id}`)) },
   { label: 'Nueva tarea', icon: 'tasks', run: () => createTask({ projectId: guessProject({ here: true }) }) },
+  { label: 'Nueva página', icon: 'page', run: () => createPage({ projectId: guessProject({ here: true }) || '' }) },
   { label: 'Registrar horas', icon: 'clock', run: () => timeForm(null, { projectId: guessProject() }) },
   '-',
+  { label: 'Nuevo lead', icon: 'funnel', run: () => createLead() },
   { label: 'Nuevo cliente', icon: 'users', run: () => customerForm(null, (c) => go(`#/clientes/${c.id}`)) },
   { label: 'Nuevo servicio', icon: 'box', run: () => catalogForm(null, () => go('#/catalogo')) },
   '-',
@@ -81,7 +86,7 @@ newButton.addEventListener('click', () => menu(newButton, [
 ], { side: matchMedia('(max-width: 760px)').matches ? 'below' : 'right' }));
 
 // ── Rutas ──
-const TITLES = { propuestas: 'Propuestas', marketing: 'Marketing', proyectos: 'Proyectos', tareas: 'Tareas', horas: 'Horas', inicio: 'Inicio', gastos: 'Gastos', facturas: 'Facturas', cotizaciones: 'Cotizaciones', clientes: 'Clientes', catalogo: 'Catálogo', ajustes: 'Ajustes' };
+const TITLES = { leads: 'Leads', paginas: 'Páginas', propuestas: 'Propuestas', marketing: 'Marketing', proyectos: 'Proyectos', tareas: 'Tareas', horas: 'Horas', inicio: 'Inicio', gastos: 'Gastos', facturas: 'Facturas', cotizaciones: 'Cotizaciones', clientes: 'Clientes', catalogo: 'Catálogo', ajustes: 'Ajustes' };
 let current = null;
 let lastList = '#/facturas';
 
@@ -89,7 +94,17 @@ function resolve() {
   const [section = '', id, sub] = location.hash.replace(/^#\/?/, '').split('/');
   switch (section) {
     case 'proyectos': return { nav: 'proyectos', build: () => (id ? projectPage(id, sub) : projectsPage()) };
-    case 'tareas': return { nav: 'tareas', build: tasksPage };
+    case 'tareas': return {
+      nav: 'tareas',
+      build: () => {
+        const page = tasksPage();
+        // #/tareas/CF-12 abre esa tarea encima del tablero.
+        if (id) setTimeout(() => { if (!openTaskByKey(decodeURIComponent(id))) toast(`No hay ninguna tarea ${decodeURIComponent(id)}.`, 'error'); });
+        return page;
+      },
+    };
+    case 'paginas': return { nav: 'paginas', build: () => pagesPage(id) };
+    case 'leads': return { nav: 'leads', build: () => leadsPage(id) };
     case 'horas': return { nav: 'horas', build: hoursPage };
     case 'facturas': return { nav: 'facturas', build: () => docsPage('invoice') };
     case 'gastos': return { nav: 'gastos', build: expensesPage };
@@ -122,7 +137,7 @@ function render() {
   }
   if (!route.editor) {
     const page = location.hash.replace(/^#\/?/, '').split('/')[0] || 'inicio';
-    document.title = `${TITLES[page] || 'Negocio'} | Negocio`;
+    document.title = current.title || `${TITLES[page] || 'Negocio'} | Negocio`;
   }
   scrollTo(0, 0);
 }
@@ -181,6 +196,7 @@ async function openApp() {
   }
   opened = true;
   lastPub = Date.now();
+  ensureKeys();
   mountTimer(document.querySelector('[data-timer]'));
   show('app');
   render();

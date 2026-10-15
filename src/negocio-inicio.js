@@ -6,6 +6,7 @@ import {
   el, icon, avatar, tag, seg,
 } from './negocio-core.js';
 import { createDoc } from './negocio-views.js';
+import { leadsHomeCard } from './negocio-leads.js';
 import {
   PERIODS, PREV_TEXT, period, periodRange, within, change, stat, expenseBase, sumExpenses, expenseForm, vendorMark,
 } from './negocio-gastos.js';
@@ -71,6 +72,11 @@ function activity() {
   }
   for (const e of list('expenses')) items.push({ date: e.date, ico: 'wallet', c: 'var(--expense)', text: `Gasto en ${e.vendor || e.title}: ${money(e.amount, e.currency)}`, href: '#/gastos' });
   for (const c of list('customers')) if (c.createdAt) items.push({ date: localDay(c.createdAt), ico: 'users', c: 'var(--violet)', text: `Nuevo cliente: ${c.name}`, href: `#/clientes/${c.id}` });
+  for (const l of list('leads')) {
+    const who = l.name || l.company || 'Un lead';
+    if (l.createdOn) items.push({ date: l.createdOn, ico: 'funnel', c: 'var(--violet)', text: `Nuevo lead: ${who}`, href: '#/leads' });
+    if (l.stage === 'won' && l.wonAt) items.push({ date: localDay(l.wonAt), ico: 'check', c: 'var(--income)', text: `Ganaste a ${who}`, href: '#/leads' });
+  }
   return items.filter((i) => i.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
 }
 
@@ -204,6 +210,7 @@ export function homePage() {
           ))) : el('p', { class: 'ng-none', text: 'Aquí aparecerán tus cobros, facturas y gastos.' }),
         ),
       ),
+      leadsHomeCard(),
       el('div', { class: 'ng-split' },
         el('section', { class: 'ng-card' },
           el('header', { class: 'ng-card-head' }, el('div', {}, el('h2', { text: 'Por cobrar' }), el('p', { text: open.length ? 'Las que vencen antes, arriba.' : 'Nadie te debe nada.' })), el('a', { class: 'pill ghost sm', href: '#/facturas', text: 'Ver facturas' })),

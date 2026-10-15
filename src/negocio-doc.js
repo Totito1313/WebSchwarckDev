@@ -12,7 +12,7 @@ import {
 } from './negocio-core.js';
 import { go, customerForm, templateForm, catalogForm } from './negocio-views.js';
 import { ACCENTS, renderSheet, acceptance, stampText } from './negocio-sheet.js';
-import { renderBlocks, applyTemplate, PROPOSAL_TEMPLATES } from './negocio-propuesta.js';
+import { renderBlocks, applyTemplate, PROPOSAL_TEMPLATES, BLOCKS, block } from './negocio-propuesta.js';
 import { uploadFile, fileUrl } from './negocio-gastos.js';
 import { newProject } from './negocio-work.js';
 
@@ -143,7 +143,7 @@ export function docEditor(id, { backTo } = {}) {
         doc.type === 'proposal' ? flatArea(doc.title, (v) => { doc.title = v; }, { cls: 'sh-proposal-title', placeholder: 'Título de la propuesta', 'aria-label': 'Título de la propuesta' }) : title,
         parties(),
         doc.type === 'proposal'
-          ? renderBlocks(doc, { edit: true, F: { text: flat, area: flatArea }, touch, redraw: drawSheet, pickImage, pricing: () => [lines(), el('div', { class: 'sh-foot' }, payBlock(), totalsBlock())] })
+          ? renderBlocks(doc, { edit: true, F: { text: flat, area: flatArea }, touch, redraw: drawSheet, pickImage, saveBlock, library: blockLibrary, pricing: () => [lines(), el('div', { class: 'sh-foot' }, payBlock(), totalsBlock())] })
           : [doc.type === 'receipt' ? receiptLines() : lines(), el('div', { class: 'sh-foot' }, doc.type === 'receipt' ? receiptPay() : payBlock(), totalsBlock())],
         flatArea(doc.notes, (v) => { doc.notes = v; }, { cls: 'sh-notes', placeholder: 'Nota para el cliente (opcional)', 'aria-label': 'Nota' }),
         doc.type !== 'receipt' && sectionsBlock(),
@@ -202,14 +202,40 @@ export function docEditor(id, { backTo } = {}) {
     return el('section', { class: 'sh-parties' }, from, to, dates);
   }
 
+  /** Las líneas: cada una puede llevar su foto y se reordena arrastrando su asa. */
   function lines() {
-    const rows = doc.items.map((item) => {
+    let dragId = null;
+    const marker = el('div', { class: 'sh-drop no-print', 'aria-hidden': 'true' });
+    const rows = doc.items.map((item, i) => {
       const amount = el('span', { class: 'sh-amount' });
       refs.amounts.set(item.id, amount);
-      return el('div', { class: 'sh-item' },
-        el('div', { class: 'sh-item-desc' },
-          flat(item.name, (v) => { item.name = v; }, { cls: 'is-strong', placeholder: 'Concepto', 'aria-label': 'Concepto' }),
-          flatArea(item.description, (v) => { item.description = v; }, { cls: 'is-soft', placeholder: 'Detalle (opcional)', 'aria-label': 'Detalle' }),
+      const handle = el('button', { type: 'button', class: 'sh-handle no-print', draggable: true, 'aria-label': 'Mover la línea u otras opciones', title: 'Arrastra para mover · toca para ver opciones' }, icon('drag'));
+      handle.addEventListener('click', () => lineMenu(handle, item, i));
+      handle.addEventListener('dragstart', (e) => {
+        dragId = item.id;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', item.id);
+        const row = handle.closest('.sh-item');
+        e.dataTransfer.setDragImage(row, 24, 20);
+        setTimeout(() => row.classList.add('is-dragging'));
+      });
+      handle.addEventListener('dragend', () => {
+        dragId = null;
+        marker.remove();
+        for (const r of sheet.querySelectorAll('.sh-item.is-dragging')) r.classList.remove('is-dragging');
+      });
+      const media = item.image && el('div', { class: 'sh-item-media' },
+        el('img', { src: item.image, alt: '' }),
+        el('button', { type: 'button', class: 'sh-media-x no-print', 'aria-label': 'Quitar la imagen', title: 'Quitar la imagen', onclick: () => { item.image = ''; touch(); drawSheet(); } }, icon('x')),
+      );
+      return el('div', { class: 'sh-item', data: { id: item.id } },
+        handle,
+        el('div', { class: `sh-item-desc${item.image ? ' has-media' : ''}` },
+          media,
+          el('div', { class: 'sh-item-fields' },
+            flat(item.name, (v) => { item.name = v; }, { cls: 'is-strong', placeholder: 'Concepto', 'aria-label': 'Concepto' }),
+            flatArea(item.description, (v) => { item.description = v; }, { cls: 'is-soft', placeholder: 'Detalle (opcional)', 'aria-label': 'Detalle' }),
+          ),
         ),
         numIn(item.qty, (v) => { item.qty = v; }, { whole: true, label: 'Cantidad' }),
         numIn(item.price, (v) => { item.price = v; }, { label: 'Precio' }),
@@ -225,15 +251,60 @@ export function docEditor(id, { backTo } = {}) {
       el('button', { type: 'button', class: 'sh-add', onclick: () => addItem() }, icon('plus'), 'Añadir línea'),
       el('button', { type: 'button', class: 'sh-add', onclick: (e) => pickFromCatalog(e.currentTarget) }, icon('box'), 'Del catálogo'),
     );
-    return el('section', { class: 'sh-items' },
+    const box = el('section', { class: 'sh-items' },
       el('div', { class: 'sh-items-head' }, el('span', { text: 'Descripción' }), el('span', { text: 'Cant.' }), el('span', { text: 'Precio' }), el('span', { text: 'Importe' })),
       rows,
       add,
     );
+    box.addEventListener('dragover', (e) => {
+      if (!dragId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const next = [...box.querySelectorAll('.sh-item:not(.is-dragging)')].find((r) => {
+        const rect = r.getBoundingClientRect();
+        return e.clientY < rect.top + rect.height / 2;
+      });
+      box.insertBefore(marker, next || add);
+    });
+    box.addEventListener('dragleave', (e) => {
+      if (!box.contains(e.relatedTarget)) marker.remove();
+    });
+    box.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const nextId = marker.nextElementSibling?.dataset?.id;
+      marker.remove();
+      const item = dragId && doc.items.find((x) => x.id === dragId);
+      if (!item || item.id === nextId) return;
+      doc.items = doc.items.filter((x) => x !== item);
+      const to = nextId ? doc.items.findIndex((x) => x.id === nextId) : doc.items.length;
+      doc.items.splice(to < 0 ? doc.items.length : to, 0, item);
+      touch();
+      drawSheet();
+    });
+    return box;
+  }
+
+  function lineMenu(anchor, item, i) {
+    const move = (to) => {
+      doc.items.splice(i, 1);
+      doc.items.splice(to, 0, item);
+      touch();
+      drawSheet();
+    };
+    menu(anchor, [
+      { label: item.image ? 'Cambiar la imagen' : 'Poner una imagen', icon: 'image', run: () => pickImage(item, () => { touch(); drawSheet(); }) },
+      item.image && { label: 'Quitar la imagen', icon: 'x', run: () => { item.image = ''; touch(); drawSheet(); } },
+      { label: 'Duplicar línea', icon: 'copy', run: () => { doc.items.splice(i + 1, 0, { ...structuredClone(item), id: uid() }); touch(); drawSheet(); } },
+      { label: 'Subir', icon: 'up', disabled: i === 0, run: () => move(i - 1) },
+      { label: 'Bajar', icon: 'down', disabled: i === doc.items.length - 1, run: () => move(i + 1) },
+      { label: 'Guardar en el catálogo', icon: 'box', disabled: !item.name?.trim(), run: () => catalogForm(null, () => toast('Guardado en el catálogo.'), { name: item.name, description: item.description, price: item.price, currency: doc.currency, image: item.image || '' }) },
+      '-',
+      { label: 'Quitar línea', icon: 'trash', danger: true, run: () => { doc.items = doc.items.filter((x) => x !== item); touch(); drawSheet(); } },
+    ]);
   }
 
   function addItem(from) {
-    const item = { id: uid(), name: from?.name || '', description: from?.description || '', qty: 1, price: from?.price || 0 };
+    const item = { id: uid(), name: from?.name || '', description: from?.description || '', qty: 1, price: from?.price || 0, image: from?.image || '' };
     // Si la única línea está vacía, el servicio del catálogo ocupa su lugar.
     const blank = doc.items.length === 1 && !doc.items[0].name && !doc.items[0].price;
     if (from && blank) doc.items = [item];
@@ -408,23 +479,57 @@ export function docEditor(id, { backTo } = {}) {
     );
   }
 
+  /** Secciones del pie (términos, garantía…). Se guardan en la biblioteca para usarlas en cualquier documento. */
   function sectionsBlock() {
+    const library = state.settings.sections || [];
     const used = new Set(doc.sections.map((s) => s.title));
+    const fromLibrary = library.length > 0 && el('button', { type: 'button', class: 'sh-chip' }, icon('bookmark'), 'De la biblioteca', icon('down'));
+    if (fromLibrary) {
+      fromLibrary.addEventListener('click', () => picker(fromLibrary, {
+        placeholder: 'Buscar en la biblioteca…',
+        items: () => state.settings.sections || [],
+        label: (x) => x.title || 'Sin título',
+        sub: (x) => (x.body || '').replace(/\s+/g, ' ').slice(0, 90),
+        onPick: (x) => {
+          doc.sections.push({ id: uid(), title: x.title, body: x.body, libId: x.id });
+          touch();
+          drawSheet();
+        },
+        extra: el('a', { class: 'ng-pick-new', href: '#/ajustes' }, icon('sliders'), 'Ordenar la biblioteca en Ajustes'),
+      }));
+    }
     return el('section', { class: 'sh-sections' },
-      doc.sections.map((s) => el('div', { class: 'sh-section' },
-        el('div', { class: 'sh-section-head' },
-          flat(s.title, (v) => { s.title = v; }, { cls: 'sh-section-title', 'aria-label': 'Título de la sección' }),
-          iconButton('x', 'Quitar sección', () => { doc.sections = doc.sections.filter((x) => x !== s); touch(); drawSheet(); }, 'sh-del no-print'),
-        ),
-        flatArea(s.body, (v) => { s.body = v; }, { placeholder: 'Escribe aquí…', 'aria-label': s.title }),
-      )),
+      doc.sections.map((s, i) => {
+        const move = (to) => {
+          doc.sections.splice(i, 1);
+          doc.sections.splice(to, 0, s);
+          touch();
+          drawSheet();
+        };
+        const more = iconButton('more', 'Opciones de la sección', () => menu(more, [
+          { label: 'Subir', icon: 'up', disabled: i === 0, run: () => move(i - 1) },
+          { label: 'Bajar', icon: 'down', disabled: i === doc.sections.length - 1, run: () => move(i + 1) },
+          { label: 'Guardar en la biblioteca', icon: 'bookmark', disabled: !`${s.title || ''}${s.body || ''}`.trim(), run: () => saveSection(s) },
+          '-',
+          { label: 'Quitar sección', icon: 'trash', danger: true, run: () => { doc.sections = doc.sections.filter((x) => x !== s); touch(); drawSheet(); } },
+        ], { align: 'end' }), 'sh-del no-print');
+        return el('div', { class: 'sh-section' },
+          el('div', { class: 'sh-section-head' },
+            flat(s.title, (v) => { s.title = v; }, { cls: 'sh-section-title', 'aria-label': 'Título de la sección' }),
+            more,
+          ),
+          flatArea(s.body, (v) => { s.body = v; }, { placeholder: 'Escribe aquí…', 'aria-label': s.title }),
+        );
+      }),
       el('div', { class: 'sh-chips no-print' },
+        fromLibrary,
         [...SECTION_TITLES.filter((t) => !used.has(t)), 'Otra sección'].map((t) => el('button', {
           type: 'button',
           class: 'sh-chip is-dashed',
           onclick: () => {
-            const body = t === 'Términos y condiciones' ? state.settings.terms || '' : '';
-            doc.sections.push({ id: uid(), title: t === 'Otra sección' ? '' : t, body });
+            const saved = library.find((x) => x.title === t);
+            const body = saved ? saved.body : t === 'Términos y condiciones' ? state.settings.terms || '' : '';
+            doc.sections.push({ id: uid(), title: t === 'Otra sección' ? '' : t, body, libId: saved?.id || '' });
             touch();
             drawSheet();
             [...sheet.querySelectorAll('.sh-section textarea')].at(-1)?.focus();
@@ -432,6 +537,40 @@ export function docEditor(id, { backTo } = {}) {
         }, icon('plus'), t)),
       ),
     );
+  }
+
+  /** Guarda una sección en la biblioteca (o la actualiza si ya estaba). */
+  function saveSection(s) {
+    const library = [...(state.settings.sections || [])];
+    const at = library.findIndex((x) => (s.libId && x.id === s.libId) || (x.title && x.title === s.title));
+    const entry = { id: at >= 0 ? library[at].id : uid(), title: (s.title || '').trim() || 'Sin título', body: s.body || '' };
+    if (at >= 0) library[at] = entry;
+    else library.push(entry);
+    s.libId = entry.id;
+    put('settings', { ...state.settings, sections: library });
+    touch();
+    drawSheet();
+    toast(at >= 0 ? 'Actualizada en la biblioteca.' : 'Guardada en la biblioteca: ya la puedes añadir a cualquier documento.');
+  }
+
+  /** Un bloque de propuesta a la biblioteca: los de texto, como sección; el resto, enteros. */
+  function saveBlock(b) {
+    if (b.kind === 'intro' || b.kind === 'text') {
+      saveSection({ title: b.title, body: b.body });
+      return;
+    }
+    const { id, ...rest } = structuredClone(b);
+    const saved = [...(state.settings.savedBlocks || []), { id: uid(), label: b.title || BLOCKS[b.kind]?.label || 'Bloque', block: rest }];
+    put('settings', { ...state.settings, savedBlocks: saved });
+    toast('Bloque guardado: lo verás en «Añadir bloque» de cualquier propuesta.');
+  }
+
+  /** Lo guardado que se puede añadir a una propuesta. */
+  function blockLibrary() {
+    return [
+      ...(state.settings.savedBlocks || []).map((x) => ({ label: x.label, note: BLOCKS[x.block?.kind]?.label || '', make: () => ({ ...structuredClone(x.block), id: uid(), items: (x.block.items || []).map((it) => ({ ...it, id: uid() })) }) })),
+      ...(state.settings.sections || []).map((x) => ({ label: x.title || 'Sin título', note: 'Sección', make: () => block('text', { title: x.title, body: x.body }) })),
+    ];
   }
 
   /** Cifras que cambian al escribir: se actualizan en su sitio, sin repintar la hoja. */

@@ -8,6 +8,8 @@ import {
 } from './negocio-core.js';
 import { projectForm, projectRow } from './negocio-projects.js';
 import { applyTemplate, PROPOSAL_TEMPLATES } from './negocio-propuesta.js';
+import { pagesCard } from './negocio-paginas.js';
+import { uploadFile, fileUrl } from './negocio-gastos.js';
 
 export const go = (hash) => {
   location.hash = hash;
@@ -451,6 +453,7 @@ export function customerPage(id) {
         el('header', { class: 'ng-card-head' }, el('div', {}, el('h2', { text: 'Proyectos' }), el('small', { text: `${projects.length} en total` }))),
         el('div', { class: 'ng-rows' }, projects.map(projectRow)),
       ),
+      pagesCard({ customerId: c.id }),
       c.notes && el('section', { class: 'ng-card ng-notes' }, el('h2', { text: 'Notas' }), el('p', { text: c.notes })),
     ].filter(Boolean));
   };
@@ -460,20 +463,48 @@ export function customerPage(id) {
 
 // ── Catálogo ──
 
-export function catalogForm(item, onSaved) {
-  const it = item ? { ...item } : { id: uid(), name: '', description: '', price: 0, currency: base() };
+/** Un servicio del catálogo. `prefill` rellena uno nuevo (por ejemplo, desde una línea de factura). */
+export function catalogForm(item, onSaved, prefill = null) {
+  const it = item ? { ...item } : { id: uid(), name: '', description: '', price: 0, currency: base(), image: '', ...prefill };
   const f = {
     name: input({ value: it.name, required: true, maxLength: 160, placeholder: 'Diseño de interfaz' }),
     description: autosize(el('textarea', { value: it.description, rows: 2, maxLength: 1000, placeholder: 'Lo que incluye, en una línea.' })),
     price: input({ value: it.price ? amountText(it.price) : '', inputmode: 'decimal', placeholder: '0,00' }),
     currency: select(CURRENCY_CODES.map((k) => [k, k]), it.currency || base(), { 'aria-label': 'Moneda' }),
   };
+  const photo = el('div', { class: 'ng-logo-row' });
+  const drawPhoto = () => {
+    const pick = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', hidden: true });
+    pick.addEventListener('change', async () => {
+      const file = pick.files[0];
+      if (!file) return;
+      toast('Subiendo foto…');
+      try {
+        it.image = fileUrl((await uploadFile(file)).id);
+        drawPhoto();
+        toast('Foto lista.');
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    });
+    photo.replaceChildren(
+      el('div', { class: `ng-logo-pick is-photo${it.image ? '' : ' is-empty'}` }, el('img', { src: it.image || '', alt: '' }), el('span', { text: 'Sin foto' })),
+      el('div', { class: 'ng-logo-actions' },
+        el('button', { type: 'button', class: 'pill ghost sm', onclick: () => pick.click() }, icon('upload'), it.image ? 'Cambiar foto' : 'Subir foto'),
+        it.image && el('button', { type: 'button', class: 'pill ghost sm', text: 'Quitar', onclick: () => { it.image = ''; drawPhoto(); } }),
+        el('small', { text: 'Sale junto a la línea en facturas, cotizaciones y propuestas.' }),
+        pick,
+      ),
+    );
+  };
+  drawPhoto();
   dialog({
     title: item ? 'Editar servicio' : 'Nuevo servicio',
     body: el('div', { class: 'ng-form' },
       field('Nombre', f.name),
       field('Descripción', f.description),
       el('div', { class: 'ng-grid2 is-price' }, field('Precio', f.price), field('Moneda', f.currency)),
+      el('div', { class: 'ng-field' }, el('span', { text: 'Foto' }), photo),
     ),
     danger: item && {
       label: 'Eliminar',
@@ -513,7 +544,7 @@ export function catalogPage() {
       return;
     }
     list.replaceChildren(shown.length ? el('div', { class: 'ng-rows' }, shown.map((it) => el('button', { type: 'button', class: 'ng-row is-item', onclick: () => catalogForm(it, draw) },
-      el('span', { class: 'ng-row-ico' }, icon('box')),
+      it.image ? el('span', { class: 'ng-row-ico is-photo' }, el('img', { src: it.image, alt: '' })) : el('span', { class: 'ng-row-ico' }, icon('box')),
       el('span', { class: 'ng-row-main' }, el('b', { text: it.name }), el('small', { text: it.description || 'Sin descripción' })),
       el('b', { class: 'ng-row-amount', text: money(it.price, it.currency) }),
       icon('edit'),
@@ -658,6 +689,64 @@ export function settingsPage() {
   };
   drawPay();
 
+  const libList = el('div', { class: 'ng-rows' });
+  const sectionForm = (entry) => {
+    const title = input({ value: entry?.title || '', required: true, maxLength: 120, placeholder: 'Garantía' });
+    const body = autosize(el('textarea', { value: entry?.body || '', rows: 6, maxLength: 8000 }));
+    dialog({
+      title: entry ? 'Editar sección guardada' : 'Nueva sección guardada',
+      wide: true,
+      body: el('div', { class: 'ng-form' }, field('Título', title), field('Texto', body, 'Se añade tal cual a cualquier factura, cotización o propuesta.')),
+      danger: entry && {
+        label: 'Quitar de la biblioteca',
+        run: () => {
+          put('settings', { ...state.settings, sections: (state.settings.sections || []).filter((x) => x.id !== entry.id) });
+          drawLib();
+        },
+      },
+      onSubmit: () => {
+        if (!title.value.trim()) return false;
+        const next = { id: entry?.id || uid(), title: title.value.trim(), body: body.value };
+        const list = [...(state.settings.sections || [])];
+        const at = list.findIndex((x) => x.id === next.id);
+        if (at >= 0) list[at] = next;
+        else list.push(next);
+        put('settings', { ...state.settings, sections: list });
+        drawLib();
+        return true;
+      },
+    });
+  };
+  const drawLib = () => {
+    const sections = state.settings.sections || [];
+    const blocks = state.settings.savedBlocks || [];
+    const move = (i, step) => {
+      const list = [...sections];
+      const [x] = list.splice(i, 1);
+      list.splice(i + step, 0, x);
+      put('settings', { ...state.settings, sections: list });
+      drawLib();
+    };
+    libList.replaceChildren(
+      ...sections.map((x, i) => el('div', { class: 'ng-row is-item is-lib' },
+        el('span', { class: 'ng-row-ico' }, icon('bookmark')),
+        el('button', { type: 'button', class: 'ng-row-main ng-lib-open', onclick: () => sectionForm(x) }, el('b', { text: x.title || 'Sin título' }), el('small', { text: (x.body || '').replace(/\s+/g, ' ').slice(0, 120) || 'Sin texto' })),
+        iconButton('up', 'Subir', () => move(i, -1), `is-sm${i === 0 ? ' is-hidden' : ''}`),
+        iconButton('down', 'Bajar', () => move(i, 1), `is-sm${i === sections.length - 1 ? ' is-hidden' : ''}`),
+      )),
+      ...blocks.map((x) => el('div', { class: 'ng-row is-item is-lib' },
+        el('span', { class: 'ng-row-ico' }, icon('send')),
+        el('span', { class: 'ng-row-main' }, el('b', { text: x.label }), el('small', { text: 'Bloque de propuesta' })),
+        iconButton('trash', 'Quitar de la biblioteca', () => {
+          put('settings', { ...state.settings, savedBlocks: (state.settings.savedBlocks || []).filter((y) => y.id !== x.id) });
+          drawLib();
+        }, 'is-sm'),
+      )),
+      el('button', { type: 'button', class: 'ng-add', onclick: () => sectionForm(null) }, icon('plus'), 'Nueva sección'),
+    );
+  };
+  drawLib();
+
   const backup = () => {
     const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), ...state }, null, 2)], { type: 'application/json' });
     const a = el('a', { href: URL.createObjectURL(blob), download: `negocio-${todayISO()}.json` });
@@ -706,11 +795,16 @@ export function settingsPage() {
       payList,
     ),
     el('section', { class: 'ng-card' },
+      el('h2', { text: 'Biblioteca de secciones' }),
+      el('p', { class: 'ng-card-text', text: 'Términos, garantías, condiciones de pago… Guárdalas una vez y añádelas a cualquier documento con «De la biblioteca». Los bloques de propuesta que guardes también salen aquí.' }),
+      libList,
+    ),
+    el('section', { class: 'ng-card' },
       el('h2', { text: 'Copia de seguridad' }),
       el('p', { class: 'ng-card-text', text: 'Descarga todos tus clientes, servicios, documentos, proyectos, tareas y horas en un archivo JSON.' }),
       el('button', { type: 'button', class: 'pill ghost', onclick: backup }, icon('download'), 'Descargar copia'),
     ),
   );
-  return { node, refresh: drawPay };
+  return { node, refresh: () => { drawPay(); drawLib(); } };
 }
 
