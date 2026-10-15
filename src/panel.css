@@ -1,0 +1,416 @@
+/* Panel · el sistema de diseño de la app CeroFiao.
+   Sale de core-designsystem (Color.kt, Type.kt y Spacing.kt, en su versión CSS
+   de Claude Design) y del kit de HeroUI de CeroFiao: fondo gris claro o negro
+   puro, superficies blancas o #17171A con un borde de 1 px, botones en píldora
+   de 25 px con el cian de la marca, chips y segmentos con la opción activa en
+   negro (en blanco en oscuro), Anton en las cifras, etiquetas en mayúsculas
+   espaciadas y la navegación en una cápsula de cristal.
+
+   Se carga la última y solo en las páginas del panel (/admin/, /admin/tienda/
+   y /admin/negocio/): traduce a estos valores los tokens que ya usan sus
+   estilos, así la web pública y la página que abre el cliente no cambian.
+   La letra de la app es One UI Sans: se usa si está instalada en el equipo
+   (los Samsung la traen); si no, Inter, que es la que propone el sistema. */
+
+/* ── Tokens de la app ── */
+:root {
+  --cf-primary: #00b8d4;
+  --cf-primary-hover: #00a3bd;
+  --cf-on-primary: #ffffff;
+  --cf-bg: #f1f2f3;
+  --cf-surface: #ffffff;
+  --cf-surface-variant: #e8e8ea;
+  --cf-chip: #e8e8ea;
+  --cf-chip-hover: #dcdcdf;
+  --cf-field: #f1f2f3;
+  --cf-border: rgba(0, 0, 0, 0.06);
+  --cf-border-strong: rgba(0, 0, 0, 0.12);
+  --cf-active-item: #d6d6d9;
+  --cf-fg: #000000;
+  --cf-fg-2: #1c1c1e;
+  --cf-fg-muted: #6e6e73;
+  --cf-fg-faint: #99999d;
+  --cf-on-ink: #ffffff;
+  --cf-glass: rgba(255, 255, 255, 0.72);
+  --cf-glass-strong: rgba(255, 255, 255, 0.9);
+  --cf-glass-border: rgba(0, 0, 0, 0.06);
+  --cf-pop: rgba(255, 255, 255, 0.96);
+
+  --cf-income: #34c759;
+  --cf-expense: #ff3b30;
+  --cf-blue: #387aff;
+  --cf-purple: #9c27b0;
+  --cf-orange: #ff9800;
+  --cf-usd: #22c55e;
+  --cf-bs: #f97316;
+  --cf-usdt: #eab308;
+
+  --cf-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --cf-shadow-lift: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.08);
+  --cf-shadow-nav: 0 4px 15px rgba(0, 0, 0, 0.12);
+  --cf-shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --cf-shadow-modal: 0 16px 40px rgba(0, 0, 0, 0.18);
+
+  --cf-grad-logo: linear-gradient(135deg, #1b66b8 0%, #00d8ff 100%);
+  --cf-grad-expense: linear-gradient(90deg, #8a2be2 0%, #ff6b00 100%);
+  --cf-grad-income: linear-gradient(90deg, #85f366 0%, #22c9a6 100%);
+  --cf-grad-transfer: linear-gradient(90deg, #66a1f3 0%, #22c9a6 100%);
+
+  --cf-r-card: 24px;
+  --cf-r-row: 18px;
+  --cf-r-field: 14px;
+  --cf-r-button: 25px;
+  --cf-r-nav: 79px;
+
+  --cf-font: 'One UI Sans', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --cf-font-title: 'Anton', 'Bebas Neue', 'Arial Narrow', Impact, sans-serif;
+  --cf-ease: cubic-bezier(0.25, 0.95, 0.25, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --cf-primary: #00e5ff;
+    --cf-primary-hover: #5ceeff;
+    --cf-on-primary: #000000;
+    --cf-bg: #000000;
+    --cf-surface: #17171a;
+    --cf-surface-variant: #17171a;
+    --cf-chip: #2e2e30;
+    --cf-chip-hover: #3a3a3d;
+    --cf-field: #0d0d0f;
+    --cf-border: rgba(255, 255, 255, 0.1);
+    --cf-border-strong: rgba(255, 255, 255, 0.18);
+    --cf-active-item: #2e2e30;
+    --cf-fg: #ffffff;
+    --cf-fg-2: #e5e5ea;
+    --cf-fg-muted: #9a9a9e;
+    --cf-fg-faint: #7c7c81;
+    --cf-on-ink: #000000;
+    --cf-glass: rgba(23, 23, 26, 0.72);
+    --cf-glass-strong: rgba(23, 23, 26, 0.92);
+    --cf-glass-border: rgba(255, 255, 255, 0.1);
+    --cf-pop: rgba(28, 28, 31, 0.97);
+    --cf-income: #30d158;
+    --cf-expense: #ff453a;
+    --cf-blue: #5e8cff;
+    --cf-purple: #ba68c8;
+    --cf-orange: #ffca28;
+    --cf-shadow-card: none;
+    --cf-shadow-lift: 0 2px 6px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.3);
+    --cf-shadow-nav: 0 4px 20px rgba(0, 0, 0, 0.5);
+    --cf-shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    --cf-shadow-modal: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --cf-primary: #00e5ff;
+  --cf-primary-hover: #5ceeff;
+  --cf-on-primary: #000000;
+  --cf-bg: #000000;
+  --cf-surface: #17171a;
+  --cf-surface-variant: #17171a;
+  --cf-chip: #2e2e30;
+  --cf-chip-hover: #3a3a3d;
+  --cf-field: #0d0d0f;
+  --cf-border: rgba(255, 255, 255, 0.1);
+  --cf-border-strong: rgba(255, 255, 255, 0.18);
+  --cf-active-item: #2e2e30;
+  --cf-fg: #ffffff;
+  --cf-fg-2: #e5e5ea;
+  --cf-fg-muted: #9a9a9e;
+  --cf-fg-faint: #7c7c81;
+  --cf-on-ink: #000000;
+  --cf-glass: rgba(23, 23, 26, 0.72);
+  --cf-glass-strong: rgba(23, 23, 26, 0.92);
+  --cf-glass-border: rgba(255, 255, 255, 0.1);
+  --cf-pop: rgba(28, 28, 31, 0.97);
+  --cf-income: #30d158;
+  --cf-expense: #ff453a;
+  --cf-blue: #5e8cff;
+  --cf-purple: #ba68c8;
+  --cf-orange: #ffca28;
+  --cf-shadow-card: none;
+  --cf-shadow-lift: 0 2px 6px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.3);
+  --cf-shadow-nav: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --cf-shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  --cf-shadow-modal: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color-scheme: dark;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Negocio (/admin/negocio/): sus tokens, traducidos a los de la app
+   ══════════════════════════════════════════════════════════════ */
+body.ng {
+  --paper: var(--cf-bg);
+  --ink: var(--cf-fg);
+  --charcoal: var(--cf-fg);
+  --body: var(--cf-fg-muted);
+  --text-strong: var(--cf-fg-2);
+  --cloud: var(--cf-surface);
+  --cloud-deep: var(--cf-chip);
+  --soft: var(--cf-border);
+  --sky: var(--cf-bg);
+  --cyan: var(--cf-primary);
+  --blue: var(--cf-blue);
+  --income: var(--cf-income);
+  --expense: var(--cf-expense);
+  --bs: var(--cf-bs);
+  --usdt: var(--cf-usdt);
+  --violet: var(--cf-purple);
+  --pill-bg: var(--cf-primary);
+  --pill-fg: var(--cf-on-primary);
+  --pill-hover: var(--cf-primary-hover);
+  --inverse-bg: var(--cf-fg);
+  --inverse-fg: var(--cf-on-ink);
+  --inverse-muted: color-mix(in srgb, var(--cf-on-ink) 62%, transparent);
+  --seg-bg: var(--cf-chip);
+  --thumb: var(--cf-fg);
+  --glass: var(--cf-glass);
+  --glass-strong: var(--cf-glass-strong);
+  --glass-shadow: 0 0 0 1px var(--cf-glass-border), var(--cf-shadow-card);
+  --glass-shadow-strong: 0 0 0 1px var(--cf-glass-border), var(--cf-shadow-lift);
+  --pop-bg: var(--cf-pop);
+  --chip-bg: var(--cf-surface);
+  --chip-tint: var(--cf-surface);
+  --shadow-chip: var(--cf-shadow-pop);
+  --blob-o: 0;
+  --field-bg: var(--cf-field);
+  --font: var(--cf-font);
+  --font-num: var(--cf-font-title);
+  --ease: var(--cf-ease);
+  --live: var(--cf-primary);
+  font-family: var(--cf-font);
+}
+body.ng :focus-visible { outline-color: var(--cf-primary); }
+
+/* Títulos: como los de la app, pesados y apretados; las cifras, en Anton */
+body.ng .ng-head h1, body.ng .ng-profile-id h1 { font-weight: 800; letter-spacing: -0.025em; }
+body.ng .ng-card > h2, body.ng .ng-card-head h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+body.ng .ng-kpi-label { color: var(--cf-fg-faint); font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+body.ng .ng-kpi-value { font-family: var(--cf-font-title); font-size: clamp(26px, 2.5vw, 36px); font-weight: 400; letter-spacing: 0.005em; }
+body.ng .ng-kpi-value.is-word { font-family: var(--cf-font); font-weight: 700; letter-spacing: -0.02em; }
+body.ng .ng-group h3, body.ng .pg-section > h2 { font-weight: 700; }
+body.ng .ng-tree-group > small, body.ng .pg-tree-group > small, body.ng .ng-cal-wd { letter-spacing: 0.12em; }
+
+/* Superficies: tarjetas blancas (o #17171A) con borde fino, radio de 24 px */
+body.ng .ng-card, body.ng .ng-kpi, body.ng .pg-side, body.ng .pg-card, body.ng .ng-brand-card:not(.is-new), body.ng .ng-camp, body.ng .ng-copy, body.ng .ng-pcard {
+  border-radius: var(--cf-r-card);
+  box-shadow: inset 0 0 0 1px var(--cf-border), var(--cf-shadow-card);
+}
+body.ng .ng-pcard, body.ng .pg-template { background: var(--cf-surface); }
+body.ng .ng-card .ng-pcard, body.ng .ng-card .pg-template { background: var(--cf-bg); box-shadow: none; }
+body.ng .ng-row { border-radius: var(--cf-r-row); }
+body.ng .ng-empty-ico, body.ng .ng-kpi-ico { background: var(--cf-chip); }
+
+/* Tableros: columnas en el gris del fondo y tarjetas blancas encima */
+body.ng .ng-col { background: var(--cf-bg); }
+body.ng .ng-col.is-over { background: color-mix(in srgb, var(--c) 10%, var(--cf-bg)); }
+body.ng .ng-tcard, body.ng .ld-card, body.ng .ng-postcard {
+  background: var(--cf-surface);
+  box-shadow: inset 0 0 0 1px var(--cf-border), var(--cf-shadow-card);
+}
+@media (hover: hover) {
+  body.ng .ng-tcard:hover, body.ng .ld-card:hover, body.ng .ng-postcard:hover, body.ng .ng-row:hover, body.ng .pg-card:hover, body.ng .ng-camp:hover, body.ng .ng-pcard:hover {
+    box-shadow: inset 0 0 0 1px var(--cf-border-strong), var(--cf-shadow-lift);
+  }
+}
+
+/* Botones: píldoras de 25 px; el principal en el cian de la marca */
+body.ng .pill { min-height: 40px; padding-inline: 18px; border-radius: var(--cf-r-button); font-weight: 600; }
+body.ng .pill.sm { min-height: 34px; padding-inline: 14px; }
+body.ng .pill.lg { min-height: 52px; padding-inline: 24px; }
+body.ng .pill.ghost { background: var(--cf-chip); color: var(--cf-fg); }
+body.ng .pill.danger { color: var(--cf-expense); }
+@media (hover: hover) {
+  body.ng .pill:hover { box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--cf-primary) 70%, transparent); }
+  body.ng .pill.ghost:hover { background: var(--cf-chip-hover); box-shadow: none; }
+}
+body.ng .ng-ibtn { background: var(--cf-chip); }
+body.ng .ng-ibtn:hover { background: var(--cf-chip-hover); }
+body.ng .ng-add { border-color: var(--cf-border-strong); border-radius: var(--cf-r-row); }
+
+/* Chips y segmentos: la opción activa, en negro (en blanco en oscuro) */
+body.ng .ng-fchip { background: var(--cf-chip); color: var(--cf-fg); }
+body.ng .ng-fchip:hover { background: var(--cf-chip-hover); }
+body.ng .ng-fchip[aria-pressed='true'] { background: var(--cf-fg); color: var(--cf-on-ink); }
+body.ng .ng-card .ng-fchip:not([aria-pressed='true']) { background: var(--cf-bg); }
+body.ng .seg button { font-weight: 500; color: var(--cf-fg-muted); }
+body.ng .seg button[aria-pressed='true'] { color: var(--cf-on-ink); font-weight: 700; }
+body.ng .seg.is-live button[aria-pressed='true'] { color: var(--cf-on-ink); }
+body.ng .ng-tabs { background: var(--cf-chip); }
+body.ng .ng-tabs a { color: var(--cf-fg-muted); }
+body.ng .ng-tabs a[aria-current] { background: var(--cf-fg); color: var(--cf-on-ink); box-shadow: none; font-weight: 600; }
+body.ng .ng-tag { font-weight: 600; }
+body.ng .ng-chipbtn.is-plain { background: var(--cf-chip); }
+
+/* Campos: rellenos, como en HeroUI, con el borde en cian al escribir */
+body.ng .ng-field input:focus-visible, body.ng .ng-field textarea:focus-visible, body.ng .ng-field select:focus-visible, body.ng .ng-kv input:focus-visible, body.ng .ng-gate input:focus-visible { border-color: var(--cf-primary); }
+body.ng .ng-field > span { color: var(--cf-fg-muted); font-weight: 600; }
+body.ng .ng-select { background-color: var(--cf-chip); }
+body.ng .ng-card .ng-select, body.ng .ng-search { background-color: var(--cf-bg); }
+body.ng .ng-field .ng-select, body.ng .ng-field select { background-color: var(--field-bg); }
+body.ng .ng-search:focus-within { outline-color: var(--cf-primary); }
+body.ng .ng-toggle input:checked { background: var(--cf-primary); }
+body.ng .ng-check[aria-pressed='true'] { border-color: var(--cf-income); background: var(--cf-income); }
+
+/* Ventanas, paneles y menús: superficie de la app con los campos en gris */
+/* Dentro de ventanas, paneles y menús (que ya son superficie), la «nube» es el gris del fondo */
+body.ng .ng-dialog, body.ng .ng-drawer, body.ng .ng-menu, body.ng .ng-gate-card { --cloud: var(--cf-bg); --cloud-deep: var(--cf-chip); }
+body.ng .ng-dialog { --field-bg: var(--cf-field); background: var(--cf-surface); box-shadow: var(--cf-shadow-modal); }
+body.ng .ng-dialog-head h2 { font-weight: 700; }
+body.ng .ng-drawer, body.ng .ng-gate-card { --field-bg: var(--cf-field); }
+body.ng .ng-menu { background: var(--cf-pop); box-shadow: var(--cf-shadow-pop); }
+body.ng .ng-history li, body.ng .ng-paysum, body.ng .ng-comments li, body.ng .ng-links li, body.ng .ld-next, body.ng .ng-results { background: var(--cf-bg); }
+body.ng .ld-next .ld-next-ico, body.ng .ld-next-row input, body.ng .ld-next-quick .ng-fchip, body.ng .ng-results { --field-bg: var(--cf-surface); }
+body.ng .ld-next-row input, body.ng .ld-next .ld-next-ico, body.ng .ld-next-quick .ng-fchip { background: var(--cf-surface); }
+body.ng .seg button[aria-pressed='true'] { box-shadow: none; }
+body.ng .seg.is-live .seg-thumb { box-shadow: none; }
+
+/* Riel: la cápsula de cristal de la barra de la app */
+body.ng .ng-rail {
+  background: var(--cf-glass);
+  -webkit-backdrop-filter: blur(30px) saturate(1.4);
+  backdrop-filter: blur(30px) saturate(1.4);
+  box-shadow: 0 0 0 1px var(--cf-glass-border), var(--cf-shadow-nav);
+  color: var(--cf-fg-muted);
+}
+body.ng .ng-rail > a:not(.ng-logo):hover, body.ng .ng-rail > button:not(.ng-rail-new):hover { background: var(--cf-chip); color: var(--cf-fg); }
+body.ng .ng-rail > a[aria-current] { background: var(--cf-active-item); color: var(--cf-fg); }
+body.ng .ng-rail .ic svg { stroke-width: 1.8; }
+body.ng .ng-rail > a[aria-current] .ic svg { stroke-width: 2.1; }
+body.ng .ng-rail-new { background: var(--cf-primary); color: var(--cf-on-primary); box-shadow: 0 4px 10px -6px color-mix(in srgb, var(--cf-primary) 60%, transparent); }
+body.ng .ng-rail-new:hover { background: var(--cf-primary-hover); }
+body.ng .ng-rail > button.ng-rail-timer.is-running, body.ng .ng-rail > button.ng-rail-timer.is-paused { color: var(--cf-fg); }
+body.ng .ng-tip { background: var(--cf-fg); color: var(--cf-on-ink); }
+body.ng .theme-btn { color: inherit; }
+
+/* Entrada y editor: fondo liso de la app; la hoja sigue siendo papel */
+body.ng:not(.is-app) .ng-main { background: var(--cf-bg); }
+body.ng .ng-gate-card { background: var(--cf-surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: inset 0 0 0 1px var(--cf-border), var(--cf-shadow-lift); }
+body.ng .ng-canvas { background: var(--cf-bg); }
+body.ng .ng-sky { display: none; }
+body.ng .ng-sheet { box-shadow: 0 0 0 1px var(--cf-border), var(--cf-shadow-lift); }
+
+/* Inicio: el beneficio en la tarjeta con el degradado del logo */
+body.ng .ng-hero { background: var(--cf-grad-logo); color: #fff; }
+body.ng .ng-hero-sky { display: none; }
+body.ng .ng-hero-label, body.ng .ng-hero-sub { color: rgba(255, 255, 255, 0.82); }
+body.ng .ng-hero-label { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+body.ng .ng-hero-num.is-neg { color: #ffe0de; }
+body.ng .ng-hero .pill.light { background: #fff; color: #000; }
+body.ng .ng-hero .pill.glass { background: rgba(255, 255, 255, 0.2); color: #fff; }
+
+/* Avisos */
+body.ng .ng-toast { border-radius: var(--cf-r-button); }
+
+/* ══════════════════════════════════════════════════════════════
+   Panel y estudio de gráficos (/admin/ y /admin/tienda/)
+   ══════════════════════════════════════════════════════════════ */
+body.pn {
+  --paper: var(--cf-bg);
+  --snow: var(--cf-surface);
+  --obsidian: var(--cf-fg);
+  --graphite: var(--cf-fg-2);
+  --slate: var(--cf-fg-2);
+  --iron: var(--cf-fg-muted);
+  --steel: var(--cf-fg-muted);
+  --fog: var(--cf-fg-faint);
+  --ash: var(--cf-fg-faint);
+  --mist: var(--cf-border-strong);
+  --cloud: var(--cf-border);
+  --hover: var(--cf-chip);
+  --ember: var(--cf-primary);
+  --on-ember: var(--cf-on-primary);
+  --ok: var(--cf-income);
+  --danger: var(--cf-expense);
+  --glass: var(--cf-glass);
+  --glass-strong: var(--cf-glass-strong);
+  --glass-shadow: 0 0 0 1px var(--cf-glass-border), var(--cf-shadow-card);
+  --glass-shadow-strong: 0 0 0 1px var(--cf-glass-border), var(--cf-shadow-nav);
+  --btn-shadow: none;
+  --btn-over: rgba(255, 255, 255, 0.14);
+  --soft-over: rgba(0, 0, 0, 0.04);
+  --font: var(--cf-font);
+  --ease: var(--cf-ease);
+  background: var(--cf-bg);
+  color: var(--cf-fg-2);
+  font-family: var(--cf-font);
+}
+body.pn :focus-visible { outline-color: var(--cf-primary); }
+body.pn ::selection { background: var(--cf-primary); color: var(--cf-on-primary); }
+
+/* La cápsula de arriba: el cristal y el elemento activo de la barra de la app */
+body.pn .top { box-shadow: 0 0 0 1px var(--cf-glass-border), var(--cf-shadow-nav); -webkit-backdrop-filter: blur(30px) saturate(1.4); backdrop-filter: blur(30px) saturate(1.4); }
+body.pn .top-nav a { color: var(--cf-fg-muted); font-weight: 500; }
+body.pn .top-nav a:hover { color: var(--cf-fg); }
+body.pn .top-nav a[aria-current] { background: var(--cf-active-item); color: var(--cf-fg); font-weight: 600; }
+body.pn .theme-btn { background: var(--cf-chip); color: var(--cf-fg); }
+
+/* Títulos y etiquetas */
+body.pn .adm-card h1, body.pn .adm-bar h1, body.pn .st-head h1 { color: var(--cf-fg); font-weight: 800; letter-spacing: -0.025em; }
+body.pn .st-head h1 { font-size: clamp(30px, 3.6vw, 40px); }
+body.pn .st-section h2 { font-weight: 700; }
+body.pn .st-controls legend { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--cf-fg-faint); }
+body.pn .adm-field > span, body.pn .st-label { color: var(--cf-fg-muted); font-weight: 600; font-size: 13px; }
+body.pn .adm a, body.pn .st a { color: var(--cf-primary); font-weight: 600; text-decoration: none; }
+body.pn .adm a:hover, body.pn .st a:hover { text-decoration: underline; }
+body.pn .top a, body.pn .adm-switch a { color: inherit; font-weight: inherit; text-decoration: none; }
+
+/* Botones: píldoras; el oscuro pasa a ser el principal en cian */
+body.pn .btn { min-height: 40px; padding: 10px 20px; border-radius: var(--cf-r-button); font-weight: 600; }
+body.pn .btn.dark { background: var(--cf-primary); color: var(--cf-on-primary); box-shadow: none; }
+body.pn .btn.dark::after { background: rgba(255, 255, 255, 0.14); }
+body.pn .btn.soft { background: var(--cf-chip); color: var(--cf-fg); box-shadow: none; }
+body.pn .btn.soft::after { background: rgba(127, 127, 127, 0.12); }
+@media (hover: hover) {
+  body.pn .btn.dark:hover::after, body.pn .btn.soft:hover::after { opacity: 1; }
+}
+
+/* Superficies */
+body.pn .adm-card, body.pn .adm-entry, body.pn .adm-review, body.pn .st-controls fieldset, body.pn .st-canvas, body.pn .st-item {
+  border: 0;
+  border-radius: var(--cf-r-card);
+  background: var(--cf-surface);
+  box-shadow: inset 0 0 0 1px var(--cf-border), var(--cf-shadow-card);
+}
+body.pn .adm-card { box-shadow: inset 0 0 0 1px var(--cf-border), var(--cf-shadow-lift); }
+body.pn .adm-entry.is-draft { box-shadow: inset 0 0 0 1.5px var(--cf-border-strong); }
+body.pn .st-item.is-editing { box-shadow: inset 0 0 0 2px var(--cf-primary); }
+body.pn .adm-empty { border-color: var(--cf-border-strong); border-radius: var(--cf-r-card); }
+body.pn .st-canvas canvas, body.pn .st-item canvas { box-shadow: 0 0 0 1px var(--cf-border), var(--cf-shadow-lift); }
+
+/* Segmentos (pestañas, filtros, tipo de gráfico): activo en negro */
+body.pn .adm-tabs, body.pn .adm-filter, body.pn .st-kind, body.pn .st-pair, body.pn .adm-switch { padding: 4px; border-radius: 24px; background: var(--cf-chip); }
+body.pn .adm-tabs button, body.pn .adm-filter button, body.pn .st-kind button, body.pn .st-pair button, body.pn .adm-switch a { border-radius: 20px; color: var(--cf-fg-muted); font-weight: 500; }
+body.pn .adm-tabs button[aria-selected='true'], body.pn .adm-filter button[aria-pressed='true'], body.pn .st-kind button[aria-pressed='true'], body.pn .st-pair button[aria-pressed='true'], body.pn .adm-switch a[aria-current] {
+  background: var(--cf-fg);
+  color: var(--cf-on-ink);
+  box-shadow: none;
+  font-weight: 700;
+}
+body.pn .st-kind button[aria-pressed='true'] small, body.pn .adm-filter button[aria-pressed='true'] span { color: color-mix(in srgb, var(--cf-on-ink) 65%, transparent); }
+body.pn .adm-badge { background: var(--cf-expense); color: #fff; }
+
+/* Chips y plantillas */
+body.pn .st-chips button { height: 34px; padding: 0 12px; border: 0; border-radius: 18px; background: var(--cf-chip); color: var(--cf-fg); font-weight: 500; }
+body.pn .st-chips button[aria-pressed='true'] { background: var(--cf-fg); color: var(--cf-on-ink); }
+body.pn .st-template { border: 0; border-radius: 16px; background: var(--cf-bg); box-shadow: inset 0 0 0 1px var(--cf-border); }
+body.pn .st-template[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--cf-primary); color: var(--cf-fg); }
+body.pn .st-swatch[aria-pressed='true'], body.pn .st-shot[aria-pressed='true'] { outline-color: var(--cf-primary); }
+body.pn .st-idea { border-radius: 18px; box-shadow: 0 0 0 1px var(--cf-border); }
+body.pn .adm-tools button { border: 0; border-radius: 18px; background: var(--cf-chip); color: var(--cf-fg); font-weight: 500; }
+body.pn .adm-tools .danger { color: var(--cf-expense); }
+
+/* Campos rellenos, como en HeroUI */
+body.pn .adm input[type='text'], body.pn .adm input[type='password'], body.pn .adm input[type='date'], body.pn .adm textarea, body.pn .st-controls select, body.pn .st-format select {
+  border: 1.5px solid transparent;
+  border-radius: var(--cf-r-field);
+  background: var(--cf-field);
+  color: var(--cf-fg);
+}
+body.pn .st-format select { background: var(--cf-chip); border-radius: var(--cf-r-button); }
+body.pn .adm input:focus-visible, body.pn .adm textarea:focus-visible, body.pn .st-controls select:focus-visible { outline: none; border-color: var(--cf-primary); }
+body.pn .adm-check input, body.pn .st-controls input[type='range'] { accent-color: var(--cf-primary); }
+body.pn .st-controls input[type='color'] { border: 0; background: var(--cf-field); }
+body.pn .adm-review .rate { color: var(--cf-usdt); }

@@ -55,6 +55,8 @@ Está en `/admin/`. Sirve para:
 - **Novedades**: añadir, editar, ordenar, ocultar o borrar versiones. La primera de la lista sale abierta en la página.
 - **Reseñas**: aprobar, rechazar o borrar lo que envía la gente. Nada se publica sin aprobarlo.
 
+Todo el panel (`/admin/`, `/admin/tienda/` y `/admin/negocio/`) lleva el sistema de diseño de la app CeroFiao: los tokens de `core-designsystem` (fondo gris claro o negro puro, superficies blancas o `#17171A` con borde de 1 px, el cian `#00B8D4`/`#00E5FF`), botones en píldora, chips y segmentos con la opción activa en negro (blanco en oscuro), Anton en las cifras, campos rellenos como en el kit de HeroUI de CeroFiao y la navegación en una cápsula de cristal. Vive en `src/panel.css`, que se carga la última solo en esas páginas y traduce a esos valores los tokens que ya usan sus estilos: la web pública y la página que abre el cliente no cambian. La letra es One UI Sans si está instalada en el equipo; si no, Inter.
+
 ### Ponerle contraseña (una sola vez)
 
 La contraseña no está en el repositorio. Se define en Cloudflare:
