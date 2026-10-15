@@ -9,6 +9,9 @@
 //                        clave, así listar las reseñas es una sola lectura
 //   reviews:public       las aprobadas, ya ordenadas, para servirlas de una lectura
 //   rl:<cubo>            contadores con caducidad para limitar abusos
+//   crm:settings         datos del negocio para facturar (solo el panel)
+//   crm:<colección>      clientes, catálogo, formas de cobro y documentos, cada
+//                        colección en una sola clave (ver CRM más abajo)
 //
 // Limitadores (opcionales, ver `ratelimits` en wrangler.jsonc): LOGIN_LIMIT y
 // WRITE_LIMIT frenan ráfagas por visitante sin escribir nada en el almacén.
@@ -265,6 +268,137 @@ async function rebuildPublic(env, patch) {
   await env.SITE.put('reviews:public', JSON.stringify(reviews));
 }
 
+// ── Negocio: clientes, catálogo, formas de cobro y documentos ──
+//
+// Es una herramienta para una sola persona: cada colección vive en una clave y el
+// panel la carga entera al abrir. Las escrituras llegan en lotes (`ops`) que se
+// aplican juntos, así un pago y su recibo se guardan a la vez. KV admite una
+// escritura por segundo en cada clave; el panel pone las suyas en fila.
+// Con miles de documentos esto pediría una base de datos (D1).
+
+const CRM = {
+  customers: { key: 'crm:customers', max: 3000 },
+  catalog: { key: 'crm:catalog', max: 1000 },
+  paytemplates: { key: 'crm:paytemplates', max: 100 },
+  docs: { key: 'crm:docs', max: 10000 },
+};
+const CRM_ITEM_BYTES = 80_000;
+const CRM_SETTINGS_BYTES = 400_000; // el logo va dentro, como imagen en texto
+const DOC_PREFIX = { invoice: 'FAC', quote: 'COT', receipt: 'REC' };
+const CRM_ID = /^[A-Za-z0-9_-]{6,64}$/;
+const CRM_FIELD = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
+
+async function readCrm(env) {
+  const names = Object.keys(CRM);
+  const [settings, ...lists] = await Promise.all([
+    env.SITE.get('crm:settings', 'json'),
+    ...names.map((name) => env.SITE.get(CRM[name].key, 'json')),
+  ]);
+  const data = { settings: settings && typeof settings === 'object' ? settings : {} };
+  names.forEach((name, i) => {
+    data[name] = Array.isArray(lists[i]) ? lists[i] : [];
+  });
+  return data;
+}
+
+/** Copia limpia de lo que manda el panel: solo datos simples y con tamaños acotados. */
+function tidy(value, depth = 0) {
+  if (value === null || typeof value === 'boolean') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, 300_000);
+  if (depth > 6) throw new HttpError(400, 'Datos demasiado anidados.');
+  if (Array.isArray(value)) {
+    if (value.length > 500) throw new HttpError(400, 'Una lista tiene demasiados elementos.');
+    return value.map((v) => tidy(v, depth + 1));
+  }
+  if (typeof value === 'object') {
+    const keys = Object.keys(value);
+    if (keys.length > 120) throw new HttpError(400, 'Demasiados campos.');
+    const out = {};
+    for (const key of keys) {
+      if (!CRM_FIELD.test(key)) throw new HttpError(400, 'Hay un campo con un nombre no válido.');
+      out[key] = tidy(value[key], depth + 1);
+    }
+    return out;
+  }
+  throw new HttpError(400, 'Tipo de dato no válido.');
+}
+
+const isRecord = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+
+/** Facturas, cotizaciones y recibos se numeran aquí, por tipo y por año: FAC-2026-0001. */
+function numberDoc(doc, list, before) {
+  if (!DOC_PREFIX[doc.type]) throw new HttpError(400, 'Tipo de documento no válido.');
+  if (before?.number && before.type === doc.type) {
+    doc.number = before.number;
+    return;
+  }
+  const year = /^\d{4}-\d{2}-\d{2}$/.test(doc.issueDate || '') ? doc.issueDate.slice(0, 4) : new Date().toISOString().slice(0, 4);
+  const prefix = `${DOC_PREFIX[doc.type]}-${year}-`;
+  let top = 0;
+  for (const other of list) {
+    if (typeof other.number === 'string' && other.number.startsWith(prefix)) top = Math.max(top, Number(other.number.slice(prefix.length)) || 0);
+  }
+  doc.number = prefix + String(top + 1).padStart(4, '0');
+}
+
+async function writeCrm(env, ops) {
+  if (!Array.isArray(ops) || ops.length < 1 || ops.length > 50) throw new HttpError(400, 'Lote de cambios no válido.');
+  const data = await readCrm(env);
+  const now = new Date().toISOString();
+  const touched = new Set();
+  const saved = [];
+
+  for (const op of ops) {
+    if (op?.col === 'settings') {
+      const settings = tidy(op.item);
+      if (op.op !== 'put' || !isRecord(settings)) throw new HttpError(400, 'Datos del negocio no válidos.');
+      if (enc.encode(JSON.stringify(settings)).length > CRM_SETTINGS_BYTES) throw new HttpError(413, 'Los datos del negocio pesan demasiado. Prueba con un logo más pequeño.');
+      data.settings = { ...settings, updatedAt: now };
+      touched.add('settings');
+      saved.push({ col: 'settings', item: data.settings });
+      continue;
+    }
+
+    const spec = CRM[op?.col];
+    const id = String(op?.id ?? '');
+    if (!spec || !CRM_ID.test(id)) throw new HttpError(400, 'Cambio no válido.');
+    const list = data[op.col];
+    const at = list.findIndex((x) => x.id === id);
+
+    if (op.op === 'delete') {
+      if (at >= 0) {
+        list.splice(at, 1);
+        touched.add(op.col);
+      }
+      continue;
+    }
+    if (op.op !== 'put') throw new HttpError(400, 'Operación no válida.');
+
+    const item = tidy(op.item);
+    if (!isRecord(item)) throw new HttpError(400, 'Elemento no válido.');
+    const before = at >= 0 ? list[at] : null;
+    item.id = id;
+    if (op.col === 'docs') numberDoc(item, list, before);
+    item.createdAt = before?.createdAt || now;
+    item.updatedAt = now;
+    if (enc.encode(JSON.stringify(item)).length > CRM_ITEM_BYTES) throw new HttpError(413, 'Ese elemento pesa demasiado.');
+    if (before) list[at] = item;
+    else if (list.length >= spec.max) throw new HttpError(400, 'Llegaste al máximo de elementos de esa lista.');
+    else list.push(item);
+    touched.add(op.col);
+    saved.push({ col: op.col, item });
+  }
+
+  try {
+    await Promise.all([...touched].map((col) => env.SITE.put(col === 'settings' ? 'crm:settings' : CRM[col].key, JSON.stringify(data[col]))));
+  } catch (err) {
+    if (/429|too many/i.test(String(err?.message))) throw new HttpError(429, 'Demasiados cambios seguidos.');
+    throw err;
+  }
+  return { ok: true, saved };
+}
+
 // ── Panel ──
 
 const passwordOk = (env) => typeof env.ADMIN_PASSWORD === 'string' && env.ADMIN_PASSWORD.length >= MIN_PASSWORD;
@@ -337,6 +471,9 @@ async function admin(request, env, url) {
   }
 
   if (path === '/reviews' && method === 'GET') return json({ reviews: await allReviews(env) });
+
+  if (path === '/crm' && method === 'GET') return json(await readCrm(env));
+  if (path === '/crm/batch' && method === 'POST') return json(await writeCrm(env, (await readJson(request, 2_000_000)).ops));
 
   const one = /^\/reviews\/([a-z0-9-]{6,40})$/.exec(path);
   if (one) {

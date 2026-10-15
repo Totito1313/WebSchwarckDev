@@ -1,0 +1,168 @@
+/* Colores, letras y sombras de CeroFiao, en claro y en oscuro.
+   Los usan la página de CeroFiao y el negocio del panel. */
+
+:root {
+  --paper: #ffffff;
+  --ink: #1d2126;
+  --charcoal: #1a1d22;
+  --body: #5c6268;
+  --cloud: #eaf2f7;
+  --cloud-deep: #dbe8f0;
+  --sky: linear-gradient(#cfe9f8, #fff8ec);
+  --sky-end: #fff8ec;
+
+  /* Solo para datos y visuales del producto */
+  --cyan: #00b8d4;
+  --blue: #0071bc;
+  --income: #1f9d46;
+  --expense: #e0352b;
+  --bs: #f97316;
+  --usdt: #d9a406;
+  --violet: #8e5bd6;
+
+  /* Papeles que cambian con el tema */
+  --text-strong: #3f454b;
+  --glass: rgba(255, 255, 255, 0.78);
+  --glass-strong: rgba(255, 255, 255, 0.9);
+  --glass-shadow: rgba(255, 255, 255, 0.5) 0 1px 0 0 inset, rgba(20, 40, 60, 0.06) 0 4px 24px;
+  --glass-shadow-strong: rgba(255, 255, 255, 0.5) 0 1px 0 0 inset, rgba(20, 40, 60, 0.14) 0 8px 32px, rgba(20, 40, 60, 0.06) 0 0 0 1px;
+  --soft: rgba(26, 29, 34, 0.06);
+  --pill-bg: #1a1d22;
+  --pill-fg: #eaf2f7;
+  --pill-hover: #2b3038;
+  --inverse-bg: #1a1d22;
+  --inverse-fg: #eaf2f7;
+  --inverse-muted: #a4aeb8;
+  --chip-bg: rgba(255, 255, 255, 0.92);
+  --chip-tint: #ffffff;
+  --pop-bg: rgba(255, 255, 255, 0.96);
+  --deep-bg: #1a1d22;
+  --deep-edge: transparent;
+  --deep-muted: #a4aeb8;
+  --panel-base: #eef4f9;
+  --tint-mix: 100%;
+  --tint-a: #fdeee0;
+  --tint-b: #ece3fb;
+  --blob-a: #86e6f2;
+  --blob-b: #95bcff;
+  --blob-c: #fff1cf;
+  --blob-o: 1;
+  --phone-ring: rgba(255, 255, 255, 0.16);
+  --screen-bg: #f1f2f3;
+  --seg-bg: rgba(26, 29, 34, 0.07);
+  --thumb: #ffffff;
+  --star: #f5b301;
+
+  --font: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  --font-num: 'Anton', 'Arial Narrow', Impact, sans-serif;
+  --shadow-float: rgba(0, 0, 0, 0.25) 0 0 16px -8px;
+  --shadow-card: rgba(0, 0, 0, 0.15) 0 2px 16px 0;
+  --shadow-chip: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 18px 40px -18px rgba(15, 45, 70, 0.45), 0 2px 6px rgba(15, 45, 70, 0.08);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --wrap: 1200px;
+  --gap: clamp(72px, 10vw, 128px);
+}
+
+/* Tema oscuro: por el sistema, salvo que se haya elegido claro; o elegido a mano. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #0b0d10;
+    --ink: #f1f4f7;
+    --body: #98a2ad;
+    --cloud: #151a20;
+    --cloud-deep: #212932;
+    --sky: linear-gradient(#0a2638, #0b0d10);
+    --sky-end: #0b0d10;
+    --cyan: #22d3ee;
+    --blue: #56b0ff;
+    --income: #37d67a;
+    --expense: #ff6257;
+    --bs: #ff8f45;
+    --usdt: #f2c230;
+    --violet: #b693f5;
+    --shadow-float: rgba(0, 0, 0, 0.6) 0 0 24px -8px;
+    --shadow-card: rgba(0, 0, 0, 0.5) 0 2px 16px 0;
+    --shadow-chip: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 18px 40px -18px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --text-strong: #c9d1d9;
+    --glass: rgba(21, 26, 32, 0.72);
+    --glass-strong: rgba(21, 26, 32, 0.92);
+    --glass-shadow: rgba(255, 255, 255, 0.08) 0 1px 0 0 inset, rgba(255, 255, 255, 0.07) 0 0 0 1px, rgba(0, 0, 0, 0.35) 0 4px 24px;
+    --glass-shadow-strong: rgba(255, 255, 255, 0.08) 0 1px 0 0 inset, rgba(255, 255, 255, 0.09) 0 0 0 1px, rgba(0, 0, 0, 0.6) 0 8px 32px;
+    --soft: rgba(255, 255, 255, 0.08);
+    --pill-bg: #eef3f7;
+    --pill-fg: #12151a;
+    --pill-hover: #ffffff;
+    --inverse-bg: #eef3f7;
+    --inverse-fg: #12151a;
+    --inverse-muted: #55606b;
+    --chip-bg: rgba(27, 33, 40, 0.92);
+    --chip-tint: #1b2128;
+    --pop-bg: rgba(27, 33, 40, 0.96);
+    --deep-bg: #050607;
+    --deep-edge: rgba(255, 255, 255, 0.07);
+    --deep-muted: #98a2ad;
+    --panel-base: #12171c;
+    --tint-mix: 14%;
+    --tint-a: #2a1d12;
+    --tint-b: #1f1a30;
+    --blob-a: #0e7f9a;
+    --blob-b: #2a54c9;
+    --blob-c: #0b3345;
+    --blob-o: 0.7;
+    --phone-ring: rgba(255, 255, 255, 0.3);
+    --screen-bg: #000000;
+    --seg-bg: rgba(255, 255, 255, 0.08);
+    --thumb: #2a323b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --paper: #0b0d10;
+  --ink: #f1f4f7;
+  --body: #98a2ad;
+  --cloud: #151a20;
+  --cloud-deep: #212932;
+  --sky: linear-gradient(#0a2638, #0b0d10);
+  --sky-end: #0b0d10;
+  --cyan: #22d3ee;
+  --blue: #56b0ff;
+  --income: #37d67a;
+  --expense: #ff6257;
+  --bs: #ff8f45;
+  --usdt: #f2c230;
+  --violet: #b693f5;
+  --shadow-float: rgba(0, 0, 0, 0.6) 0 0 24px -8px;
+  --shadow-card: rgba(0, 0, 0, 0.5) 0 2px 16px 0;
+  --shadow-chip: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 18px 40px -18px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --text-strong: #c9d1d9;
+  --glass: rgba(21, 26, 32, 0.72);
+  --glass-strong: rgba(21, 26, 32, 0.92);
+  --glass-shadow: rgba(255, 255, 255, 0.08) 0 1px 0 0 inset, rgba(255, 255, 255, 0.07) 0 0 0 1px, rgba(0, 0, 0, 0.35) 0 4px 24px;
+  --glass-shadow-strong: rgba(255, 255, 255, 0.08) 0 1px 0 0 inset, rgba(255, 255, 255, 0.09) 0 0 0 1px, rgba(0, 0, 0, 0.6) 0 8px 32px;
+  --soft: rgba(255, 255, 255, 0.08);
+  --pill-bg: #eef3f7;
+  --pill-fg: #12151a;
+  --pill-hover: #ffffff;
+  --inverse-bg: #eef3f7;
+  --inverse-fg: #12151a;
+  --inverse-muted: #55606b;
+  --chip-bg: rgba(27, 33, 40, 0.92);
+  --chip-tint: #1b2128;
+  --pop-bg: rgba(27, 33, 40, 0.96);
+  --deep-bg: #050607;
+  --deep-edge: rgba(255, 255, 255, 0.07);
+  --deep-muted: #98a2ad;
+  --panel-base: #12171c;
+  --tint-mix: 14%;
+  --tint-a: #2a1d12;
+  --tint-b: #1f1a30;
+  --blob-a: #0e7f9a;
+  --blob-b: #2a54c9;
+  --blob-c: #0b3345;
+  --blob-o: 0.7;
+  --phone-ring: rgba(255, 255, 255, 0.3);
+  --screen-bg: #000000;
+  --seg-bg: rgba(255, 255, 255, 0.08);
+  --thumb: #2a323b;
+  color-scheme: dark;
+}

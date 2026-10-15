@@ -33,6 +33,7 @@ export default defineConfig({
         lionfitness: page('lionfitness/index.html'),
         admin: page('admin/index.html'),
         tienda: page('admin/tienda/index.html'),
+        negocio: page('admin/negocio/index.html'),
         notFound: page('404.html'),
       },
     },

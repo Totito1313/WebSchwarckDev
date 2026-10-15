@@ -14,6 +14,7 @@ Cada `git push` a `main` se publica solo en Cloudflare.
 | `/lionfitness/` | `lionfitness/index.html` | Marcador |
 | `/admin/` | `admin/index.html` | Panel: novedades y reseñas |
 | `/admin/tienda/` | `admin/tienda/index.html` | Estudio de gráficos para la ficha de Google Play |
+| `/admin/negocio/` | `admin/negocio/index.html` | Negocio: clientes, catálogo, facturas, cotizaciones y cobros |
 | `/api/*` | `worker/index.js` | La API que usan la página y el panel |
 
 Son páginas HTML con CSS y un poco de JavaScript, construidas con Vite. No hay framework.
@@ -80,9 +81,26 @@ Los archivos salen en PNG de 24 bits sin transparencia (Play rechaza los PNG con
 
 Para añadir una captura nueva, guárdala en `public/img/cerofiao/store/` como `nombre.webp` (1080 px de ancho), `nombre-thumb.webp` (216 px) y, si existe en oscuro, `nombre-dark.webp` y `nombre-dark-thumb.webp`; luego añádela a `LIBRARY` en `src/store-studio.js`.
 
+### Negocio
+
+En `/admin/negocio/` se llevan los clientes y se emiten facturas, cotizaciones y recibos, con la estética de CeroFiao. Entra con la misma contraseña del panel.
+
+- **Facturas y cotizaciones**: se editan sobre la hoja misma. Llevan descuento, impuesto, retención, otros cargos y una equivalencia en otra moneda con su tasa (BCV, paralelo…). Se numeran solas por tipo y año (`FAC-2026-0001`, `COT-…`, `REC-…`) y se imprimen o guardan en PDF desde el navegador.
+- **Cobros**: cada factura admite pagos parciales; cada pago puede generar su recibo. Una cotización aceptada se convierte en factura con un clic.
+- **Formas de cobro** (en Ajustes): Pago Móvil, Zelle, Binance Pay… Si llevan enlace de pago, la factura enseña un botón y un código QR.
+- **Clientes y catálogo**: los datos del cliente y los servicios con su precio se rellenan solos en cada documento. Un documento guarda su propia copia: editar un cliente no cambia lo ya emitido.
+
+Ajustes también tiene «Descargar copia», que baja todo en un JSON.
+
+- `src/negocio.js`: entrada, rutas y riel.
+- `src/negocio-core.js`: datos, fila de guardado, cálculos y piezas de interfaz.
+- `src/negocio-views.js`: listados, clientes, catálogo y ajustes.
+- `src/negocio-doc.js`: el editor de documentos.
+- `src/cf-tokens.css`: los colores de CeroFiao, compartidos con su página.
+
 ### Dónde se guardan los datos
 
-En un espacio KV de Cloudflare enlazado como `SITE` (lo crea `wrangler deploy` la primera vez). Guarda la lista de novedades y las reseñas. Las reseñas llevan el nombre que escribió la persona, su calificación, el texto y la fecha; no se guarda correo ni dirección IP.
+En un espacio KV de Cloudflare enlazado como `SITE` (lo crea `wrangler deploy` la primera vez). Guarda la lista de novedades, las reseñas y los datos del negocio (cada colección en una clave `crm:*`). Las reseñas llevan el nombre que escribió la persona, su calificación, el texto y la fecha; no se guarda correo ni dirección IP.
 
 ## Cuando CeroFiao esté en Google Play
 
