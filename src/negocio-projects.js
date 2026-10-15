@@ -4,15 +4,20 @@
 import {
   state, find, put, uid, el, icon, iconButton, avatar, chip, kpi, empty, seg, field, input, select, menu, dialog,
   confirmBox, toast, autosize, money, amountText, parseNum, round2, todayISO, dateText, shortDate, durationText, CURRENCY_CODES,
+  tag, docStatus, totals, DOC_WORD,
 } from './negocio-core.js';
 import {
   PROJECT_STATUS, newProject, projectStats, customerOf, toggleStage, setProjectStatus, removeProject, runningEntry,
-  startTimer, stopTimer, codeFrom, cleanCode, takenCodes, projectCode,
+  startTimer, stopTimer, codeFrom, cleanCode, takenCodes, projectCode, taskKey, TASK_STATUS,
 } from './negocio-work.js';
+import { activityCalendar, activityFeed, projectEvents, ago } from './negocio-actividad.js';
+import { pageTitle, pageIcon, openTask } from './negocio-enlaces.js';
 import { taskBoard, createTask } from './negocio-tasks.js';
+
+const DOC_ICON = { invoice: 'file', quote: 'quote', proposal: 'send', receipt: 'receipt' };
 import { projectHours, timeForm, billDialog } from './negocio-time.js';
-import { head, searchBox, groupedDocs, createDoc, customerForm, go } from './negocio-views.js';
-import { pagesCard, createPage } from './negocio-paginas.js';
+import { head, searchBox, createDoc, customerForm, go } from './negocio-views.js';
+import { createPage } from './negocio-paginas.js';
 
 const STATUS_RANK = { active: 0, pending: 1, paused: 2, completed: 3 };
 const statusOf = (p) => PROJECT_STATUS[p.status] || PROJECT_STATUS.pending;
@@ -246,9 +251,12 @@ function summary(id) {
   const kpis = el('div', { class: 'ng-kpis is-six' });
   const note = el('p', { class: 'ng-kpi-note', hidden: true });
   const stagesCard = el('section', { class: 'ng-card ng-phases-card' });
-  const docsCard = el('section', { class: 'ng-card ng-list' });
+  const linkedCard = el('section', { class: 'ng-card ng-list pj-linked' });
+  const feedBox = el('div', { class: 'ng-slot pj-feed' });
   const aboutCard = el('section', { class: 'ng-card ng-notes' });
-  const pagesBox = el('div', { class: 'ng-slot' });
+  let events = [];
+  let linkedKind = 'all';
+  const calendar = activityCalendar(() => events);
   let focusStage = '';
 
   function drawKpis(p, s) {
@@ -343,38 +351,94 @@ function summary(id) {
     }
   }
 
-  function drawDocs(p, s) {
+  /** Lo que cuelga del proyecto: tareas, documentos y páginas, lo último arriba. */
+  function drawLinked(p, s) {
     const c = customerOf(p);
-    docsCard.replaceChildren(
-      el('header', { class: 'ng-card-head' },
-        el('div', {}, el('h2', { text: 'Documentos' }), el('small', { text: s.docs.length ? `${s.docs.length} en total` : 'Ninguno todavía' })),
-        el('div', { class: 'ng-filters' },
+    const pages = (state.pages || []).filter((x) => x.projectId === p.id);
+    const tasks = s.tasks.filter((t) => !t.parentId);
+    const stamp = (x) => Date.parse(x.updatedAt || x.createdAt || '') || Date.now();
+    const rows = [
+      ...tasks.map((t) => {
+        const [label, color] = TASK_STATUS[t.status] || TASK_STATUS.todo;
+        return { kind: 'task', ts: stamp(t), node: () => el('button', { type: 'button', class: 'ng-row is-mini pj-row', onclick: () => openTask(t.id) },
+          el('span', { class: 'pj-ico', style: { '--c': color } }, icon(t.status === 'done' ? 'checkCircle' : 'tasks')),
+          el('span', { class: 'ng-row-main' }, el('b', {}, el('span', { class: 'ng-tkey', text: taskKey(t) }), t.title?.trim() || 'Sin título'), el('small', { text: [t.dueDate && `Para el ${dateText(t.dueDate)}`, `Actualizada ${ago(stamp(t)).toLowerCase()}`].filter(Boolean).join(' · ') })),
+          el('span', { class: 'ng-row-tag' }, chip(label, color)),
+        ) };
+      }),
+      ...s.docs.map((d) => ({ kind: 'doc', ts: stamp(d), node: () => el('a', { class: 'ng-row is-mini pj-row', href: `#/doc/${d.id}` },
+        el('span', { class: 'pj-ico', style: { '--c': 'var(--ink)' } }, icon(DOC_ICON[d.type] || 'file')),
+        el('span', { class: 'ng-row-main' }, el('b', { text: [`${DOC_WORD[d.type]} ${d.number || ''}`.trim(), d.type === 'proposal' && d.title].filter(Boolean).join(' · ') }), el('small', { text: [dateText(d.issueDate), d.customer?.name].filter(Boolean).join(' · ') })),
+        el('span', { class: 'ng-row-tag' }, tag(docStatus(d))),
+        el('b', { class: 'ng-row-amount', text: money(totals(d).total, d.currency) }),
+      ) })),
+      ...pages.map((pg) => ({ kind: 'page', ts: stamp(pg), node: () => el('a', { class: 'ng-row is-mini pj-row', href: `#/paginas/${pg.id}` },
+        el('span', { class: 'pj-ico is-emoji', text: pageIcon(pg) }),
+        el('span', { class: 'ng-row-main' }, el('b', { text: pageTitle(pg) }), el('small', { text: `Página · editada ${ago(stamp(pg)).toLowerCase()}` })),
+        el('span', { class: 'ng-row-tag' }),
+      ) })),
+    ].sort((a, b) => b.ts - a.ts);
+    const count = (k) => rows.filter((r) => r.kind === k).length;
+    const shown = rows.filter((r) => linkedKind === 'all' || r.kind === linkedKind);
+    linkedCount.textContent = rows.length ? `${count('task')} tareas · ${count('doc')} documentos · ${count('page')} páginas` : 'Nada todavía';
+    linkedSeg.hidden = !rows.length;
+    linkedBody.replaceChildren(shown.length ? el('div', { class: 'ng-rows pj-rows' }, shown.slice(0, 40).map((r) => r.node()))
+      : el('div', { class: 'pj-empty' },
+        el('span', { class: 'ng-empty-ico' }, icon('folder')),
+        el('p', { text: rows.length ? 'Nada de este tipo en el proyecto.' : 'Todavía no hay tareas, documentos ni páginas en este proyecto.' }),
+        !rows.length && el('div', { class: 'ng-head-actions' },
+          el('button', { type: 'button', class: 'pill sm', onclick: () => createTask({ projectId: p.id }) }, icon('plus'), 'Primera tarea'),
           el('button', { type: 'button', class: 'pill ghost sm', onclick: () => createDoc('quote', c, { projectId: p.id }) }, icon('quote'), 'Cotización'),
-          el('button', { type: 'button', class: 'pill ghost sm', onclick: () => createDoc('invoice', c, { projectId: p.id }) }, icon('file'), 'Factura'),
         ),
-      ),
-      el('div', { class: 'ng-list-body' }, s.docs.length ? groupedDocs(s.docs) : empty({
-        ico: 'file',
-        title: 'Sin documentos todavía',
-        text: 'Las cotizaciones y facturas del proyecto salen aquí. Sus horas se facturan con un clic.',
-        action: el('button', { type: 'button', class: 'pill', onclick: () => billDialog(p.id) }, icon('file'), 'Facturar horas'),
-      })),
-    );
+      ));
   }
+
+  // La cabecera de «En este proyecto» se monta una vez: su segmento se desliza al cambiar.
+  const linkedCount = el('small');
+  const linkedBody = el('div');
+  const linkedSeg = seg([['all', 'Todo'], ['task', 'Tareas'], ['doc', 'Documentos'], ['page', 'Páginas']], linkedKind, (v) => {
+    linkedKind = v;
+    const p = find('projects', id);
+    if (p) drawLinked(p, projectStats(p));
+  }, 'Qué ver');
+  const newBtn = el('button', { type: 'button', class: 'pill ghost sm' }, icon('plus'), 'Añadir', icon('down'));
+  newBtn.addEventListener('click', () => {
+    const p = find('projects', id);
+    if (!p) return;
+    const c = customerOf(p);
+    menu(newBtn, [
+      { label: 'Tarea', icon: 'tasks', run: () => createTask({ projectId: p.id }) },
+      { label: 'Página', icon: 'page', run: () => createPage({ projectId: p.id, customerId: p.customerId }) },
+      '-',
+      { label: 'Cotización', icon: 'quote', run: () => createDoc('quote', c, { projectId: p.id }) },
+      { label: 'Propuesta', icon: 'send', run: () => createDoc('proposal', c, { projectId: p.id }) },
+      { label: 'Factura', icon: 'file', run: () => createDoc('invoice', c, { projectId: p.id }) },
+      { label: 'Facturar horas', icon: 'timer', run: () => billDialog(p.id) },
+    ], { align: 'end' });
+  });
+  linkedCard.append(
+    el('header', { class: 'ng-card-head' },
+      el('div', {}, el('h2', { text: 'En este proyecto' }), linkedCount),
+      el('div', { class: 'ng-filters' }, linkedSeg, newBtn),
+    ),
+    linkedBody,
+  );
 
   const draw = () => {
     const p = find('projects', id);
     if (!p) return;
     const s = projectStats(p);
+    events = projectEvents(p);
     drawKpis(p, s);
     drawStages(p, s);
-    drawDocs(p, s);
+    calendar.refresh();
+    drawLinked(p, s);
+    feedBox.replaceChildren(activityFeed(events));
     aboutCard.hidden = !p.description;
     aboutCard.replaceChildren(el('h2', { text: 'Descripción' }), el('p', { text: p.description || '' }));
-    pagesBox.replaceChildren(pagesCard({ projectId: p.id }));
   };
   draw();
-  return { node: el('div', { class: 'ng-tab' }, kpis, note, stagesCard, docsCard, pagesBox, aboutCard), refresh: draw };
+  return { node: el('div', { class: 'ng-tab' }, kpis, note, stagesCard, calendar.node, el('div', { class: 'pj-bottom' }, linkedCard, feedBox), aboutCard), refresh: draw };
 }
 
 const TABS = [['resumen', 'Resumen'], ['tareas', 'Tareas'], ['horas', 'Horas']];
@@ -428,6 +492,7 @@ export function projectPage(id, initialTab = 'resumen') {
     ], { align: 'end' }));
     const facts = [
       ['hash', `Clave ${projectCode(p)}`],
+      ['clock', p.createdAt ? `Creado el ${dateText(new Date(p.createdAt).toLocaleDateString('en-CA'))}` : ''],
       ['calendar', datesText(p)],
       ['dollar', p.budget ? `Presupuesto de ${money(p.budget, p.currency)}` : ''],
       ['timer', p.rate ? `${money(p.rate, p.currency)} por hora` : 'Sin tarifa por hora'],

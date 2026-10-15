@@ -123,7 +123,40 @@ function resolve() {
   }
 }
 
+const still = matchMedia('(prefers-reduced-motion: reduce)');
+
+/** Cambia de página con una transición suave (o sin ella, si se pidió menos movimiento). */
 function render() {
+  if (!opened || still.matches || document.hidden || document.querySelector('dialog[open]')) {
+    draw();
+    return;
+  }
+  if (document.startViewTransition) {
+    // Si el navegador no llega a hacer la transición (pestaña oculta, sin pintar…),
+    // la página se pinta igual: nunca se queda en blanco esperándola.
+    let done = false;
+    const once = () => {
+      if (done) return;
+      done = true;
+      draw();
+    };
+    document.documentElement.classList.add('ng-nav');
+    const t = document.startViewTransition(once);
+    t.finished.catch(() => {}).finally(() => document.documentElement.classList.remove('ng-nav'));
+    t.updateCallbackDone.catch(() => {});
+    t.ready.catch(() => {});
+    setTimeout(() => {
+      if (done) return;
+      t.skipTransition();
+      once();
+    }, 250);
+    return;
+  }
+  draw();
+  current?.node.classList.add('ng-enter');
+}
+
+function draw() {
   current?.destroy?.();
   const route = resolve();
   if (!route.editor) lastList = location.hash || '#/facturas';
@@ -199,7 +232,7 @@ async function openApp() {
   ensureKeys();
   mountTimer(document.querySelector('[data-timer]'));
   show('app');
-  render();
+  draw();
 }
 
 try {

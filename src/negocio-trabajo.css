@@ -522,3 +522,135 @@
   .ng-profile-row .ng-head-actions { width: 100%; }
   .ng-profile-row .ng-head-actions .pill { flex: 1; }
 }
+
+/* ══ Panel del proyecto: cifras, calendario de actividad y lo último que pasó ══ */
+@media (min-width: 1240px) {
+  .ng-kpis.is-six { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+  .ng-kpis.is-six .ng-kpi { padding: 18px 18px 16px; }
+  .ng-kpis.is-six .ng-kpi-value { font-size: clamp(24px, 1.9vw, 30px); }
+  .ng-kpis.is-six .ng-kpi-sub { font-size: 13px; }
+}
+
+.ac-card { display: grid; gap: 4px; }
+.ac-head { margin-bottom: 10px; }
+.ac-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ac-tools .seg button { padding: 7px 14px; font-size: 13px; }
+.ac-bubble { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%; background: color-mix(in srgb, var(--c) 14%, var(--paper)); color: var(--c); }
+.ac-bubble .ic svg { width: 16px; height: 16px; stroke-width: 2; }
+.ac-bubble.is-sm { width: 24px; height: 24px; }
+.ac-bubble.is-sm .ic svg { width: 13px; height: 13px; }
+
+/* Línea de tiempo: los días en fila, un punto donde pasó algo y su etiqueta debajo */
+.ac-scroll { margin: 0 -24px; padding: 0 24px 6px; overflow-x: auto; overscroll-behavior-x: contain; }
+.ac-scroll::-webkit-scrollbar-track { margin-inline: 24px; }
+.ac-line { position: relative; display: grid; grid-template-columns: repeat(var(--n), minmax(46px, 1fr)); min-width: calc(var(--n) * 46px); padding-bottom: 100px; }
+.ac-line::before { content: ''; position: absolute; top: 61px; left: 0; right: 0; height: 2px; border-radius: 1px; background: var(--cloud-deep); }
+.ac-day { position: relative; display: grid; grid-template-rows: 18px 34px 20px; justify-items: center; align-items: center; }
+.ac-month { justify-self: start; color: var(--body); font-size: 12px; font-weight: 700; text-transform: capitalize; }
+.ac-num { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--body); font-size: 12.5px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.ac-day.has-ev .ac-num { color: var(--ink); font-weight: 700; }
+.ac-day.is-today .ac-num { background: var(--ink); color: var(--paper); font-weight: 700; }
+.ac-dot { position: relative; z-index: 1; width: 8px; height: 8px; border-radius: 50%; background: transparent; }
+.ac-day.has-ev .ac-dot { width: 12px; height: 12px; background: var(--ink); box-shadow: 0 0 0 4px var(--cloud); }
+.ac-day.is-today:not(.has-ev) .ac-dot { background: var(--cyan); }
+.ac-pill {
+  position: absolute;
+  top: 82px;
+  left: 50%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  height: 36px;
+  padding: 0 12px 0 6px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--soft), 0 4px 14px -8px rgba(0, 0, 0, 0.3);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  cursor: pointer;
+  transition: transform 0.25s var(--ease), box-shadow 0.25s;
+}
+.ac-pill.is-lane-1 { top: 126px; }
+.ac-line:has(.is-lane-1) { padding-bottom: 144px; }
+.ac-pill > span:not(.ac-bubble) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ac-pill small { flex: none; padding: 1px 6px; border-radius: 8px; background: var(--cloud-deep); color: var(--body); font-size: 11px; font-weight: 700; }
+.ac-pill:hover { transform: translate(-50%, -1px); box-shadow: inset 0 0 0 1px var(--soft), 0 10px 22px -12px rgba(0, 0, 0, 0.4); }
+.ac-pill::before { content: ''; position: absolute; top: -18px; left: 50%; width: 1.5px; height: 18px; background: var(--cloud-deep); }
+.ac-pill.is-lane-1::before { top: -62px; height: 62px; }
+
+/* Semana */
+.ac-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.ac-wday { display: grid; align-content: start; gap: 8px; min-width: 0; min-height: 180px; padding: 10px; border-radius: 18px; background: var(--paper); }
+.ac-wday > header { display: flex; align-items: baseline; gap: 6px; color: var(--body); font-size: 12px; font-weight: 600; text-transform: uppercase; }
+.ac-wday > header b { color: var(--ink); font-size: 18px; text-transform: none; }
+.ac-wday.is-today { box-shadow: inset 0 0 0 2px var(--cyan); }
+.ac-wlist { display: grid; gap: 4px; }
+.ac-wlist .ac-row { padding: 6px; }
+.ac-wlist .ac-bubble { width: 24px; height: 24px; }
+.ac-wlist .ac-bubble .ic svg { width: 12px; height: 12px; }
+.ac-wlist .ac-row-text b { font-size: 12.5px; -webkit-line-clamp: 3; }
+.ac-none { color: var(--body); font-size: 12.5px; }
+.ac-more { padding: 4px; border: 0; background: none; color: var(--cyan); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+
+/* Mes */
+.ac-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.ac-mwd { padding: 0 8px 2px; color: var(--body); font-size: 11.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.ac-mday { display: grid; align-content: start; justify-items: start; gap: 6px; min-width: 0; min-height: 84px; padding: 8px; border: 0; border-radius: 14px; background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: default; }
+.ac-mday.has-ev { cursor: pointer; }
+.ac-mday.has-ev:hover { box-shadow: inset 0 0 0 1px var(--soft), 0 8px 18px -12px rgba(0, 0, 0, 0.35); }
+.ac-mday.is-out { opacity: 0.45; }
+.ac-mday:disabled { color: inherit; }
+.ac-mnum { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 5px; border-radius: 12px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ac-mday.is-today .ac-mnum { background: var(--ink); color: var(--paper); }
+.ac-mdots { display: flex; gap: 3px; }
+.ac-mdots i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.ac-mday small { display: -webkit-box; overflow: hidden; color: var(--body); font-size: 11.5px; line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+
+/* Filas de evento: en el día, en la lista y en el menú de un día */
+.ac-row { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 8px; border: 0; border-radius: 14px; background: none; color: var(--ink); font: inherit; text-align: left; }
+.ac-row.is-link { cursor: pointer; transition: background 0.2s; }
+.ac-row.is-link:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.ac-row-text { display: grid; min-width: 0; }
+.ac-row-text b { display: -webkit-box; overflow: hidden; font-size: 14px; font-weight: 600; line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+.ac-row-text small { color: var(--body); font-size: 12px; }
+.ac-pop { width: min(360px, 100vw - 16px); padding: 10px; }
+.ac-pop-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 8px 8px; }
+.ac-pop-head b { font-size: 15px; }
+.ac-pop-head small { color: var(--body); font-size: 12.5px; }
+.ac-pop-list { display: grid; gap: 2px; max-height: 320px; overflow: auto; }
+
+/* Abajo: lo que cuelga del proyecto y la actividad */
+.pj-bottom { display: grid; grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
+.pj-feed { display: grid; }
+.ac-feed { display: grid; }
+.ac-feed-list { display: grid; gap: 2px; margin: -4px -8px 0; }
+.pj-rows { margin-top: 0; }
+.ng-row.pj-row { grid-template-columns: 40px minmax(0, 1fr) auto auto; }
+.pj-ico { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 14px; background: color-mix(in srgb, var(--c, var(--ink)) 12%, var(--cloud)); color: var(--c, var(--ink)); }
+.pj-ico .ic svg { width: 18px; height: 18px; }
+.pj-ico.is-emoji { font-size: 19px; }
+.pj-empty { display: grid; justify-items: center; gap: 12px; padding: 36px 16px; color: var(--body); text-align: center; }
+.pj-empty p { max-width: 40ch; }
+
+@media (max-width: 1080px) {
+  .pj-bottom { grid-template-columns: minmax(0, 1fr); }
+  .ac-week { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .ac-scroll { margin: 0 -18px; padding: 0 18px 6px; }
+  .ac-week { grid-template-columns: minmax(0, 1fr); }
+  .ac-wday { min-height: 0; }
+  .ac-wday:not(.is-today):not(:has(.ac-row)) { display: none; }
+  .ac-month-grid { gap: 3px; }
+  .ac-mday { min-height: 52px; padding: 5px; border-radius: 10px; }
+  .ac-mday small { display: none; }
+  .ng-row.pj-row { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  .ng-row.pj-row > .ng-row-amount { display: none; }
+}

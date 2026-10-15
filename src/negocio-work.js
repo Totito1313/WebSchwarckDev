@@ -151,9 +151,11 @@ export const projectName = (id) => (id && find('projects', id)?.name) || '';
 export function toggleStage(p, index) {
   const stages = p.stages || [];
   const done = !stages[index].done;
+  const before = p.status;
   stages.forEach((s, i) => {
-    if (done && i <= index) s.done = true;
-    if (!done && i >= index) s.done = false;
+    // Cada etapa recuerda cuándo se completó: sale en el calendario de actividad.
+    if (done && i <= index && !s.done) Object.assign(s, { done: true, doneAt: nowISO() });
+    if (!done && i >= index) Object.assign(s, { done: false, doneAt: '' });
   });
   const count = stages.filter((s) => s.done).length;
   if (p.status !== 'paused') {
@@ -161,11 +163,19 @@ export function toggleStage(p, index) {
     else if (count > 0) p.status = 'active';
     else if (p.status === 'completed') p.status = 'pending';
   }
+  if (p.status !== before) logProject(p, 'status', `Pasó a «${PROJECT_STATUS[p.status][0]}»`);
 }
 
 export function setProjectStatus(p, status) {
+  if (p.status !== status) logProject(p, 'status', `Pasó a «${PROJECT_STATUS[status][0]}»`);
   p.status = status;
-  if (status === 'completed') for (const s of p.stages || []) s.done = true;
+  if (status === 'completed') for (const s of p.stages || []) if (!s.done) Object.assign(s, { done: true, doneAt: nowISO() });
+}
+
+/** Lo que no se puede deducir de los datos (cambios de estado, tareas borradas) queda anotado en el proyecto. */
+export function logProject(p, kind, text) {
+  if (!p) return;
+  p.log = [{ at: nowISO(), kind, text }, ...(p.log || [])].slice(0, 120);
 }
 
 /** Borra el proyecto con sus tareas y sus horas. Los documentos se quedan, sin proyecto. */
@@ -303,6 +313,12 @@ export function billedDocOf(item) {
 /** Borra la tarea con sus subtareas. Sus horas se quedan en el proyecto, sin tarea. */
 export function removeTask(task) {
   const gone = new Set(familyOf(task).map((t) => t.id));
+  // Si la tarea ya estaba guardada, el proyecto lo anota (una tarea nueva y vacía no cuenta).
+  const project = task.projectId && find('projects', task.projectId);
+  if (project && task.createdAt) {
+    logProject(project, 'task-deleted', `Se eliminó la tarea «${task.title?.trim() || 'Sin título'}»`);
+    put('projects', project);
+  }
   for (const id of gone) {
     for (const e of taskEntries(id)) put('time', { ...e, taskId: '' });
     remove('tasks', id);

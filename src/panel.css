@@ -414,3 +414,122 @@ body.pn .adm input:focus-visible, body.pn .adm textarea:focus-visible, body.pn .
 body.pn .adm-check input, body.pn .st-controls input[type='range'] { accent-color: var(--cf-primary); }
 body.pn .st-controls input[type='color'] { border: 0; background: var(--cf-field); }
 body.pn .adm-review .rate { color: var(--cf-usdt); }
+
+/* ══════════════════════════════════════════════════════════════
+   Desplazamiento, desplegables, pestañas que se deslizan y transiciones
+   ══════════════════════════════════════════════════════════════ */
+
+/* Barras de desplazamiento: una píldora fina, sin flechas ni carril.
+   Chrome ignora estas reglas si un elemento declara scrollbar-width, así
+   que en él se deja en «auto» (salvo donde se ocultan a propósito). */
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+::-webkit-scrollbar-thumb {
+  border: 4px solid transparent;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--cf-fg) 20%, transparent) padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--cf-fg) 36%, transparent); }
+::-webkit-scrollbar-thumb:active { background-color: color-mix(in srgb, var(--cf-fg) 48%, transparent); }
+@supports selector(::-webkit-scrollbar) {
+  body.ng .ng-board, body.ng .ng-phases, body.ng .pg-side { scrollbar-width: auto; }
+}
+@supports not selector(::-webkit-scrollbar) {
+  html, body.ng *, body.pn * { scrollbar-color: color-mix(in srgb, var(--cf-fg) 24%, transparent) transparent; }
+  body.ng .ng-board, body.ng .ng-phases, body.ng .pg-side { scrollbar-width: thin; }
+}
+/* En los tableros, la píldora va dentro de la tarjeta, no pegada al borde */
+body.ng .ng-board::-webkit-scrollbar-track, body.ng .ng-phases::-webkit-scrollbar-track { margin-inline: 24px; }
+/* La barra de páginas no se desplaza de lado: lo largo se corta con puntos suspensivos */
+body.ng .pg-side { overflow-x: hidden; }
+body.ng .pg-side-head { min-width: 0; }
+body.ng .pg-side-title { min-width: 0; }
+body.ng .pg-side-new { flex: none; min-height: 32px; padding-inline: 12px; font-size: 13px; }
+
+/* Desplegables: la lista también con el estilo de la app (donde el
+   navegador deja dibujarla: Chrome y Edge). En el resto, la del sistema. */
+@supports (appearance: base-select) {
+  body.ng select, body.pn select { appearance: base-select; }
+  body.ng select::picker-icon, body.pn select::picker-icon { display: none; }
+  body.ng select::picker(select), body.pn select::picker(select) {
+    appearance: base-select;
+    min-width: max(anchor-size(width), 200px);
+    max-height: min(360px, 60vh);
+    margin-block: 6px;
+    padding: 6px;
+    overflow-y: auto;
+    border: 0;
+    border-radius: 18px;
+    background: var(--cf-pop);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    backdrop-filter: blur(24px) saturate(1.4);
+    box-shadow: var(--cf-shadow-pop);
+    color: var(--cf-fg);
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+    transform-origin: top center;
+    transition: opacity 0.18s var(--cf-ease), transform 0.22s var(--cf-ease), overlay 0.22s allow-discrete, display 0.22s allow-discrete;
+  }
+  body.ng select:open::picker(select), body.pn select:open::picker(select) { opacity: 1; transform: none; }
+  @starting-style {
+    body.ng select:open::picker(select), body.pn select:open::picker(select) { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  }
+  body.ng select option, body.pn select option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 38px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    color: var(--cf-fg);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  body.ng select option:hover, body.pn select option:hover, body.ng select option:focus-visible, body.pn select option:focus-visible { outline: none; background: var(--cf-chip); }
+  body.ng select option:checked, body.pn select option:checked { font-weight: 700; }
+  body.ng select option::checkmark, body.pn select option::checkmark { order: 1; margin-left: auto; color: var(--cf-primary); font-weight: 700; }
+  body.ng select:open, body.pn select:open { border-color: var(--cf-primary); }
+  /* La hoja de la factura es papel claro también en oscuro */
+  body.ng .ng-sheet select::picker(select) { background: #ffffff; color: #16181b; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.06); }
+  body.ng .ng-sheet select option { color: #16181b; }
+  body.ng .ng-sheet select option:hover { background: #f2f5f8; }
+}
+
+/* Pestañas y segmentos: la pieza activa se desliza de una opción a otra
+   (la mueve src/panel-motion.js; sin JavaScript se ve la opción marcada). */
+.has-slide { position: relative; isolation: isolate; }
+.slide-thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 0;
+  height: 0;
+  border-radius: 20px;
+  background: var(--cf-fg);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.42s var(--cf-ease), width 0.42s var(--cf-ease), height 0.42s var(--cf-ease), opacity 0.2s;
+}
+.has-slide > :not(.slide-thumb) { transition: color 0.3s var(--cf-ease); }
+.has-slide > [aria-pressed='true'], .has-slide > [aria-selected='true'], .has-slide > [aria-current]:not([aria-current='false']) { background: transparent !important; box-shadow: none !important; }
+body.pn .top-nav .slide-thumb { background: var(--cf-active-item); }
+
+/* Transiciones entre páginas: la nueva entra suave desde abajo; el riel se queda quieto */
+@view-transition { navigation: auto; }
+@keyframes cf-fade-out { to { opacity: 0; } }
+@keyframes cf-rise-in { from { opacity: 0; transform: translateY(12px); } }
+html.ng-nav::view-transition-old(root) { animation: 150ms var(--cf-ease) both cf-fade-out; }
+html.ng-nav::view-transition-new(root) { animation: 380ms var(--cf-ease) both cf-rise-in; }
+body.ng .ng-rail { view-transition-name: ng-rail; }
+html.ng-nav::view-transition-group(ng-rail) { animation: none; }
+body.ng .ng-enter { animation: cf-rise-in 380ms var(--cf-ease) both; }
+/* También al cambiar de pestaña dentro de una página (no al repintar sus datos) */
+body.ng .ng-gate:not([hidden]), body.pn [data-pane]:not([hidden]), body.pn [data-view]:not([hidden]), body.ng .ng-tab { animation: cf-rise-in 360ms var(--cf-ease) both; }
+@media (prefers-reduced-motion: reduce) {
+  .slide-thumb, .has-slide > * { transition: none !important; }
+  html.ng-nav::view-transition-old(root), html.ng-nav::view-transition-new(root) { animation: none; }
+  body.ng .ng-enter, body.ng .ng-gate:not([hidden]), body.pn [data-pane]:not([hidden]), body.pn [data-view]:not([hidden]), body.ng .ng-tab { animation: none; }
+}
