@@ -2,9 +2,16 @@
 // Usa la misma sesión que el resto del panel (/api/admin/*) y la estética de CeroFiao.
 
 import { initTheme } from './theme.js';
-import { api, loadAll, bus, hasUnsaved, flushNow, find, el, icon, menu, toast } from './negocio-core.js';
+import { api, loadAll, bus, hasUnsaved, flushNow, find, el, icon, menu, toast, refreshPub } from './negocio-core.js';
 import { docsPage, customersPage, customerPage, catalogPage, settingsPage, createDoc, customerForm, catalogForm, go } from './negocio-views.js';
 import { docEditor } from './negocio-doc.js';
+import { expensesPage, expenseForm } from './negocio-gastos.js';
+import { homePage } from './negocio-inicio.js';
+import { marketingPage } from './negocio-marketing.js';
+import { postForm, newPost } from './negocio-contenido.js';
+import { projectsPage, projectPage, projectForm } from './negocio-projects.js';
+import { tasksPage, createTask } from './negocio-tasks.js';
+import { hoursPage, mountTimer, timeForm, guessProject } from './negocio-time.js';
 
 initTheme();
 
@@ -60,28 +67,44 @@ const newButton = document.querySelector('[data-new]');
 newButton.addEventListener('click', () => menu(newButton, [
   { label: 'Nueva factura', icon: 'file', run: () => createDoc('invoice') },
   { label: 'Nueva cotización', icon: 'quote', run: () => createDoc('quote') },
+  { label: 'Nueva propuesta', icon: 'send', run: () => createDoc('proposal') },
+  { label: 'Nuevo gasto', icon: 'wallet', run: () => expenseForm(null, () => go('#/gastos')) },
+  '-',
+  { label: 'Nuevo proyecto', icon: 'folder', run: () => projectForm(null, (p) => go(`#/proyectos/${p.id}`)) },
+  { label: 'Nueva tarea', icon: 'tasks', run: () => createTask({ projectId: guessProject({ here: true }) }) },
+  { label: 'Registrar horas', icon: 'clock', run: () => timeForm(null, { projectId: guessProject() }) },
   '-',
   { label: 'Nuevo cliente', icon: 'users', run: () => customerForm(null, (c) => go(`#/clientes/${c.id}`)) },
   { label: 'Nuevo servicio', icon: 'box', run: () => catalogForm(null, () => go('#/catalogo')) },
+  '-',
+  { label: 'Nueva publicación', icon: 'megaphone', run: () => postForm(newPost()) },
 ], { side: matchMedia('(max-width: 760px)').matches ? 'below' : 'right' }));
 
 // ── Rutas ──
-const TITLES = { facturas: 'Facturas', cotizaciones: 'Cotizaciones', clientes: 'Clientes', catalogo: 'Catálogo', ajustes: 'Ajustes' };
+const TITLES = { propuestas: 'Propuestas', marketing: 'Marketing', proyectos: 'Proyectos', tareas: 'Tareas', horas: 'Horas', inicio: 'Inicio', gastos: 'Gastos', facturas: 'Facturas', cotizaciones: 'Cotizaciones', clientes: 'Clientes', catalogo: 'Catálogo', ajustes: 'Ajustes' };
 let current = null;
 let lastList = '#/facturas';
 
 function resolve() {
-  const [section = '', id] = location.hash.replace(/^#\/?/, '').split('/');
+  const [section = '', id, sub] = location.hash.replace(/^#\/?/, '').split('/');
   switch (section) {
+    case 'proyectos': return { nav: 'proyectos', build: () => (id ? projectPage(id, sub) : projectsPage()) };
+    case 'tareas': return { nav: 'tareas', build: tasksPage };
+    case 'horas': return { nav: 'horas', build: hoursPage };
+    case 'facturas': return { nav: 'facturas', build: () => docsPage('invoice') };
+    case 'gastos': return { nav: 'gastos', build: expensesPage };
     case 'cotizaciones': return { nav: 'cotizaciones', build: () => docsPage('quote') };
+    case 'propuestas': return { nav: 'propuestas', build: () => docsPage('proposal') };
     case 'clientes': return { nav: 'clientes', build: () => (id ? customerPage(id) : customersPage()) };
     case 'catalogo': return { nav: 'catalogo', build: catalogPage };
+    case 'marketing': return { nav: 'marketing', build: () => marketingPage(id || 'calendario', sub) };
     case 'ajustes': return { nav: 'ajustes', build: settingsPage };
     case 'doc': {
       const doc = find('docs', id);
-      return { nav: doc?.type === 'quote' ? 'cotizaciones' : 'facturas', editor: true, build: () => docEditor(id, { backTo: lastList }) };
+      const nav = { quote: 'cotizaciones', proposal: 'propuestas' }[doc?.type] || 'facturas';
+      return { nav, editor: true, build: () => docEditor(id, { backTo: lastList }) };
     }
-    default: return { nav: 'facturas', build: () => docsPage('invoice') };
+    default: return { nav: 'inicio', build: homePage };
   }
 }
 
@@ -98,12 +121,16 @@ function render() {
     else link.removeAttribute('aria-current');
   }
   if (!route.editor) {
-    const page = location.hash.replace(/^#\/?/, '').split('/')[0] || 'facturas';
+    const page = location.hash.replace(/^#\/?/, '').split('/')[0] || 'inicio';
     document.title = `${TITLES[page] || 'Negocio'} | Negocio`;
   }
   scrollTo(0, 0);
 }
-addEventListener('hashchange', render);
+addEventListener('hashchange', (e) => {
+  // El documento vuelve a donde se estaba, con la pestaña tal como quedó (las fichas la cambian sin navegar).
+  if (current && !current.editor) lastList = new URL(e.oldURL).hash || '#/facturas';
+  render();
+});
 
 // Los listados se repintan cuando cambian los datos (un cliente nuevo, una factura borrada…).
 let refreshQueued = false;
@@ -129,6 +156,16 @@ addEventListener('beforeunload', (event) => {
 // ── Arranque ──
 // Solo se enseña con los datos cargados: una lista vacía por un fallo de red
 // haría pensar que no hay nada.
+// Al volver a la pestaña se miran los enlaces públicos: quién abrió, firmó o rechazó.
+let lastPub = 0;
+const checkPub = () => {
+  if (!opened || document.hidden || Date.now() - lastPub < 20_000) return;
+  lastPub = Date.now();
+  refreshPub().catch(() => {});
+};
+document.addEventListener('visibilitychange', checkPub);
+addEventListener('focus', checkPub);
+
 async function openApp() {
   loadingNote.textContent = 'Cargando…';
   show('loading');
@@ -143,6 +180,8 @@ async function openApp() {
     return;
   }
   opened = true;
+  lastPub = Date.now();
+  mountTimer(document.querySelector('[data-timer]'));
   show('app');
   render();
 }

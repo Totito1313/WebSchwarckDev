@@ -1,0 +1,467 @@
+/* Negocio — proyectos, tareas y horas.
+   Va después de negocio.css y usa sus piezas (tarjetas nube, filas en papel,
+   píldoras, .seg). Lo que está en marcha se marca en cian, lo hecho en verde. */
+
+:root { --live: color-mix(in srgb, var(--cyan) 70%, var(--ink)); }
+
+@keyframes ng-beat { 50% { opacity: 0.45; } }
+@keyframes ng-sheet-in { from { opacity: 0; transform: translateX(28px); } }
+
+/* ── Piezas sueltas ── */
+.ng-ibtn.is-sm { width: 30px; height: 30px; background: none; color: var(--body); }
+.ng-ibtn.is-sm:hover { background: var(--cloud-deep); color: var(--ink); }
+.ng-ibtn.is-sm .ic svg { width: 16px; height: 16px; }
+.ng-ibtn.is-live { background: color-mix(in srgb, var(--cyan) 20%, var(--cloud)); color: var(--live); }
+.ng-ibtn.is-danger { color: var(--expense); }
+.pill.is-live { color: var(--live); }
+.ng-inline { display: flex; align-items: center; gap: 8px; }
+.ng-inline > select { flex: 1; min-width: 0; }
+.ng-link { text-decoration: none; }
+.ng-link:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.ng-bar.is-ok i { background: var(--income); }
+.ng-hint.is-warn { color: color-mix(in srgb, var(--usdt) 70%, var(--ink)); }
+/* El tablero y las etapas se desplazan por dentro: la página no debe ensancharse por ellos. */
+.ng-page, .ng-tab { grid-template-columns: minmax(0, 1fr); }
+.ng-tab { display: grid; gap: 16px; }
+.ng-tabs { display: flex; }
+
+/* Etiqueta que es botón: estado de la tarea o del proyecto */
+.ng-chipbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--c, var(--body)) 14%, transparent);
+  color: color-mix(in srgb, var(--c, var(--body)) 72%, var(--ink));
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s var(--ease);
+}
+.ng-chipbtn:hover { background: color-mix(in srgb, var(--c, var(--body)) 24%, transparent); }
+.ng-chipbtn:active { transform: scale(0.96); }
+.ng-chipbtn .ic svg { width: 14px; height: 14px; }
+.ng-chipbtn.is-lg { height: 36px; padding: 0 14px; border-radius: 18px; font-size: 14px; }
+.ng-chipbtn.is-plain { max-width: 100%; background: var(--seg-bg); color: var(--ink); }
+.ng-chipbtn.is-plain:hover { background: var(--cloud-deep); }
+.ng-chipbtn.is-plain > span { overflow: hidden; text-overflow: ellipsis; }
+.ng-chipbtn-dot, .ng-col-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+
+/* Casilla redonda para marcar como hecha */
+.ng-check {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1.8px solid color-mix(in srgb, var(--ink) 26%, transparent);
+  border-radius: 50%;
+  background: none;
+  color: transparent;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.2s var(--ease);
+}
+.ng-check .ic svg { width: 13px; height: 13px; stroke-width: 2.6; }
+.ng-check:hover { border-color: var(--income); color: color-mix(in srgb, var(--income) 70%, transparent); }
+.ng-check:active { transform: scale(0.88); }
+.ng-check[aria-pressed='true'] { border-color: var(--income); background: var(--income); color: #fff; }
+
+/* Anillo de progreso */
+.ng-ring { position: relative; display: grid; place-items: center; flex: none; width: 46px; height: 46px; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ng-ring::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--income) calc(var(--p, 0) * 1turn), var(--cloud-deep) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4.5px));
+}
+
+/* ── Riel: temporizador y alturas cortas ── */
+.ng-rail > button.ng-rail-timer {
+  gap: 2px;
+  align-content: center;
+  height: auto;
+  min-height: 48px;
+  margin-bottom: 8px;
+  padding: 6px 0;
+}
+.ng-rail-time { display: none; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.ng-rail > button.ng-rail-timer.is-running, .ng-rail > button.ng-rail-timer.is-paused { width: 62px; background: color-mix(in srgb, var(--cyan) 24%, transparent); color: #fff; }
+.ng-rail > button.ng-rail-timer.is-paused { background: color-mix(in srgb, var(--usdt) 24%, transparent); }
+.ng-rail-timer.is-running .ng-rail-time, .ng-rail-timer.is-paused .ng-rail-time { display: block; }
+.ng-rail-timer.is-running > .ic { color: var(--cyan); animation: ng-beat 2s ease-in-out infinite; }
+.ng-rail-timer.is-paused > .ic { color: var(--usdt); }
+
+@media (min-width: 761px) and (max-height: 940px) {
+  .ng-rail { gap: 2px; padding: 10px 0; }
+  .ng-rail > a, .ng-rail > button:not(.ng-rail-new) { width: 44px; height: 40px; border-radius: 14px; }
+  .ng-rail > button.ng-rail-timer { min-height: 40px; margin-bottom: 6px; padding: 4px 0; }
+  .ng-rail-new { width: 40px; height: 40px; margin-bottom: 6px; }
+  .ng-rail .ic svg { width: 20px; height: 20px; }
+  .ng-logo { margin-bottom: 2px; }
+}
+@media (min-width: 761px) and (max-height: 720px) {
+  .ng-rail > a, .ng-rail > button:not(.ng-rail-new) { height: 34px; }
+  .ng-rail > button.ng-rail-timer { min-height: 34px; }
+  .ng-rail-new { width: 34px; height: 34px; margin-bottom: 4px; }
+  .ng-rail .ng-logo { display: none; }
+}
+@media (min-width: 761px) and (max-height: 600px) {
+  .ng-rail { overflow-y: auto; scrollbar-width: none; }
+}
+
+/* ── Temporizador (menú del riel) ── */
+.ng-menu.ng-timer { grid-template-columns: minmax(0, 1fr); gap: 14px; width: min(330px, 100vw - 16px); padding: 16px; }
+.ng-timer-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; }
+.ng-timer-head b { font-size: 15px; font-weight: 600; }
+.ng-timer-head small { color: var(--body); font-size: 13px; }
+.ng-timer-clock { font-size: 46px; font-weight: 600; line-height: 1; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; }
+.ng-timer-clock.is-idle { color: color-mix(in srgb, var(--body) 55%, transparent); }
+.ng-timer-fields { display: grid; gap: 8px; }
+.ng-timer-fields .ng-select, .ng-timer-fields input {
+  width: 100%;
+  padding: 10px 34px 10px 12px;
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  background-color: var(--cloud);
+  color: var(--ink);
+  font-size: 14px;
+}
+.ng-timer-fields input { padding-right: 12px; }
+.ng-timer-fields input:focus-visible, .ng-timer-fields .ng-select:focus-visible { outline: none; border-color: var(--blue); }
+.ng-timer-actions { display: flex; align-items: center; gap: 8px; }
+.ng-timer-actions .pill { flex: 1; min-width: 0; }
+
+/* ── Proyectos ── */
+.ng-pcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.ng-pcard {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+  padding: 18px;
+  border-radius: 24px;
+  background: var(--paper);
+  text-decoration: none;
+  transition: transform 0.25s var(--ease), box-shadow 0.25s;
+}
+@media (hover: hover) {
+  .ng-pcard:hover { transform: translateY(-2px); box-shadow: 0 18px 32px -22px rgba(15, 45, 70, 0.5); }
+}
+.ng-pcard-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ng-pcard-name { display: grid; min-width: 0; }
+.ng-pcard-name b { overflow: hidden; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.ng-pcard-name small { overflow: hidden; color: var(--body); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.ng-pcard-tasks { display: grid; gap: 8px; }
+.ng-pcard-tasks > div { display: flex; justify-content: space-between; color: var(--body); font-size: 13px; }
+.ng-pcard-tasks b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ng-pcard-tasks .ng-bar i { background: var(--income); }
+.ng-pcard-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.ng-pcard-foot > span { display: grid; min-width: 0; }
+.ng-pcard-foot small { color: var(--body); font-size: 12px; }
+.ng-pcard-foot b { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.ng-row.is-project { grid-template-columns: 40px minmax(0, 1.4fr) 120px 70px 100px 140px 18px; }
+.ng-kpis.is-six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ng-profile-id p a { color: inherit; }
+
+/* Etapas */
+.ng-phases-card .ng-card-head { align-items: flex-end; }
+.ng-phases-progress { display: flex; align-items: center; gap: 12px; width: min(280px, 100%); }
+.ng-phases-progress b { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ng-phases-progress .ng-bar i { background: var(--income); }
+.ng-phases { display: flex; gap: 24px; margin: 0 -24px; padding: 2px 24px 6px; overflow-x: auto; scroll-padding: 0 24px; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.ng-phase {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  flex: 1 0 180px;
+  max-width: 300px;
+  padding: 14px 8px 14px 14px;
+  border-radius: 20px;
+  background: var(--paper);
+  scroll-snap-align: start;
+}
+.ng-phase:not(:last-child)::after { content: ''; position: absolute; top: 50%; right: -24px; width: 24px; height: 2px; background: var(--cloud-deep); }
+.ng-phase.is-done::after { background: var(--income); }
+.ng-phase-dot {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid var(--cloud-deep);
+  border-radius: 50%;
+  background: none;
+  color: transparent;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s, transform 0.2s var(--ease);
+}
+.ng-phase-dot .ic svg { width: 15px; height: 15px; stroke-width: 2.6; }
+.ng-phase-dot:hover { border-color: var(--income); color: color-mix(in srgb, var(--income) 60%, transparent); }
+.ng-phase-dot:active { transform: scale(0.9); }
+.ng-phase.is-active .ng-phase-dot { border-color: var(--cyan); box-shadow: inset 0 0 0 4px var(--paper), inset 0 0 0 14px var(--cyan); }
+.ng-phase.is-active .ng-phase-dot:hover { color: transparent; }
+.ng-phase.is-done .ng-phase-dot { border-color: var(--income); background: var(--income); color: #fff; }
+.ng-phase-text { display: grid; min-width: 0; }
+.ng-phase-name {
+  width: calc(100% + 12px);
+  min-width: 0;
+  margin: 0 -6px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.ng-phase-name:hover { background: var(--cloud); }
+.ng-phase-name:focus-visible { outline: none; background: var(--cloud); box-shadow: inset 0 0 0 1.5px var(--blue); }
+.ng-phase-text small { color: var(--body); font-size: 13px; }
+.ng-phase.is-active .ng-phase-text small { color: var(--live); font-weight: 500; }
+.ng-phase.is-done .ng-phase-text small { color: var(--income); }
+.ng-phase.is-add { display: flex; flex: 0 0 auto; padding: 0; background: none; }
+.ng-phase-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 62px;
+  padding: 0 18px;
+  border: 1.5px dashed color-mix(in srgb, var(--ink) 22%, transparent);
+  border-radius: 20px;
+  background: none;
+  color: var(--body);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+.ng-phase-add:hover { border-color: var(--ink); color: var(--ink); }
+
+/* ── Tareas: tablero ── */
+.ng-tasks .ng-card-head { margin-bottom: 16px; }
+.ng-progress { display: flex; align-items: center; gap: 12px; width: min(340px, 100%); }
+.ng-progress b { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ng-progress .ng-bar { min-width: 60px; }
+.ng-progress .ng-bar i { background: var(--income); }
+.ng-progress small { color: var(--body); font-size: 13px; white-space: nowrap; }
+
+.ng-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(250px, 1fr);
+  gap: 12px;
+  margin: 0 -24px -8px;
+  padding: 0 24px 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-padding: 0 24px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+.ng-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 10px 10px;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--paper) 45%, transparent);
+  scroll-snap-align: start;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.ng-col.is-over { background: color-mix(in srgb, var(--c) 9%, var(--cloud)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--c) 45%, transparent); }
+.ng-col-head { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 0 0 6px; }
+.ng-col-head h3 { font-size: 14px; font-weight: 600; }
+.ng-col-count { color: var(--body); font-size: 13px; font-variant-numeric: tabular-nums; }
+.ng-col-head .ng-ibtn { margin-left: auto; }
+.ng-col-list { display: grid; align-content: start; gap: 8px; min-height: 64px; }
+.ng-col-empty { padding: 18px 8px; border: 1.5px dashed color-mix(in srgb, var(--ink) 12%, transparent); border-radius: 16px; color: var(--body); font-size: 13px; text-align: center; }
+.ng-col-more { padding: 8px; border: 0; border-radius: 12px; background: none; color: var(--body); font-size: 13px; font-weight: 500; cursor: pointer; }
+.ng-col-more:hover { background: var(--paper); color: var(--ink); }
+.ng-drop-line { height: 3px; margin: -2px 8px; border-radius: 2px; background: var(--blue); }
+.ng-quick-in { width: 100%; padding: 11px 12px; border: 1.5px solid var(--blue); border-radius: 16px; background: var(--paper); color: var(--ink); font-size: 14px; outline: none; }
+
+.ng-tcard {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px 12px 12px;
+  border-radius: 18px;
+  background: var(--paper);
+  cursor: grab;
+  transition: transform 0.2s var(--ease), box-shadow 0.2s, opacity 0.2s;
+}
+@media (hover: hover) {
+  .ng-tcard:hover { transform: translateY(-1px); box-shadow: 0 12px 24px -18px rgba(15, 45, 70, 0.5); }
+}
+.ng-tcard:active { cursor: grabbing; }
+.ng-tcard.is-dragging { opacity: 0.35; }
+.ng-tcard.is-live { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--cyan) 65%, transparent); }
+.ng-tcard-top { display: flex; align-items: flex-start; gap: 10px; }
+.ng-tcard-title { padding-top: 1px; font-size: 14.5px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.ng-tcard.is-done .ng-tcard-title { color: var(--body); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--body) 60%, transparent); }
+.ng-tcard-tags, .ng-tcard-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; padding-left: 32px; }
+.ng-tcard-tags { gap: 6px 8px; }
+.ng-tcard-tags .ng-tag { padding: 2px 8px; font-size: 12px; }
+.ng-tcard-tags small { min-width: 0; overflow: hidden; color: var(--body); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.ng-tcard-meta { color: var(--body); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ng-tcard-meta > span { display: inline-flex; align-items: center; gap: 4px; }
+.ng-tcard-meta .ic svg { width: 14px; height: 14px; }
+.ng-tcard-meta .is-late { color: var(--expense); }
+.ng-tcard-meta .is-live { color: var(--live); font-weight: 600; }
+.ng-tcard-value { margin-left: auto; color: var(--ink); font-size: 13px; font-weight: 600; }
+
+/* Tareas: lista */
+.ng-tlist .ng-group h3 { display: flex; align-items: center; gap: 8px; }
+.ng-row.is-task { grid-template-columns: 22px minmax(0, 1fr) 80px 70px 90px 100px 130px; padding-left: 16px; cursor: pointer; }
+.ng-row.is-task > .ng-chipbtn { justify-self: end; }
+.ng-row.is-task.is-done .ng-row-main b { color: var(--body); text-decoration: line-through; }
+.ng-row-date.is-late { color: var(--expense); }
+
+/* Ficha de tarea: panel a la derecha */
+.ng-dialog.is-sheet {
+  position: fixed;
+  inset: 8px 8px 8px auto;
+  width: min(560px, 100% - 16px);
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  overflow: hidden;
+}
+.ng-dialog.is-sheet[open] { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); animation: ng-sheet-in 0.38s var(--ease); }
+.ng-sheet-head { display: flex; align-items: center; gap: 8px; padding: 16px 16px 14px 22px; border-bottom: 1px solid var(--soft); }
+.ng-sheet-head .ng-chipbtn { flex: none; }
+.ng-sheet-head .ng-chipbtn.is-plain { flex: 0 1 auto; min-width: 0; max-width: 220px; }
+.ng-sheet-body { display: grid; align-content: start; gap: 24px; padding: 18px 22px 32px; overflow-y: auto; overscroll-behavior: contain; }
+.ng-sheet-body .seg { display: flex; }
+.ng-sheet-body .seg button { flex: 1; padding-inline: 8px; }
+.ng-ttitle {
+  width: calc(100% + 16px);
+  margin: 0 -8px -8px;
+  padding: 4px 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  resize: none;
+}
+.ng-ttitle:hover { background: var(--cloud); }
+.ng-ttitle:focus-visible { outline: none; background: var(--cloud); box-shadow: inset 0 0 0 1.5px var(--blue); }
+.ng-sheet-sec { display: grid; gap: 10px; }
+.ng-sheet-sec-head { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.ng-sheet-sec-head h3 { font-size: 16px; font-weight: 600; }
+.ng-sheet-sec-head small { color: var(--body); font-size: 13px; font-variant-numeric: tabular-nums; }
+.ng-checklist { display: grid; gap: 2px; }
+.ng-checklist li { display: flex; align-items: center; gap: 10px; padding: 2px 4px 2px 10px; border-radius: 12px; }
+.ng-checklist li:hover { background: var(--cloud); }
+.ng-checklist .ng-check { border-radius: 7px; }
+.ng-check-text { flex: 1; min-width: 0; padding: 8px 4px; border: 0; background: none; color: var(--ink); font-size: 15px; outline: none; }
+.ng-checklist li.is-done .ng-check-text { color: var(--body); text-decoration: line-through; }
+.ng-checklist .ng-ibtn { opacity: 0; }
+.ng-checklist li:hover .ng-ibtn, .ng-checklist .ng-ibtn:focus-visible { opacity: 1; }
+@media (hover: none) { .ng-checklist .ng-ibtn { opacity: 1; } }
+.ng-check-add { display: flex; align-items: center; gap: 10px; padding: 2px 8px 2px 12px; border-radius: 12px; color: var(--body); cursor: text; }
+.ng-check-add:focus-within { background: var(--cloud); }
+.ng-check-add input { flex: 1; min-width: 0; padding: 8px 4px; border: 0; background: none; color: var(--ink); font-size: 15px; outline: none; }
+.ng-sheet-sec .ng-history .ng-ibtn:hover { color: var(--ink); }
+.ng-history-amount { color: var(--body); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ng-comments { display: grid; gap: 8px; }
+.ng-comments li { display: grid; gap: 4px; padding: 12px 10px 8px 14px; border-radius: 16px; background: var(--cloud); }
+.ng-comments p { overflow-wrap: anywhere; white-space: pre-wrap; }
+.ng-comments li > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ng-comments small { color: var(--body); font-size: 12.5px; }
+.ng-comment-new { display: grid; justify-items: end; gap: 8px; }
+.ng-comment-new textarea {
+  width: 100%;
+  padding: 11px 14px;
+  overflow: hidden;
+  border: 1.5px solid transparent;
+  border-radius: 14px;
+  background: var(--cloud);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.45;
+  resize: none;
+}
+.ng-comment-new textarea:focus-visible { outline: none; border-color: var(--blue); }
+
+/* ── Horas ── */
+.ng-row.is-time { grid-template-columns: 40px minmax(0, 1fr) 130px 100px 130px 110px; }
+.ng-row-dur { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.ng-row-ico.is-live { background: color-mix(in srgb, var(--cyan) 18%, var(--paper)); color: var(--live); }
+.ng-row-ico.is-live .ic { animation: ng-beat 2s ease-in-out infinite; }
+
+/* Facturar horas */
+.ng-bill { display: grid; gap: 10px; }
+.ng-bill-lines { display: grid; gap: 6px; max-height: 320px; overflow: auto; }
+.ng-bill-lines li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 10px 14px; border-radius: 14px; background: var(--cloud); }
+.ng-bill-what { display: grid; min-width: 0; }
+.ng-bill-what b, .ng-bill-what small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ng-bill-what b { font-size: 14px; font-weight: 600; }
+.ng-bill-what small { color: var(--body); font-size: 12.5px; }
+.ng-bill-qty { color: var(--body); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ng-bill-amount { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ng-bill-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 6px 14px 0; }
+.ng-bill-total span { color: var(--body); }
+.ng-bill-total b { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+
+/* ── Tablet y móvil ── */
+@media (max-width: 1180px) {
+  .ng-row.is-project { grid-template-columns: 40px minmax(0, 1fr) 120px 70px 130px 18px; }
+  .ng-row.is-project > :nth-child(5) { display: none; }
+}
+@media (max-width: 980px) {
+  .ng-kpis.is-six { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ng-row.is-time { grid-template-columns: 40px minmax(0, 1fr) 90px 130px 100px; }
+  .ng-row.is-task { grid-template-columns: 22px minmax(0, 1fr) 80px 100px 130px; }
+}
+@media (max-width: 760px) {
+  .ng-rail > button.ng-rail-timer { flex: none; grid-auto-flow: column; width: 44px; min-height: 44px; height: 44px; margin: 0; padding: 0; }
+  .ng-rail > button.ng-rail-timer.is-running, .ng-rail > button.ng-rail-timer.is-paused { width: auto; padding: 0 12px; gap: 6px; }
+  .ng-rail-time { font-size: 13px; }
+  .ng-row.is-project { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  .ng-row.is-project > :nth-child(4), .ng-row.is-project > :nth-child(5) { display: none; }
+  .ng-row.is-time { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  .ng-row.is-time .ng-row-amount { display: none; }
+  .ng-row.is-task { grid-template-columns: 22px minmax(0, 1fr) auto; padding-left: 14px; }
+  .ng-row.is-task > .ng-row-amount { display: none; }
+  .ng-board { grid-auto-columns: minmax(250px, 84%); margin: 0 -18px -8px; padding: 0 18px 8px; scroll-padding: 0 18px; scroll-snap-type: x mandatory; }
+  .ng-phases { margin: 0 -18px; padding: 2px 18px 6px; scroll-padding: 0 18px; }
+  .ng-phase { flex-basis: 200px; }
+  .ng-progress, .ng-phases-progress { width: 100%; }
+  .ng-tasks .ng-filters .ng-select { flex: 1; }
+  .ng-dialog.is-sheet { inset: 8px; width: auto; }
+  .ng-sheet-head { gap: 6px; padding: 12px 10px 12px 14px; }
+  .ng-sheet-head .ng-chipbtn.is-lg { height: 32px; padding: 0 10px; font-size: 13px; }
+  .ng-sheet-head .ng-chipbtn > .ic:last-child { display: none; }
+  .ng-sheet-head .ng-ibtn { width: 36px; height: 36px; }
+  .ng-sheet-body { padding: 16px 16px 28px; }
+  .ng-ttitle { font-size: 21px; }
+  .ng-bill-qty { display: none; }
+  .ng-timer-clock { font-size: 40px; }
+}
+@media (max-width: 520px) {
+  .ng-pcards { grid-template-columns: minmax(0, 1fr); }
+  .ng-profile-row .ng-head-actions { width: 100%; }
+  .ng-profile-row .ng-head-actions .pill { flex: 1; }
+}

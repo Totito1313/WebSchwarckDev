@@ -8,17 +8,21 @@ import {
   state, find, put, remove, uid, bus, saving, flushNow, totals, docStatus, money, amountText, numText, parseNum, round2,
   dateText, todayISO, addDays, strongest, unitName, snapshotCustomer, snapshotPayment, el, icon, iconButton, avatar, tag, empty, seg,
   toggle, menu, picker, confirmBox, toast, qr, autosize, safeLink, input, select, CURRENCIES, CURRENCY_CODES, METHODS,
-  methodLabel, DOC_WORD, DEFAULT_STYLE,
+  methodLabel, DOC_WORD, DEFAULT_STYLE, api, pubOf, isSignable, isLocked, field,
 } from './negocio-core.js';
 import { go, customerForm, templateForm, catalogForm } from './negocio-views.js';
+import { ACCENTS, renderSheet, acceptance, stampText } from './negocio-sheet.js';
+import { renderBlocks, applyTemplate, PROPOSAL_TEMPLATES } from './negocio-propuesta.js';
+import { uploadFile, fileUrl } from './negocio-gastos.js';
+import { newProject } from './negocio-work.js';
 
-const ACCENTS = { ink: '#16181b', cyan: '#0096b0', blue: '#0071bc', green: '#1f9d46', violet: '#7c4dc9', orange: '#e0620c' };
 const ACCENT_NAMES = { ink: 'Tinta', cyan: 'Cian', blue: 'Azul', green: 'Verde', violet: 'Violeta', orange: 'Naranja' };
 const FONTS = [['inter', 'Inter'], ['dm', 'DM Sans'], ['mono', 'Mono']];
 const SECTION_TITLES = ['Términos y condiciones', 'Garantía', 'Información legal', 'Política de devoluciones', 'Confidencialidad'];
 const SOURCES = ['BCV', 'Paralelo', 'Binance P2P', 'Acordada'];
-const TITLE = { invoice: 'Factura', quote: 'Cotización', receipt: 'Recibo' };
-const LIST = { invoice: '#/facturas', receipt: '#/facturas', quote: '#/cotizaciones' };
+const TITLE = { invoice: 'Factura', quote: 'Cotización', receipt: 'Recibo', proposal: 'Propuesta' };
+const LIST = { invoice: '#/facturas', receipt: '#/facturas', quote: '#/cotizaciones', proposal: '#/propuestas' };
+const SHARE_DAYS = [[0, 'No caduca'], [7, '7 días'], [30, '30 días'], [90, '90 días']];
 
 export function docEditor(id, { backTo } = {}) {
   const doc = find('docs', id);
@@ -103,6 +107,18 @@ export function docEditor(id, { backTo } = {}) {
   // ── La hoja ──
 
   function drawSheet() {
+    if (isLocked(doc)) {
+      // Firmado por el cliente: se enseña tal cual quedó, sin campos.
+      const pub = pubOf(doc);
+      const ready = renderSheet(doc, { logo: state.settings.logo, response: pub, drawnSrc: pub.mode === 'drawn' ? `/api/admin/crm/signature/${doc.id}` : '' });
+      sheet.className = ready.className;
+      sheet.style.cssText = ready.style.cssText;
+      Object.assign(sheet.dataset, ready.dataset);
+      sheet.replaceChildren(...ready.childNodes);
+      refs = {};
+      return;
+    }
+    sheet.className = 'ng-sheet';
     const st = doc.style;
     sheet.dataset.layout = st.layout;
     sheet.dataset.font = st.font;
@@ -124,15 +140,35 @@ export function docEditor(id, { backTo } = {}) {
       st.cover !== 'none' && el('div', { class: 'sh-cover', 'aria-hidden': 'true' }, el('i'), el('i'), el('i')),
       el('div', { class: 'sh-body' },
         top,
-        title,
+        doc.type === 'proposal' ? flatArea(doc.title, (v) => { doc.title = v; }, { cls: 'sh-proposal-title', placeholder: 'Título de la propuesta', 'aria-label': 'Título de la propuesta' }) : title,
         parties(),
-        doc.type === 'receipt' ? receiptLines() : lines(),
-        el('div', { class: 'sh-foot' }, doc.type === 'receipt' ? receiptPay() : payBlock(), totalsBlock()),
+        doc.type === 'proposal'
+          ? renderBlocks(doc, { edit: true, F: { text: flat, area: flatArea }, touch, redraw: drawSheet, pickImage, pricing: () => [lines(), el('div', { class: 'sh-foot' }, payBlock(), totalsBlock())] })
+          : [doc.type === 'receipt' ? receiptLines() : lines(), el('div', { class: 'sh-foot' }, doc.type === 'receipt' ? receiptPay() : payBlock(), totalsBlock())],
         flatArea(doc.notes, (v) => { doc.notes = v; }, { cls: 'sh-notes', placeholder: 'Nota para el cliente (opcional)', 'aria-label': 'Nota' }),
         doc.type !== 'receipt' && sectionsBlock(),
+        isSignable(doc) && acceptance(pubOf(doc)),
       ),
     ].filter(Boolean));
     updateNumbers();
+  }
+
+  /** Imagen de un trabajo en la propuesta: se sube como los recibos de gastos. */
+  function pickImage(item, done) {
+    const fileIn = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp' });
+    fileIn.addEventListener('change', async () => {
+      const f = fileIn.files[0];
+      if (!f) return;
+      toast('Subiendo imagen…');
+      try {
+        item.image = fileUrl((await uploadFile(f)).id);
+        done();
+        toast('Imagen lista.');
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    });
+    fileIn.click();
   }
 
   function parties() {
@@ -148,7 +184,7 @@ export function docEditor(id, { backTo } = {}) {
       flatArea(f.address, (v) => { f.address = v; }, { placeholder: 'Dirección', 'aria-label': 'Tu dirección' }),
     );
     const to = el('div', { class: 'sh-party' },
-      label(doc.type === 'quote' ? 'Preparada para' : doc.type === 'receipt' ? 'Recibido de' : 'Facturar a'),
+      label(isSignable(doc) ? 'Preparada para' : doc.type === 'receipt' ? 'Recibido de' : 'Facturar a'),
       flat(c.name, (v) => { c.name = v; drawBar(); }, { cls: 'is-strong', placeholder: 'Nombre del cliente', 'aria-label': 'Nombre del cliente' }),
       flat(c.company, (v) => { c.company = v; }, { placeholder: 'Empresa', 'aria-label': 'Empresa del cliente' }),
       flat(c.taxId, (v) => { c.taxId = v; }, { placeholder: 'RIF, cédula o NIF', 'aria-label': 'RIF del cliente' }),
@@ -160,7 +196,7 @@ export function docEditor(id, { backTo } = {}) {
       label(doc.type === 'receipt' ? 'Fecha del pago' : 'Emisión'),
       dateIn(doc.issueDate, (v) => { doc.issueDate = v; }, 'Fecha de emisión'),
       doc.type === 'invoice' && [label('Vence'), dateIn(doc.dueDate, (v) => { doc.dueDate = v; }, 'Fecha de vencimiento')],
-      doc.type === 'quote' && [label('Válida hasta'), dateIn(doc.validUntil, (v) => { doc.validUntil = v; }, 'Válida hasta')],
+      isSignable(doc) && [label('Válida hasta'), dateIn(doc.validUntil, (v) => { doc.validUntil = v; }, 'Válida hasta')],
       doc.type === 'receipt' && doc.invoiceNumber && [label('Factura'), el('span', { class: 'sh-static', text: doc.invoiceNumber })],
     );
     return el('section', { class: 'sh-parties' }, from, to, dates);
@@ -457,30 +493,47 @@ export function docEditor(id, { backTo } = {}) {
   function duplicate() {
     const copy = structuredClone(doc);
     const today = todayISO();
-    Object.assign(copy, { id: uid(), number: '', status: 'draft', issueDate: today, payments: [], invoiceId: '', fromQuoteId: '', fromQuote: '' });
+    Object.assign(copy, { id: uid(), number: '', status: 'draft', issueDate: today, payments: [], invoiceId: '', fromQuoteId: '', fromQuote: '', share: null });
     delete copy.createdAt;
     delete copy.updatedAt;
     if (copy.type === 'invoice') copy.dueDate = addDays(today, Number(state.settings.dueDays) || 15);
-    if (copy.type === 'quote') copy.validUntil = addDays(today, Number(state.settings.quoteDays) || 15);
+    if (isSignable(copy)) copy.validUntil = addDays(today, Number(state.settings.quoteDays) || 15);
     copy.items = copy.items.map((i) => ({ ...i, id: uid() }));
     put('docs', copy, { now: true })?.catch(() => {});
     toast(`${TITLE[copy.type]} duplicada.`);
     go(`#/doc/${copy.id}`);
   }
 
-  function toInvoice() {
+  /** Cotización o propuesta aceptada → factura con las mismas líneas (y, si se pide, un proyecto). */
+  function toInvoice({ project = false } = {}) {
     const today = todayISO();
     const inv = structuredClone(doc);
-    Object.assign(inv, { id: uid(), type: 'invoice', status: 'draft', number: '', issueDate: today, dueDate: addDays(today, Number(state.settings.dueDays) || 15), validUntil: '', payments: [], fromQuoteId: doc.id, fromQuote: doc.number });
+    Object.assign(inv, { id: uid(), type: 'invoice', status: 'draft', number: '', issueDate: today, dueDate: addDays(today, Number(state.settings.dueDays) || 15), validUntil: '', payments: [], fromQuoteId: doc.id, fromQuote: doc.number, share: null });
     delete inv.createdAt;
     delete inv.updatedAt;
+    delete inv.blocks;
+    delete inv.title;
+    inv.style = { ...inv.style, cover: state.settings.style?.cover || 'none' };
     inv.items = inv.items.map((i) => ({ ...i, id: uid() }));
     if (!inv.payment) inv.payment = snapshotPayment(state.paytemplates.find((t) => t.isDefault));
+    if (project) {
+      const customer = doc.customerId ? find('customers', doc.customerId) : null;
+      const p = {
+        ...newProject(customer),
+        name: doc.title || `${doc.customer?.company || doc.customer?.name || 'Cliente'} · ${doc.number}`,
+        budget: totals(doc).total,
+        currency: doc.currency,
+        description: (doc.blocks || []).find((b) => b.kind === 'intro')?.body || '',
+      };
+      put('projects', p);
+      inv.projectId = p.id;
+      doc.projectId = p.id;
+    }
     doc.status = 'accepted';
     doc.invoiceId = inv.id;
     put('docs', doc);
     put('docs', inv, { now: true })?.catch(() => {});
-    toast('Cotización aceptada. Ya tienes la factura.');
+    toast(project ? 'Listo: ya tienes la factura y el proyecto.' : `${TITLE[doc.type]} aceptada. Ya tienes la factura.`);
     go(`#/doc/${inv.id}`);
   }
 
@@ -527,15 +580,18 @@ export function docEditor(id, { backTo } = {}) {
       const inv = find('docs', doc.invoiceId);
       return { primary: inv && { label: 'Ver factura', icon: 'file', run: () => go(`#/doc/${inv.id}`) }, more: [del] };
     }
-    if (doc.type === 'quote') {
+    if (isSignable(doc)) {
       const linked = doc.invoiceId && find('docs', doc.invoiceId);
-      const convert = { label: 'Convertir en factura', icon: 'file', run: toInvoice };
-      if (status === 'draft') return { primary: send, more: [convert, dup, '-', del] };
-      if (status === 'accepted') return { primary: linked ? { label: 'Ver factura', icon: 'file', run: () => go(`#/doc/${linked.id}`) } : convert, more: [{ label: 'Reabrir', icon: 'undo', run: () => setStatus('sent') }, dup, '-', del] };
-      if (status === 'declined') return { primary: { label: 'Reabrir', icon: 'undo', run: () => setStatus('sent') }, more: [dup, '-', del] };
+      const convert = { label: 'Convertir en factura', icon: 'file', run: () => toInvoice() };
+      const withProject = !linked && { label: 'Factura y proyecto', icon: 'folder', run: () => toInvoice({ project: true }) };
+      const answered = pubOf(doc)?.acceptedAt || pubOf(doc)?.declinedAt;
+      if (status === 'draft') return { primary: send, more: [convert, withProject, dup, '-', del] };
+      if (status === 'accepted') return { primary: linked ? { label: 'Ver factura', icon: 'file', run: () => go(`#/doc/${linked.id}`) } : convert, more: [withProject, !answered && { label: 'Reabrir', icon: 'undo', run: () => setStatus('sent') }, dup, '-', del] };
+      if (status === 'declined') return { primary: answered ? null : { label: 'Reabrir', icon: 'undo', run: () => setStatus('sent') }, more: [dup, '-', del] };
       return {
         primary: convert,
         more: [
+          withProject,
           { label: 'Marcar como aceptada', icon: 'check', run: () => setStatus('accepted') },
           { label: 'Marcar como rechazada', icon: 'x', run: () => setStatus('declined') },
           { label: 'Volver a borrador', icon: 'undo', run: () => setStatus('draft') },
@@ -562,8 +618,25 @@ export function docEditor(id, { backTo } = {}) {
     const left = el('div', { class: 'ng-ebar-side' },
       el('button', { type: 'button', class: 'ng-gbtn', 'aria-label': 'Volver', title: 'Volver', onclick: () => go(listRoute()) }, icon('back')),
     );
+    const locked = isLocked(doc);
     if (doc.type === 'receipt') {
       left.append(el('span', { class: glass }, icon('receipt'), 'Recibo'));
+    } else if (doc.type === 'proposal') {
+      left.append(el('span', { class: glass }, icon('send'), 'Propuesta'));
+      if (!locked) {
+        const tplBtn = el('button', { type: 'button', class: glass, 'aria-label': 'Plantilla' }, icon('edit'), 'Plantilla', icon('down'));
+        tplBtn.addEventListener('click', () => menu(tplBtn, Object.entries(PROPOSAL_TEMPLATES).map(([k, t]) => ({
+          label: t.label,
+          icon: 'edit',
+          run: async () => {
+            if (!(await confirmBox(`¿Empezar desde «${t.label}»? Se cambian el título, los bloques y las líneas de precio.`, 'Usar plantilla'))) return;
+            applyTemplate(doc, k);
+            touch();
+            drawSheet();
+          },
+        }))));
+        left.append(tplBtn);
+      }
     } else {
       const typeBtn = el('button', { type: 'button', class: glass, 'aria-label': 'Tipo de documento' }, icon(doc.type === 'quote' ? 'quote' : 'file'), TITLE[doc.type], icon('down'));
       const hasPayments = doc.payments?.length > 0;
@@ -574,7 +647,10 @@ export function docEditor(id, { backTo } = {}) {
       left.append(typeBtn);
     }
     left.append(tag(docStatus(doc)));
-    if (doc.type !== 'receipt') {
+    if (locked) {
+      left.append(el('span', { class: `${glass} is-lock`, title: 'El cliente lo firmó: el contenido ya no cambia.' }, icon('lock'), 'Firmada'));
+      if (who) left.append(el('span', { class: glass }, avatar(who, 'is-sm'), who));
+    } else if (doc.type !== 'receipt') {
       const custBtn = el('button', { type: 'button', class: glass, 'aria-label': 'Cliente' }, who ? avatar(who, 'is-sm') : icon('users'), who || 'Elegir cliente', icon('down'));
       custBtn.addEventListener('click', () => picker(custBtn, {
         placeholder: 'Buscar cliente…',
@@ -584,13 +660,32 @@ export function docEditor(id, { backTo } = {}) {
         onPick: setCustomer,
         extra: el('button', { type: 'button', class: 'ng-pick-new', onclick: () => customerForm(null, setCustomer) }, icon('plus'), 'Nuevo cliente'),
       }));
+      const project = doc.projectId && find('projects', doc.projectId);
+      const projBtn = state.projects.length > 0 || project ? el('button', { type: 'button', class: glass, 'aria-label': 'Proyecto' }, icon('folder'), project?.name || 'Sin proyecto', icon('down')) : null;
+      projBtn?.addEventListener('click', () => picker(projBtn, {
+        placeholder: 'Buscar proyecto…',
+        // Con cliente elegido, solo sus proyectos.
+        items: () => state.projects.filter((p) => !doc.customerId || p.customerId === doc.customerId || p.id === doc.projectId).sort((a, b) => a.name.localeCompare(b.name)),
+        label: (p) => p.name || 'Sin nombre',
+        sub: (p) => find('customers', p.customerId)?.name || 'Sin cliente',
+        onPick: (p) => {
+          doc.projectId = p.id;
+          const c = !doc.customerId && p.customerId && find('customers', p.customerId);
+          if (c) setCustomer(c);
+          else {
+            touch();
+            drawBar();
+          }
+        },
+        extra: doc.projectId ? el('button', { type: 'button', class: 'ng-pick-new', onclick: () => { doc.projectId = ''; touch(); drawBar(); } }, icon('x'), 'Sin proyecto') : null,
+      }));
       const curBtn = el('button', { type: 'button', class: glass, 'aria-label': 'Moneda' }, doc.currency, icon('down'));
       curBtn.addEventListener('click', () => menu(curBtn, CURRENCY_CODES.map((k) => ({
         label: `${k} · ${CURRENCIES[k].label}`,
         icon: k === doc.currency ? 'check' : null,
         run: () => { changeCurrency(k); touch(); drawBar(); drawSheet(); },
       }))));
-      left.append(custBtn, curBtn);
+      left.append(...[custBtn, projBtn, curBtn].filter(Boolean));
     }
     left.append(savingNote);
 
@@ -598,7 +693,8 @@ export function docEditor(id, { backTo } = {}) {
     const moreBtn = el('button', { type: 'button', class: 'ng-gbtn', 'aria-label': 'Más acciones', title: 'Más acciones' }, icon('more'));
     moreBtn.addEventListener('click', () => menu(moreBtn, more, { align: 'end' }));
     const right = el('div', { class: 'ng-ebar-side is-end' },
-      doc.type !== 'receipt' && el('button', { type: 'button', class: `ng-gbtn${drawer === 'style' ? ' is-on' : ''}`, 'aria-label': 'Personalizar', title: 'Personalizar', 'aria-pressed': String(drawer === 'style'), onclick: () => openDrawer('style') }, icon('palette')),
+      doc.type !== 'receipt' && !locked && el('button', { type: 'button', class: `ng-gbtn${drawer === 'style' ? ' is-on' : ''}`, 'aria-label': 'Personalizar', title: 'Personalizar', 'aria-pressed': String(drawer === 'style'), onclick: () => openDrawer('style') }, icon('palette')),
+      doc.type !== 'receipt' && el('button', { type: 'button', class: `ng-gbtn is-wide${drawer === 'share' ? ' is-on' : ''}`, 'aria-pressed': String(drawer === 'share'), onclick: () => openDrawer('share') }, icon('link'), el('span', { text: doc.share?.token ? 'Enlace' : 'Compartir' })),
       doc.type === 'invoice' && el('button', { type: 'button', class: `ng-gbtn${drawer === 'pay' ? ' is-on' : ''}`, 'aria-label': 'Pagos', title: 'Pagos', 'aria-pressed': String(drawer === 'pay'), onclick: () => openDrawer('pay') }, icon('wallet')),
       el('button', { type: 'button', class: 'ng-gbtn is-wide', onclick: printDoc }, icon('printer'), el('span', { text: 'Imprimir o PDF' })),
       moreBtn,
@@ -632,7 +728,103 @@ export function docEditor(id, { backTo } = {}) {
     if (!drawer) return;
     const close = iconButton('x', 'Cerrar panel', () => openDrawer(drawer));
     if (drawer === 'style') aside.replaceChildren(el('header', {}, el('h2', {}, icon('palette'), 'Personalizar'), close), stylePanel());
+    else if (drawer === 'share') aside.replaceChildren(el('header', {}, el('h2', {}, icon('link'), 'Enlace para el cliente'), close), sharePanel());
     else aside.replaceChildren(el('header', {}, el('h2', {}, icon('wallet'), 'Pagos'), close), payPanel());
+  }
+
+  /** El enlace público: crearlo (con contraseña y caducidad opcionales), copiarlo, ver quién lo abrió y desactivarlo. */
+  function sharePanel() {
+    const box = el('div', { class: 'ng-drawer-body' });
+    const s = doc.share;
+    const pub = pubOf(doc);
+    const word = TITLE[doc.type].toLowerCase();
+    if (!doc.number) {
+      box.append(el('p', { class: 'ng-hint', text: 'Se puede compartir en cuanto se guarde y tenga número.' }));
+      return box;
+    }
+    if (s?.token) {
+      const url = `${location.origin}/documento/#${s.token}`;
+      const copy = async () => {
+        try {
+          await navigator.clipboard.writeText(url);
+          toast('Enlace copiado.');
+        } catch {
+          toast('No se pudo copiar. Selecciónalo y cópialo a mano.', 'error');
+        }
+      };
+      const views = pub?.views || 0;
+      box.append(
+        el('p', { class: 'ng-card-text', text: `Quien tenga este enlace puede ver la ${word}${isSignable(doc) ? ', aceptarla y firmarla' : ''}. No ve nada más de tu panel.` }),
+        el('input', { class: 'ng-share-url', value: url, readOnly: true, 'aria-label': 'Enlace', onfocus: (e) => e.target.select() }),
+        el('div', { class: 'ng-head-actions' },
+          el('button', { type: 'button', class: 'pill', onclick: copy }, icon('copy'), 'Copiar enlace'),
+          el('a', { class: 'pill ghost', href: url, target: '_blank', rel: 'noopener' }, icon('external'), 'Abrir'),
+        ),
+        el('ul', { class: 'ng-share-facts' },
+          el('li', {}, icon('lock'), s.hasPassword ? 'Con contraseña' : 'Sin contraseña'),
+          el('li', {}, icon('clock'), s.expiresAt ? `Caduca el ${dateText(new Date(s.expiresAt).toLocaleDateString('en-CA'))}` : 'No caduca'),
+          el('li', {}, icon('eye'), views ? `Abierto ${views} ${views === 1 ? 'vez' : 'veces'}; la última, el ${stampText(new Date(pub.lastViewAt || pub.viewedAt).toISOString())}` : 'Todavía no lo ha abierto nadie'),
+        ),
+        isSignable(doc) && (acceptance(pub, pub?.mode === 'drawn' ? `/api/admin/crm/signature/${doc.id}` : '') || el('p', { class: 'ng-hint', text: 'Esperando respuesta del cliente.' })),
+        el('button', {
+          type: 'button',
+          class: 'pill ghost danger',
+          onclick: async () => {
+            if (!(await confirmBox('¿Desactivar el enlace? Quien lo tenga ya no podrá abrirlo.', 'Desactivar'))) return;
+            try {
+              await api(`/crm/share/${s.token}`, { method: 'DELETE' });
+              doc.share = null;
+              touch();
+              drawDrawer();
+              drawBar();
+              toast('Enlace desactivado.');
+            } catch (err) {
+              toast(err.message, 'error');
+            }
+          },
+        }, icon('ban'), 'Desactivar enlace'),
+      );
+      return box;
+    }
+
+    const password = input({ type: 'text', maxLength: 100, placeholder: 'Opcional', autocomplete: 'off' });
+    let days = 0;
+    const create = el('button', { type: 'submit', class: 'pill' }, icon('link'), 'Crear enlace');
+    const form = el('form', { class: 'ng-form' },
+      el('p', { class: 'ng-card-text', text: `Crea un enlace para que el cliente vea la ${word}${isSignable(doc) ? ', la acepte y la firme' : ' y la pague'} desde su teléfono. Sabrás cuándo la abre.` }),
+      field('Contraseña', password, 'Si la pones, envíala aparte. Mínimo 4 caracteres.'),
+      el('div', { class: 'ng-field' }, el('span', { text: 'Caducidad' }), seg(SHARE_DAYS, days, (v) => { days = v; }, 'Caducidad del enlace')),
+      create,
+    );
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pass = password.value.trim();
+      if (pass && pass.length < 4) {
+        toast('La contraseña necesita al menos 4 caracteres.', 'error');
+        return;
+      }
+      create.disabled = true;
+      try {
+        await flushNow();
+        const share = await api('/crm/share', { method: 'POST', body: { docId: doc.id, password: pass, days } });
+        doc.share = share;
+        if (doc.status === 'draft') doc.status = 'sent';
+        put('docs', doc, { now: true })?.catch(() => {});
+        try {
+          await navigator.clipboard.writeText(`${location.origin}/documento/#${share.token}`);
+          toast('Enlace creado y copiado.');
+        } catch {
+          toast('Enlace creado.');
+        }
+        drawDrawer();
+        drawBar();
+      } catch (err) {
+        toast(err.message, 'error');
+        create.disabled = false;
+      }
+    });
+    box.append(form);
+    return box;
   }
 
   function stylePanel() {
@@ -797,8 +989,11 @@ export function docEditor(id, { backTo } = {}) {
     // Los recibos recién creados ya tienen número: el historial lo enseña, salvo que se esté escribiendo ahí.
     if (drawer === 'pay' && !aside.contains(document.activeElement)) drawDrawer();
   };
+  // Si el cliente abre, firma o rechaza mientras esto está abierto, se ve al volver a la pestaña.
+  const onPub = () => rebuild();
   bus.addEventListener('status', onStatus);
   bus.addEventListener('saved', onSaved);
+  bus.addEventListener('pub', onPub);
   rebuild();
 
   return {
@@ -806,6 +1001,7 @@ export function docEditor(id, { backTo } = {}) {
     destroy() {
       bus.removeEventListener('status', onStatus);
       bus.removeEventListener('saved', onSaved);
+      bus.removeEventListener('pub', onPub);
     },
   };
 }

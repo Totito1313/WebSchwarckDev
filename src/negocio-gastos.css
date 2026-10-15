@@ -1,0 +1,159 @@
+/* Negocio: gastos e inicio. Se apoya en los tokens y las piezas de negocio.css. */
+
+/* Variación frente al tramo anterior */
+.ng-delta { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ng-delta .ic svg { width: 13px; height: 13px; }
+.ng-delta.is-good { background: color-mix(in srgb, var(--income) 14%, transparent); color: color-mix(in srgb, var(--income) 75%, var(--ink)); }
+.ng-delta.is-bad { background: color-mix(in srgb, var(--expense) 14%, transparent); color: color-mix(in srgb, var(--expense) 75%, var(--ink)); }
+
+.ng-chart-bars i.is-spent { background: var(--expense); }
+.ng-kpi-value.is-word { font-size: clamp(20px, 1.9vw, 24px); line-height: 1.15; letter-spacing: -0.02em; }
+
+/* Dos tarjetas lado a lado */
+.ng-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+
+/* A dónde va el dinero */
+.ng-bars { display: grid; gap: 12px; }
+.ng-bars li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto 40px; align-items: center; gap: 12px; }
+.ng-bars-name { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 14px; font-weight: 500; }
+.ng-bars-name > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ng-bars-name .ng-vendor, .ng-bars-name .ng-avatar { width: 28px; height: 28px; border-radius: 10px; font-size: 11px; }
+.ng-bars-name .ng-vendor img { width: 16px; height: 16px; }
+.ng-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.ng-bars-track { height: 8px; overflow: hidden; border-radius: 4px; background: var(--cloud-deep); }
+.ng-bars-track i { display: block; height: 100%; border-radius: 4px; background: var(--c); transition: width 0.6s var(--ease); }
+.ng-bars b { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.ng-bars small { color: var(--body); font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; }
+
+/* Logo del proveedor */
+.ng-vendor { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 14px; background: #fff; box-shadow: inset 0 0 0 1px var(--soft); }
+.ng-vendor img { width: 22px; height: 22px; border-radius: 5px; }
+
+/* Filas */
+.ng-row.is-expense { grid-template-columns: 40px minmax(0, 1fr) 110px minmax(0, 190px) 18px minmax(120px, auto); }
+.ng-row-tag { min-width: 0; }
+.ng-row-tag .ng-tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.ng-row-clip { color: var(--body); }
+.ng-row-clip svg { width: 16px; height: 16px; }
+.ng-row-amount small { display: block; color: var(--body); font-size: 12px; font-weight: 400; }
+.ng-row.is-mini { grid-template-columns: 40px minmax(0, 1fr) auto auto; }
+
+/* Formulario de gasto: tasa y recibo */
+.ng-rate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--body); font-size: 14px; }
+.ng-rate input { width: 130px; }
+.ng-rate select { width: auto; }
+.ng-drop {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1.5px dashed color-mix(in srgb, var(--ink) 20%, transparent);
+  border-radius: 18px;
+  background: var(--field-bg);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.ng-drop:hover, .ng-drop.is-over { border-color: var(--blue); background: color-mix(in srgb, var(--blue) 6%, var(--field-bg)); }
+.ng-drop > div { display: grid; flex: 1; min-width: 0; }
+.ng-drop b { overflow: hidden; font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.ng-drop small { color: var(--body); font-size: 13px; }
+.ng-drop img { flex: none; width: 52px; height: 52px; border-radius: 12px; object-fit: cover; }
+.ng-drop-ico { display: grid; place-items: center; flex: none; width: 52px; height: 52px; border-radius: 14px; background: var(--paper); color: var(--body); }
+.ng-drop-ico svg { width: 22px; height: 22px; }
+
+/* Visor del recibo */
+.ng-viewer { width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; padding: 24px; border: 0; background: transparent; }
+.ng-viewer[open] { display: grid; place-items: center; }
+.ng-viewer::backdrop { background: rgba(5, 8, 12, 0.82); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.ng-viewer img { max-width: min(100%, 1100px); max-height: calc(100vh - 48px); border-radius: 16px; box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.6); cursor: zoom-out; }
+.ng-viewer .ng-ibtn { position: fixed; top: 20px; right: 20px; }
+
+/* Categorías */
+.ng-catlist { display: grid; gap: 8px; }
+.ng-cat { display: grid; grid-template-columns: 28px minmax(0, 1fr) 84px 36px 36px auto 36px; align-items: center; gap: 8px; }
+.ng-cat input { width: 100%; padding: 9px 12px; border: 1.5px solid transparent; border-radius: 12px; background: var(--field-bg); color: var(--ink); font-size: 15px; }
+.ng-cat input:focus-visible { outline: none; border-color: var(--blue); }
+.ng-cat small { color: var(--body); font-size: 13px; }
+.ng-cat .ng-ibtn { width: 36px; height: 36px; background: none; color: var(--body); }
+.ng-cat .ng-ibtn:hover { background: var(--cloud); color: var(--ink); }
+.ng-cat .is-hidden { visibility: hidden; }
+.ng-cat.is-off input, .ng-cat.is-off .ng-cat-dot { opacity: 0.45; }
+.ng-cat-dot { width: 22px; height: 22px; border: 0; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 20%, transparent); cursor: pointer; }
+
+/* ── Inicio ── */
+.ng-dash-top { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.3fr); gap: 16px; }
+.ng-hero {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 22px 24px;
+  overflow: hidden;
+  border-radius: 28px;
+  background: var(--inverse-bg);
+  color: var(--inverse-fg);
+  isolation: isolate;
+}
+.ng-hero-sky i { position: absolute; z-index: -1; border-radius: 50%; filter: blur(42px); }
+.ng-hero-sky i:nth-child(1) { top: -40%; right: -12%; width: 64%; height: 100%; background: var(--blob-a); opacity: 0.32; }
+.ng-hero-sky i:nth-child(2) { bottom: -50%; right: 24%; width: 52%; height: 90%; background: var(--blob-b); opacity: 0.28; }
+.ng-hero-label { color: var(--inverse-muted); font-size: 14px; font-weight: 500; }
+.ng-hero-num { font-family: var(--font-num); font-size: clamp(36px, 3.6vw, 50px); font-weight: 400; line-height: 1.12; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ng-hero-num.is-neg { color: var(--expense); }
+.ng-hero-sub { color: var(--inverse-muted); font-size: 13px; }
+.ng-hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.pill.light { background: var(--paper); color: var(--ink); }
+.pill.glass { background: color-mix(in srgb, var(--inverse-fg) 14%, transparent); color: var(--inverse-fg); }
+@media (hover: hover) {
+  .pill.light:hover { background: var(--cloud); }
+  .pill.glass:hover { background: color-mix(in srgb, var(--inverse-fg) 22%, transparent); box-shadow: none; }
+}
+
+.ng-dash-mid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.ng-feed ul { display: grid; gap: 2px; }
+.ng-feed a { display: flex; align-items: center; gap: 12px; margin: 0 -8px; padding: 8px; border-radius: 14px; text-decoration: none; transition: background 0.2s; }
+.ng-feed a:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.ng-feed-ico { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 12px; background: color-mix(in srgb, var(--c) 14%, var(--paper)); color: var(--c); }
+.ng-feed-ico svg { width: 16px; height: 16px; }
+.ng-feed-text { display: grid; min-width: 0; }
+.ng-feed-text b { font-size: 14px; font-weight: 500; line-height: 1.3; }
+.ng-feed-text small { color: var(--body); font-size: 12px; }
+
+.ng-steps { display: grid; gap: 14px; }
+.ng-steps .ng-card-head { margin-bottom: 0; }
+.ng-steps ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.ng-steps a { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--paper); font-size: 14px; font-weight: 500; text-decoration: none; transition: transform 0.25s var(--ease); }
+.ng-steps a:hover { transform: translateY(-1px); }
+.ng-steps a > span:nth-child(2) { flex: 1; }
+.ng-steps a > .ic { color: var(--body); }
+.ng-step-mark { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border: 1.5px solid color-mix(in srgb, var(--ink) 25%, transparent); border-radius: 50%; }
+.ng-step-mark svg { width: 14px; height: 14px; }
+.ng-steps .is-done a { color: var(--body); }
+.ng-steps .is-done .ng-step-mark { border-color: var(--income); background: var(--income); color: #fff; }
+
+@media (max-width: 1180px) {
+  .ng-dash-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ng-dash-mid, .ng-split { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 980px) {
+  .ng-row.is-expense { grid-template-columns: 40px minmax(0, 1fr) auto 18px auto; }
+}
+@media (max-width: 760px) {
+  .ng-row.is-expense { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  .ng-row.is-expense .ng-row-clip { display: none; }
+  .ng-row.is-mini { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  .ng-bars li { grid-template-columns: minmax(0, 1fr) auto 36px; }
+  .ng-bars-track { grid-column: 1 / -1; grid-row: 2; }
+  .ng-cat { grid-template-columns: 28px minmax(0, 1fr) 36px 36px auto 36px; }
+  .ng-cat small { display: none; }
+}
+@media (max-width: 520px) {
+  .ng-hero { grid-column: 1 / -1; }
+}
+
+/* En el teléfono el riel de abajo ya no cabe entero: se desliza de lado. */
+@media (max-width: 760px) {
+  .ng-rail { justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
+  .ng-rail::-webkit-scrollbar { display: none; }
+  .ng-rail > a, .ng-rail > button { flex: none; }
+}

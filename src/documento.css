@@ -1,0 +1,52 @@
+/* Página pública de un documento. Usa las piezas de negocio.css (cielo, barra
+   de cristal, hoja) y añade la entrada con contraseña y la firma. */
+
+.dc { min-height: 100vh; padding: 8px; }
+.dc .ng-note { padding: 120px 0; }
+.dc-canvas { padding-bottom: 40px; }
+.dc-bar { position: sticky; }
+.dc-brand { padding-left: 8px; }
+.dc-brand img { width: 28px; height: 28px; border-radius: 9px; object-fit: contain; background: #fff; }
+
+.dc-gate { display: grid; place-items: center; min-height: calc(100vh - 16px); padding: 24px; border-radius: 32px; background: var(--sky); }
+.dc-gate .ng-gate-card { text-align: left; }
+.dc-gate-ico { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 16px; background: var(--paper); }
+.dc-gate-ico svg { width: 22px; height: 22px; }
+
+.dc-sign {
+  display: grid;
+  gap: 18px;
+  width: min(860px, 100% - 32px);
+  margin: 20px auto 0;
+  padding: 26px;
+  border-radius: 28px;
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow: var(--glass-shadow-strong);
+  --field-bg: var(--paper);
+}
+.dc-sign h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+.dc-sign header p { margin-top: 6px; color: var(--body); }
+.dc-sign-form { display: grid; gap: 14px; }
+.dc-sign .seg { display: flex; max-width: 420px; }
+.dc-sign .seg button { flex: 1; }
+.dc-typed { min-height: 64px; padding: 6px 4px 8px; border-bottom: 1.5px solid color-mix(in srgb, var(--ink) 20%, transparent); color: var(--ink); font-family: 'Allura', cursive; font-size: 48px; line-height: 1.1; }
+.dc-padbox { display: grid; justify-items: end; gap: 8px; }
+.dc-pad { width: 100%; height: 180px; border: 1.5px dashed color-mix(in srgb, var(--ink) 25%, transparent); border-radius: 18px; background: #fff; cursor: crosshair; touch-action: none; }
+.dc-agree { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; cursor: pointer; }
+.dc-agree input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--ink); }
+.dc-sign-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.dc-decline { display: grid; justify-items: start; gap: 10px; padding-top: 14px; border-top: 1px solid var(--soft); }
+.dc-decline .ng-field { width: 100%; }
+.dc-foot { margin: 22px 0 0; color: var(--body); font-size: 13px; text-align: center; }
+
+@media (max-width: 760px) {
+  .dc { padding: 0; }
+  .dc-gate { border-radius: 0; }
+  .dc-sign { width: calc(100% - 16px); padding: 20px; border-radius: 24px; }
+}
+@media print {
+  .dc { padding: 0; }
+  .dc-sign, .dc-foot { display: none !important; }
+}

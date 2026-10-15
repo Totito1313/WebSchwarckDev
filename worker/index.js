@@ -10,8 +10,12 @@
 //   reviews:public       las aprobadas, ya ordenadas, para servirlas de una lectura
 //   rl:<cubo>            contadores con caducidad para limitar abusos
 //   crm:settings         datos del negocio para facturar (solo el panel)
-//   crm:<colección>      clientes, catálogo, formas de cobro y documentos, cada
-//                        colección en una sola clave (ver CRM más abajo)
+//   crm:share:<token>    a qué documento lleva un enlace público, y su contraseña
+//   crm:pub:<docId>      aperturas, firma o rechazo de ese enlace (en metadatos)
+//   crm:sig:<docId>      la firma dibujada, como imagen PNG en texto
+//   crm:<colección>      clientes, catálogo, formas de cobro, documentos, proyectos,
+//                        tareas y horas, cada colección en una sola clave (ver CRM
+//                        más abajo)
 //
 // Limitadores (opcionales, ver `ratelimits` en wrangler.jsonc): LOGIN_LIMIT y
 // WRITE_LIMIT frenan ráfagas por visitante sin escribir nada en el almacén.
@@ -67,6 +71,7 @@ async function route(request, env, url) {
   }
   if (pathname === '/api/reviews' && method === 'GET') return publicReviews(env);
   if (pathname === '/api/reviews' && method === 'POST') return submitReview(request, env, url);
+  if (pathname.startsWith('/api/public/doc/')) return publicDoc(request, env, url);
   if (pathname.startsWith('/api/admin/')) return admin(request, env, url);
   return fail(404, 'No existe.');
 }
@@ -268,7 +273,7 @@ async function rebuildPublic(env, patch) {
   await env.SITE.put('reviews:public', JSON.stringify(reviews));
 }
 
-// ── Negocio: clientes, catálogo, formas de cobro y documentos ──
+// ── Negocio: clientes, catálogo, formas de cobro, documentos y trabajo ──
 //
 // Es una herramienta para una sola persona: cada colección vive en una clave y el
 // panel la carga entera al abrir. Las escrituras llegan en lotes (`ops`) que se
@@ -281,10 +286,18 @@ const CRM = {
   catalog: { key: 'crm:catalog', max: 1000 },
   paytemplates: { key: 'crm:paytemplates', max: 100 },
   docs: { key: 'crm:docs', max: 10000 },
+  projects: { key: 'crm:projects', max: 1000 },
+  tasks: { key: 'crm:tasks', max: 10000 },
+  time: { key: 'crm:time', max: 30000 },
+  expenses: { key: 'crm:expenses', max: 20000 },
+  vendors: { key: 'crm:vendors', max: 2000 },
+  categories: { key: 'crm:categories', max: 200 },
+  brands: { key: 'crm:brands', max: 50 },
+  posts: { key: 'crm:posts', max: 10000 },
 };
 const CRM_ITEM_BYTES = 80_000;
 const CRM_SETTINGS_BYTES = 400_000; // el logo va dentro, como imagen en texto
-const DOC_PREFIX = { invoice: 'FAC', quote: 'COT', receipt: 'REC' };
+const DOC_PREFIX = { invoice: 'FAC', quote: 'COT', receipt: 'REC', proposal: 'PRO' };
 const CRM_ID = /^[A-Za-z0-9_-]{6,64}$/;
 const CRM_FIELD = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 
@@ -347,6 +360,7 @@ async function writeCrm(env, ops) {
   const data = await readCrm(env);
   const now = new Date().toISOString();
   const touched = new Set();
+  const cleanup = [];
   const saved = [];
 
   for (const op of ops) {
@@ -368,6 +382,12 @@ async function writeCrm(env, ops) {
 
     if (op.op === 'delete') {
       if (at >= 0) {
+        // Con el documento se van su enlace público, sus respuestas y su firma.
+        if (op.col === 'docs') {
+          const token = list[at].share?.token;
+          cleanup.push(`crm:pub:${id}`, `crm:sig:${id}`);
+          if (token && SHARE_TOKEN.test(token)) cleanup.push(`crm:share:${token}`);
+        }
         list.splice(at, 1);
         touched.add(op.col);
       }
@@ -375,9 +395,13 @@ async function writeCrm(env, ops) {
     }
     if (op.op !== 'put') throw new HttpError(400, 'Operación no válida.');
 
-    const item = tidy(op.item);
+    let item = tidy(op.item);
     if (!isRecord(item)) throw new HttpError(400, 'Elemento no válido.');
     const before = at >= 0 ? list[at] : null;
+    // Lo que el cliente firmó ya no cambia: solo su estado y a qué factura o proyecto llevó.
+    if (op.col === 'docs' && before && SIGNABLE.includes(before.type) && (await pubMeta(env, id)).acceptedAt) {
+      item = { ...before, status: item.status, invoiceId: item.invoiceId ?? before.invoiceId ?? '', projectId: item.projectId ?? before.projectId ?? '', share: item.share ?? null };
+    }
     item.id = id;
     if (op.col === 'docs') numberDoc(item, list, before);
     item.createdAt = before?.createdAt || now;
@@ -392,11 +416,198 @@ async function writeCrm(env, ops) {
 
   try {
     await Promise.all([...touched].map((col) => env.SITE.put(col === 'settings' ? 'crm:settings' : CRM[col].key, JSON.stringify(data[col]))));
+    await Promise.all(cleanup.map((key) => env.SITE.delete(key)));
   } catch (err) {
     if (/429|too many/i.test(String(err?.message))) throw new HttpError(429, 'Demasiados cambios seguidos.');
     throw err;
   }
   return { ok: true, saved };
+}
+
+// Recibos de los gastos: imágenes o PDF, cada uno en su clave (crm:file:<id>).
+// Solo se sirven con su tipo de la lista: nada que el navegador pueda ejecutar.
+const FILE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'application/pdf'];
+const FILE_BYTES = 3_000_000;
+
+async function crmFile(request, env, method, id) {
+  const key = `crm:file:${id}`;
+  if (method === 'GET') {
+    const { value, metadata } = await env.SITE.getWithMetadata(key, 'arrayBuffer');
+    if (!value) throw new HttpError(404, 'Ese archivo ya no existe.');
+    const type = FILE_TYPES.includes(metadata?.type) ? metadata.type : 'application/octet-stream';
+    return new Response(value, { headers: { 'content-type': type, 'content-disposition': 'inline', 'x-content-type-options': 'nosniff', 'cache-control': 'private, max-age=86400' } });
+  }
+  if (method === 'PUT') {
+    const type = (request.headers.get('content-type') || '').split(';')[0].trim();
+    if (!FILE_TYPES.includes(type)) throw new HttpError(415, 'Solo imágenes PNG, JPG o WebP, o un PDF.');
+    const declared = Number(request.headers.get('content-length'));
+    if (!Number.isFinite(declared) || declared <= 0) throw new HttpError(411, 'Falta el tamaño del archivo.');
+    if (declared > FILE_BYTES) throw new HttpError(413, 'El archivo pasa de 3 MB.');
+    const body = await request.arrayBuffer();
+    if (body.byteLength > FILE_BYTES) throw new HttpError(413, 'El archivo pasa de 3 MB.');
+    await env.SITE.put(key, body, { metadata: { type, size: body.byteLength } });
+    return json({ ok: true, id, type, size: body.byteLength }, 201);
+  }
+  if (method === 'DELETE') {
+    await env.SITE.delete(key);
+    return json({ ok: true });
+  }
+  throw new HttpError(405, 'Método no permitido.');
+}
+
+// ── Enlaces públicos de documentos ──
+//
+// Un enlace es un token largo y aleatorio: crm:share:<token> guarda a qué
+// documento lleva, su contraseña (resumida con PBKDF2, nunca en claro) y cuándo
+// caduca. Lo que pasa en el enlace (aperturas, firma, rechazo) va aparte, en los
+// metadatos de crm:pub:<docId>, y la firma dibujada en crm:sig:<docId>: la
+// página pública nunca reescribe la lista de documentos del panel.
+
+const SHARE_TOKEN = /^[A-Za-z0-9_-]{32}$/;
+const SIGNABLE = ['quote', 'proposal'];
+const VIEW_GAP = 30 * 60 * 1000; // una apertura cada media hora como mucho
+const SHARE_DAYS = [0, 7, 30, 90];
+const PUBLIC_FIELDS = ['type', 'number', 'status', 'issueDate', 'dueDate', 'validUntil', 'currency', 'equiv', 'customer', 'from', 'items',
+  'discount', 'tax', 'withholding', 'shipping', 'payment', 'notes', 'sections', 'signature', 'style', 'title', 'blocks', 'method',
+  'balanceAfter', 'invoiceNumber'];
+
+const pubMeta = async (env, docId) => (await env.SITE.getWithMetadata(`crm:pub:${docId}`)).metadata || {};
+
+async function readPub(env) {
+  const pub = {};
+  let cursor;
+  do {
+    const page = await env.SITE.list({ prefix: 'crm:pub:', cursor });
+    for (const key of page.keys) if (key.metadata) pub[key.name.slice('crm:pub:'.length)] = key.metadata;
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return pub;
+}
+
+async function hashSharePassword(password, salt) {
+  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(salt), iterations: 100_000 }, key, 256);
+  return hex(bits);
+}
+
+/** Llave para que la página pública cargue las imágenes del documento sin volver a pedir la contraseña. */
+async function fileKey(token, fileId, salt) {
+  return hex(await crypto.subtle.digest('SHA-256', enc.encode(`${token}|${fileId}|${salt}`))).slice(0, 32);
+}
+
+async function createShare(env, body) {
+  const docId = String(body.docId || '');
+  if (!CRM_ID.test(docId)) throw new HttpError(400, 'Documento no válido.');
+  const docs = (await env.SITE.get(CRM.docs.key, 'json')) || [];
+  if (!docs.some((d) => d.id === docId)) throw new HttpError(404, 'Guarda el documento antes de compartirlo.');
+  const password = String(body.password ?? '');
+  if (password && (password.length < 4 || password.length > 100)) throw new HttpError(400, 'La contraseña debe tener entre 4 y 100 caracteres.');
+  const days = Number(body.days) || 0;
+  if (!SHARE_DAYS.includes(days)) throw new HttpError(400, 'Caducidad no válida.');
+  const token = b64url(crypto.getRandomValues(new Uint8Array(24)));
+  const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
+  const record = {
+    docId,
+    salt,
+    hash: password ? await hashSharePassword(password, salt) : '',
+    expiresAt: days ? Date.now() + days * 86400000 : 0,
+    createdAt: new Date().toISOString(),
+  };
+  await env.SITE.put(`crm:share:${token}`, JSON.stringify(record), days ? { expirationTtl: (days + 1) * 86400 } : undefined);
+  return { token, expiresAt: record.expiresAt, hasPassword: Boolean(password), createdAt: record.createdAt };
+}
+
+/** Solo lo que se ve en la hoja: nada de notas internas, enlaces a proyectos ni identificadores. */
+function publicView(doc) {
+  const out = {};
+  for (const key of PUBLIC_FIELDS) if (doc[key] !== undefined) out[key] = doc[key];
+  out.payments = (doc.payments || []).map((p) => ({ amount: p.amount, date: p.date }));
+  return out;
+}
+
+/** Las imágenes subidas al panel se sirven por el enlace, con una llave por imagen. */
+async function exposeFiles(data, token, salt) {
+  let text = JSON.stringify(data);
+  const ids = new Set([...text.matchAll(/\/api\/admin\/crm\/files\/([A-Za-z0-9_-]{6,64})/g)].map((m) => m[1]));
+  for (const id of ids) text = text.replaceAll(`/api/admin/crm/files/${id}`, `/api/public/doc/${token}/file/${id}?k=${await fileKey(token, id, salt)}`);
+  return JSON.parse(text);
+}
+
+const publicResponse = (pub) => ({ acceptedAt: pub.acceptedAt || '', name: pub.name || '', mode: pub.mode || '', declinedAt: pub.declinedAt || '' });
+
+async function publicDoc(request, env, url) {
+  if (!env.SITE) throw new HttpError(503, 'No disponible.');
+  const m = /^\/api\/public\/doc\/([A-Za-z0-9_-]{32})(?:\/(accept|decline)|\/file\/([A-Za-z0-9_-]{6,64}))?$/.exec(url.pathname);
+  if (!m) throw new HttpError(404, 'No existe.');
+  const [, token, action, fileId] = m;
+  const share = await env.SITE.get(`crm:share:${token}`, 'json');
+  const gone = !share || (share.expiresAt && share.expiresAt < Date.now());
+
+  if (fileId) {
+    if (request.method !== 'GET' || gone) throw new HttpError(404, 'No existe.');
+    if (url.searchParams.get('k') !== (await fileKey(token, fileId, share.salt))) throw new HttpError(403, 'Enlace no válido.');
+    return crmFile(request, env, 'GET', fileId);
+  }
+  if (request.method !== 'POST') throw new HttpError(405, 'Método no permitido.');
+  sameOrigin(request, url);
+  if (gone) throw new HttpError(410, 'Este enlace ya no está disponible. Pide uno nuevo a quien te lo envió.');
+  const body = await readJson(request, 200_000);
+  const who = await caller(request, env);
+
+  if (share.hash) {
+    const given = String(body.password ?? '');
+    if (!given) return json({ needsPassword: true }, 401);
+    if (!(await burstOk(env.LOGIN_LIMIT, `${who}|${token}`))) throw new HttpError(429, 'Demasiados intentos. Espera un minuto.');
+    if (!(await samePassword(await hashSharePassword(given, share.salt), share.hash))) return json({ needsPassword: true, error: 'Contraseña incorrecta.' }, 401);
+  }
+
+  const docs = (await env.SITE.get(CRM.docs.key, 'json')) || [];
+  const doc = docs.find((d) => d.id === share.docId);
+  if (!doc) throw new HttpError(410, 'Este documento ya no existe.');
+  const pubKey = `crm:pub:${doc.id}`;
+  const pub = await pubMeta(env, doc.id);
+
+  if (!action) {
+    const now = Date.now();
+    if (!pub.lastViewAt || now - pub.lastViewAt > VIEW_GAP) {
+      const next = { ...pub, views: (pub.views || 0) + 1, viewedAt: pub.viewedAt || new Date(now).toISOString(), lastViewAt: now };
+      try {
+        await env.SITE.put(pubKey, '1', { metadata: next });
+        Object.assign(pub, next);
+      } catch (err) {
+        console.error('apertura', err);
+      }
+    }
+    const settings = (await env.SITE.get('crm:settings', 'json')) || {};
+    const drawn = pub.acceptedAt && pub.mode === 'drawn' ? await env.SITE.get(`crm:sig:${doc.id}`) : null;
+    const data = { doc: publicView(doc), business: { name: settings.name || '', logo: settings.logo || '' }, response: publicResponse(pub), drawn };
+    return json(await exposeFiles(data, token, share.salt));
+  }
+
+  if (!SIGNABLE.includes(doc.type)) throw new HttpError(400, 'Este documento no se firma.');
+  if (pub.acceptedAt || pub.declinedAt) throw new HttpError(409, 'Este documento ya tiene respuesta.');
+  if (doc.validUntil && doc.validUntil < new Date().toISOString().slice(0, 10)) throw new HttpError(410, 'Este documento ya venció. Pide uno actualizado.');
+  if (!(await burstOk(env.WRITE_LIMIT, who))) throw new HttpError(429, 'Demasiadas peticiones. Espera un minuto.');
+
+  if (action === 'accept') {
+    const name = clean(body.name).replace(/\s+/g, ' ').slice(0, 80);
+    if (name.length < 2) throw new HttpError(400, 'Escribe tu nombre completo.');
+    if (body.agree !== true) throw new HttpError(400, 'Marca la casilla para aceptar.');
+    const mode = body.mode === 'drawn' ? 'drawn' : 'typed';
+    if (mode === 'drawn') {
+      const image = String(body.image || '');
+      if (!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(image) || image.length > 150_000) throw new HttpError(400, 'La firma dibujada no es válida. Prueba a escribirla.');
+      await env.SITE.put(`crm:sig:${doc.id}`, image);
+    }
+    const next = { ...pub, acceptedAt: new Date().toISOString(), name, mode, by: who.slice(0, 12) };
+    await env.SITE.put(pubKey, '1', { metadata: next });
+    return json({ ok: true, response: publicResponse(next) });
+  }
+
+  const reason = clean(body.reason).replace(/\s+/g, ' ').slice(0, 160);
+  const next = { ...pub, declinedAt: new Date().toISOString(), reason };
+  await env.SITE.put(pubKey, '1', { metadata: next });
+  return json({ ok: true, response: publicResponse(next) });
 }
 
 // ── Panel ──
@@ -472,8 +683,24 @@ async function admin(request, env, url) {
 
   if (path === '/reviews' && method === 'GET') return json({ reviews: await allReviews(env) });
 
-  if (path === '/crm' && method === 'GET') return json(await readCrm(env));
+  if (path === '/crm' && method === 'GET') return json({ ...(await readCrm(env)), pub: await readPub(env) });
+  if (path === '/crm/pub' && method === 'GET') return json({ pub: await readPub(env) });
+  if (path === '/crm/share' && method === 'POST') return json(await createShare(env, await readJson(request, 2000)), 201);
+  const shareKey = /^\/crm\/share\/([A-Za-z0-9_-]{32})$/.exec(path);
+  if (shareKey && method === 'DELETE') {
+    await env.SITE.delete(`crm:share:${shareKey[1]}`);
+    return json({ ok: true });
+  }
+  const sig = /^\/crm\/signature\/([A-Za-z0-9_-]{6,64})$/.exec(path);
+  if (sig && method === 'GET') {
+    const image = await env.SITE.get(`crm:sig:${sig[1]}`);
+    if (!image) throw new HttpError(404, 'Sin firma dibujada.');
+    const bytes = Uint8Array.from(atob(image.slice(image.indexOf(',') + 1)), (c) => c.charCodeAt(0));
+    return new Response(bytes, { headers: { 'content-type': 'image/png', 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' } });
+  }
   if (path === '/crm/batch' && method === 'POST') return json(await writeCrm(env, (await readJson(request, 2_000_000)).ops));
+  const file = /^\/crm\/files\/([A-Za-z0-9_-]{6,64})$/.exec(path);
+  if (file) return crmFile(request, env, method, file[1]);
 
   const one = /^\/reviews\/([a-z0-9-]{6,40})$/.exec(path);
   if (one) {

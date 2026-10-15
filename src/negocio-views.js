@@ -4,20 +4,60 @@
 import {
   state, find, put, remove, uid, newDoc, totals, docStatus, inBase, counts, money, dateText, monthText, shortMonth,
   todayISO, el, icon, iconButton, avatar, tag, kpi, empty, seg, field, input, select, dialog, confirmBox, toast,
-  parseNum, amountText, CURRENCIES, CURRENCY_CODES, METHODS, methodLabel, safeLink, autosize, toggle, menu,
+  parseNum, amountText, round2, CURRENCIES, CURRENCY_CODES, METHODS, methodLabel, safeLink, autosize, toggle, menu,
 } from './negocio-core.js';
+import { projectForm, projectRow } from './negocio-projects.js';
+import { applyTemplate, PROPOSAL_TEMPLATES } from './negocio-propuesta.js';
 
 export const go = (hash) => {
   location.hash = hash;
 };
 
 /** Crea el documento, lo manda a guardar (para que reciba número) y abre el editor. */
-export function createDoc(type, customer = null) {
-  const doc = newDoc(type, customer);
+export function createDoc(type, customer = null, extra = {}) {
+  if (type === 'proposal' && !extra.blocks) return chooseProposal(customer, extra);
+  const doc = Object.assign(newDoc(type, customer), extra);
   put('docs', doc, { now: true })?.catch(() => {});
   go(`#/doc/${doc.id}`);
   return doc;
 }
+
+/** Una propuesta empieza desde una plantilla: luego se cambia lo que haga falta. */
+function chooseProposal(customer, extra) {
+  let chosen = 'app';
+  const options = Object.entries(PROPOSAL_TEMPLATES).map(([k, t]) => el('button', {
+    type: 'button',
+    class: 'ng-tpl',
+    'aria-pressed': String(k === chosen),
+    onclick: (e) => {
+      chosen = k;
+      for (const b of e.currentTarget.parentElement.children) b.setAttribute('aria-pressed', String(b === e.currentTarget));
+    },
+  }, el('b', { text: t.label }), el('small', { text: t.title || 'Solo introducción y precio' })));
+  dialog({
+    title: 'Nueva propuesta',
+    submit: 'Crear propuesta',
+    body: el('div', { class: 'ng-form' },
+      el('p', { class: 'ng-card-text', text: 'Empieza desde una plantilla con objetivos, alcance y calendario. Todo se puede cambiar.' }),
+      el('div', { class: 'ng-tpls' }, options),
+    ),
+    onSubmit: () => {
+      const doc = newDoc('proposal', customer);
+      applyTemplate(doc, chosen);
+      Object.assign(doc, extra);
+      put('docs', doc, { now: true })?.catch(() => {});
+      go(`#/doc/${doc.id}`);
+      return true;
+    },
+  });
+  return null;
+}
+
+/** Cómo se nombra cada tipo en sus listados. */
+const WORDS = {
+  quote: { title: 'Cotizaciones', desc: 'Presupuestos enviados, aceptados y por responder.', one: 'cotización', many: 'cotizaciones', total: 'Cotizado', all: 'Todas las cotizaciones', make: 'Nueva cotización', ico: 'quote', empty: 'Prepara un presupuesto y conviértelo en factura cuando lo acepten.' },
+  proposal: { title: 'Propuestas', desc: 'Propuestas con objetivos, alcance y precio, que el cliente firma desde un enlace.', one: 'propuesta', many: 'propuestas', total: 'Propuesto', all: 'Todas las propuestas', make: 'Nueva propuesta', ico: 'send', empty: 'Cuenta qué vas a hacer, cuánto cuesta y deja que el cliente la firme desde su teléfono.' },
+};
 
 const PERIODS = [['30d', '30 días'], ['month', 'Este mes'], ['year', 'Este año'], ['all', 'Todo']];
 const ui = { period: 'year' };
@@ -44,7 +84,7 @@ const sumBase = (pairs) => {
   return { sum, skipped };
 };
 
-function head(title, text, ...actions) {
+export function head(title, text, ...actions) {
   return el('header', { class: 'ng-head' },
     el('div', {}, el('h1', { text: title }), text && el('p', { text })),
     el('div', { class: 'ng-head-actions' }, actions),
@@ -55,10 +95,10 @@ function docRow(doc) {
   const status = docStatus(doc);
   const t = totals(doc);
   const who = doc.customer?.name || doc.customer?.company || 'Sin cliente';
-  const second = doc.type === 'invoice' ? doc.dueDate : doc.type === 'quote' ? doc.validUntil : '';
+  const second = doc.type === 'invoice' ? doc.dueDate : doc.type === 'quote' || doc.type === 'proposal' ? doc.validUntil : '';
   return el('a', { class: 'ng-row', href: `#/doc/${doc.id}` },
     avatar(who),
-    el('span', { class: 'ng-row-main' }, el('b', { text: who }), el('small', { text: doc.number || 'Sin número todavía' })),
+    el('span', { class: 'ng-row-main' }, el('b', { text: who }), el('small', { text: [doc.number || 'Sin número todavía', doc.type === 'proposal' && doc.title].filter(Boolean).join(' · ') })),
     el('span', { class: 'ng-row-date', text: dateText(doc.issueDate) }),
     el('span', { class: 'ng-row-date is-soft', text: second ? dateText(second) : '' }),
     el('span', { class: 'ng-row-tag' }, tag(status)),
@@ -70,7 +110,7 @@ function docRow(doc) {
 const billable = (d) => d.type === 'invoice' && counts(d);
 
 /** Documentos agrupados por mes, el más reciente arriba. Cada mes suma lo que cuenta (`adds`). */
-function groupedDocs(docs, adds = billable) {
+export function groupedDocs(docs, adds = billable) {
   const groups = new Map();
   for (const doc of [...docs].sort((a, b) => (b.issueDate || '').localeCompare(a.issueDate || '') || (b.number || '').localeCompare(a.number || ''))) {
     const key = (doc.issueDate || todayISO()).slice(0, 7);
@@ -89,7 +129,7 @@ function groupedDocs(docs, adds = billable) {
   });
 }
 
-function searchBox(onInput, placeholder = 'Buscar…') {
+export function searchBox(onInput, placeholder = 'Buscar…') {
   const box = input({ type: 'search', placeholder, 'aria-label': placeholder, oninput: () => onInput(box.value.trim().toLowerCase()) });
   return el('label', { class: 'ng-search' }, icon('search'), box);
 }
@@ -100,6 +140,7 @@ const matches = (doc, q) => !q || `${doc.number} ${doc.customer?.name} ${doc.cus
 
 export function docsPage(type) {
   const isInvoice = type === 'invoice';
+  const W = WORDS[type] || WORDS.quote;
   let kind = type;
   let status = 'all';
   let q = '';
@@ -111,11 +152,11 @@ export function docsPage(type) {
 
   const statusOptions = isInvoice
     ? [['all', 'Todos los estados'], ['draft', 'Borradores'], ['pending', 'Pendientes'], ['partial', 'Pago parcial'], ['overdue', 'Vencidas'], ['paid', 'Pagadas'], ['void', 'Anuladas']]
-    : [['all', 'Todos los estados'], ['draft', 'Borradores'], ['sent', 'Enviadas'], ['accepted', 'Aceptadas'], ['declined', 'Rechazadas'], ['expired', 'Vencidas']];
+    : [['all', 'Todos los estados'], ['draft', 'Borradores'], ['sent', 'Enviadas'], ['viewed', 'Vistas'], ['accepted', 'Aceptadas'], ['declined', 'Rechazadas'], ['expired', 'Vencidas']];
   const filters = el('div', { class: 'ng-filters' },
     isInvoice && select([['invoice', 'Facturas'], ['receipt', 'Recibos'], ['all', 'Facturas y recibos']], kind, { 'aria-label': 'Tipo', onchange: (e) => { kind = e.target.value; drawList(); } }),
     select(statusOptions, status, { 'aria-label': 'Estado', onchange: (e) => { status = e.target.value; drawList(); } }),
-    searchBox((v) => { q = v; drawList(); }, isInvoice ? 'Buscar facturas…' : 'Buscar cotizaciones…'),
+    searchBox((v) => { q = v; drawList(); }, isInvoice ? 'Buscar facturas…' : `Buscar ${W.many}…`),
   );
 
   function drawKpis() {
@@ -143,14 +184,15 @@ export function docsPage(type) {
       note.textContent = `${skipped} ${skipped === 1 ? 'documento en otra moneda no entra' : 'documentos en otras monedas no entran'} en estas cifras: ponles una equivalencia en ${CURRENCIES[cur]?.label.toLowerCase() || cur}.`;
     } else {
       const quoted = sumBase(inRange.map((d) => [d, totals(d).total]));
-      const accepted = inRange.filter((d) => d.status === 'accepted');
+      const accepted = inRange.filter((d) => docStatus(d) === 'accepted');
       const acceptedSum = sumBase(accepted.map((d) => [d, totals(d).total]));
-      const waiting = docs.filter((d) => docStatus(d) === 'sent');
-      const decided = inRange.filter((d) => d.status === 'accepted' || d.status === 'declined').length;
+      const waiting = docs.filter((d) => docStatus(d) === 'sent' || docStatus(d) === 'viewed');
+      const decided = inRange.filter((d) => docStatus(d) === 'accepted' || docStatus(d) === 'declined').length;
+      const seen = waiting.filter((d) => docStatus(d) === 'viewed').length;
       kpis.replaceChildren(
-        kpi({ label: 'Cotizado', value: money(quoted.sum, cur), ico: 'quote', sub: `${inRange.length} ${inRange.length === 1 ? 'cotización' : 'cotizaciones'}` }),
+        kpi({ label: W.total, value: money(quoted.sum, cur), ico: W.ico, sub: `${inRange.length} ${inRange.length === 1 ? W.one : W.many}` }),
         kpi({ label: 'Aceptado', value: money(acceptedSum.sum, cur), ico: 'checkCircle', sub: `${accepted.length} ${accepted.length === 1 ? 'aceptada' : 'aceptadas'}` }),
-        kpi({ label: 'Por responder', value: String(waiting.length), ico: 'clock', sub: 'Enviadas y vigentes' }),
+        kpi({ label: 'Por responder', value: String(waiting.length), ico: 'clock', sub: seen ? `${seen} ya ${seen === 1 ? 'la vio' : 'las vieron'}` : 'Enviadas y vigentes' }),
         kpi({ label: 'Tasa de aceptación', value: decided ? `${Math.round((accepted.length / decided) * 100)}%` : '—', ico: 'send', bar: decided ? accepted.length / decided : 0 }),
       );
       note.hidden = !quoted.skipped;
@@ -201,14 +243,14 @@ export function docsPage(type) {
     countText.textContent = docs.length === all ? `${all} en total` : `${docs.length} de ${all}`;
     if (!all) {
       list.replaceChildren(empty({
-        ico: isInvoice ? 'file' : 'quote',
-        title: kind === 'receipt' ? 'Todavía no hay recibos' : isInvoice ? 'Todavía no hay facturas' : 'Todavía no hay cotizaciones',
-        text: kind === 'receipt' ? 'Se crean solos al registrar un pago en una factura.' : isInvoice ? 'Crea la primera y cóbrala desde aquí.' : 'Prepara un presupuesto y conviértelo en factura cuando lo acepten.',
-        action: kind !== 'receipt' && el('button', { type: 'button', class: 'pill', onclick: () => createDoc(type) }, icon('plus'), isInvoice ? 'Nueva factura' : 'Nueva cotización'),
+        ico: isInvoice ? 'file' : W.ico,
+        title: kind === 'receipt' ? 'Todavía no hay recibos' : isInvoice ? 'Todavía no hay facturas' : `Todavía no hay ${W.many}`,
+        text: kind === 'receipt' ? 'Se crean solos al registrar un pago en una factura.' : isInvoice ? 'Crea la primera y cóbrala desde aquí.' : W.empty,
+        action: kind !== 'receipt' && el('button', { type: 'button', class: 'pill', onclick: () => createDoc(type) }, icon('plus'), isInvoice ? 'Nueva factura' : W.make),
       }));
       return;
     }
-    const adds = kind === 'receipt' ? (d) => d.type === 'receipt' : kind === 'quote' ? (d) => d.type === 'quote' && counts(d) : billable;
+    const adds = kind === 'receipt' ? (d) => d.type === 'receipt' : kind === 'quote' || kind === 'proposal' ? (d) => d.type === kind && counts(d) : billable;
     list.replaceChildren(...(docs.length ? groupedDocs(docs, adds) : [el('p', { class: 'ng-none', text: 'Nada coincide con esos filtros.' })]));
   }
 
@@ -219,16 +261,16 @@ export function docsPage(type) {
   };
 
   const node = el('div', { class: 'ng-page' },
-    head(isInvoice ? 'Facturas' : 'Cotizaciones',
-      isInvoice ? 'Lo facturado, lo cobrado y lo que falta por cobrar.' : 'Presupuestos enviados, aceptados y por responder.',
+    head(isInvoice ? 'Facturas' : W.title,
+      isInvoice ? 'Lo facturado, lo cobrado y lo que falta por cobrar.' : W.desc,
       seg(PERIODS, ui.period, (v) => { ui.period = v; drawKpis(); }, 'Periodo'),
-      el('button', { type: 'button', class: 'pill', onclick: () => createDoc(type) }, icon('plus'), isInvoice ? 'Nueva factura' : 'Nueva cotización'),
+      el('button', { type: 'button', class: 'pill', onclick: () => createDoc(type) }, icon('plus'), isInvoice ? 'Nueva factura' : W.make),
     ),
     kpis,
     note,
     chart,
     el('section', { class: 'ng-card ng-list' },
-      el('header', { class: 'ng-card-head' }, el('div', {}, el('h2', { text: isInvoice ? 'Documentos' : 'Todas las cotizaciones' }), countText), filters),
+      el('header', { class: 'ng-card-head' }, el('div', {}, el('h2', { text: isInvoice ? 'Documentos' : W.all }), countText), filters),
       list,
     ),
   );
@@ -371,7 +413,10 @@ export function customerPage(id) {
     newMenu.addEventListener('click', () => menu(newMenu, [
       { label: 'Factura', icon: 'file', run: () => createDoc('invoice', c) },
       { label: 'Cotización', icon: 'quote', run: () => createDoc('quote', c) },
+      { label: 'Propuesta', icon: 'send', run: () => createDoc('proposal', c) },
+      { label: 'Proyecto', icon: 'folder', run: () => projectForm(null, (p) => go(`#/proyectos/${p.id}`), { customer: c }) },
     ], { align: 'end' }));
+    const projects = state.projects.filter((p) => p.customerId === c.id);
     box.replaceChildren(...[
       el('header', { class: 'ng-profile' },
         el('a', { class: 'ng-ibtn', href: '#/clientes', 'aria-label': 'Volver a clientes', title: 'Volver' }, icon('back')),
@@ -401,6 +446,10 @@ export function customerPage(id) {
           text: 'Sus datos ya salen solos en la factura.',
           action: el('button', { type: 'button', class: 'pill', onclick: () => createDoc('invoice', c) }, icon('plus'), 'Nueva factura'),
         })),
+      ),
+      projects.length > 0 && el('section', { class: 'ng-card ng-list' },
+        el('header', { class: 'ng-card-head' }, el('div', {}, el('h2', { text: 'Proyectos' }), el('small', { text: `${projects.length} en total` }))),
+        el('div', { class: 'ng-rows' }, projects.map(projectRow)),
       ),
       c.notes && el('section', { class: 'ng-card ng-notes' }, el('h2', { text: 'Notas' }), el('p', { text: c.notes })),
     ].filter(Boolean));
@@ -644,6 +693,9 @@ export function settingsPage() {
           field('Días para pagar una factura', text('dueDays', { inputmode: 'numeric', maxLength: 3 })),
           field('Días de validez de una cotización', text('quoteDays', { inputmode: 'numeric', maxLength: 3 })),
         ),
+        el('div', { class: 'ng-grid3' },
+          field('Tarifa por hora', bind(input({ value: s.hourlyRate ? amountText(s.hourlyRate) : '', inputmode: 'decimal', placeholder: '0,00' }), 'hourlyRate', (v) => round2(parseNum(v))), 'La de los proyectos nuevos y las horas sin proyecto.'),
+        ),
         field('Nota al pie por defecto', area('notes', { maxLength: 2000 })),
         field('Términos y condiciones por defecto', area('terms', { maxLength: 8000, placeholder: 'Se añaden a cada documento nuevo. Déjalo vacío para no añadirlos.' })),
       ),
@@ -655,7 +707,7 @@ export function settingsPage() {
     ),
     el('section', { class: 'ng-card' },
       el('h2', { text: 'Copia de seguridad' }),
-      el('p', { class: 'ng-card-text', text: 'Descarga todos tus clientes, servicios y documentos en un archivo JSON.' }),
+      el('p', { class: 'ng-card-text', text: 'Descarga todos tus clientes, servicios, documentos, proyectos, tareas y horas en un archivo JSON.' }),
       el('button', { type: 'button', class: 'pill ghost', onclick: backup }, icon('download'), 'Descargar copia'),
     ),
   );

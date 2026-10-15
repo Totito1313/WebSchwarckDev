@@ -16,3 +16,9 @@
 /admin/*
   Cache-Control: no-store
   X-Robots-Tag: noindex
+
+# La página que abre el cliente con un enlace: ni se guarda en caché ni se indexa.
+/documento/*
+  Cache-Control: no-store
+  X-Robots-Tag: noindex
+  Referrer-Policy: no-referrer

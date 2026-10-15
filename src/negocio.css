@@ -862,7 +862,7 @@ span.ng-gchip { cursor: default; }
   .ng-row.is-customer .ng-row-stat:nth-of-type(3) { display: none; }
   .ng-chart { height: 170px; }
   .ng-ebar { position: relative; top: auto; padding: 10px; }
-  .ng-ebar .is-wide span { display: none; }
+  .ng-ebar .is-wide > span:not(.ic) { display: none; }
   .ng-stage { padding: 4px 8px 0; }
   .sh-parties { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .sh-dates { justify-items: start; text-align: left; }

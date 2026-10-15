@@ -34,6 +34,7 @@ export default defineConfig({
         admin: page('admin/index.html'),
         tienda: page('admin/tienda/index.html'),
         negocio: page('admin/negocio/index.html'),
+        documento: page('documento/index.html'),
         notFound: page('404.html'),
       },
     },

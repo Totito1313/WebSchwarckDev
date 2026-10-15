@@ -26,7 +26,7 @@ export async function api(path, { method = 'GET', body } = {}) {
 
 // ── Estado ──
 
-export const COLS = ['customers', 'catalog', 'paytemplates', 'docs'];
+export const COLS = ['customers', 'catalog', 'paytemplates', 'docs', 'projects', 'tasks', 'time', 'expenses', 'vendors', 'categories', 'brands', 'posts'];
 
 export const DEFAULT_STYLE = { layout: 'bold', font: 'inter', accent: 'ink', cover: 'none', logoSize: 44 };
 const DEFAULT_SETTINGS = {
@@ -43,16 +43,35 @@ const DEFAULT_SETTINGS = {
   quoteDays: 15,
   notes: 'Gracias por tu confianza.',
   terms: '',
+  hourlyRate: 0,
 };
 
-export const state = { settings: { ...DEFAULT_SETTINGS, style: { ...DEFAULT_STYLE } }, customers: [], catalog: [], paytemplates: [], docs: [] };
+export const state = { settings: { ...DEFAULT_SETTINGS, style: { ...DEFAULT_STYLE } }, customers: [], catalog: [], paytemplates: [], docs: [], projects: [], tasks: [], time: [] };
 export const bus = new EventTarget();
 const emit = (type, detail = {}) => bus.dispatchEvent(new CustomEvent(type, { detail }));
 
 export async function loadAll() {
   const data = await api('/crm');
   state.settings = { ...DEFAULT_SETTINGS, ...data.settings, style: { ...DEFAULT_STYLE, ...data.settings?.style } };
-  for (const col of COLS) state[col] = data[col];
+  for (const col of COLS) state[col] = Array.isArray(data[col]) ? data[col] : [];
+  state.pub = data.pub && typeof data.pub === 'object' ? data.pub : {};
+}
+
+/** Lo que pasó en el enlace público de un documento: aperturas, firma o rechazo. */
+export const pubOf = (doc) => state.pub?.[doc.id] || null;
+export const isSignable = (doc) => doc.type === 'quote' || doc.type === 'proposal';
+/** Firmado por el cliente: su contenido ya no cambia. */
+export const isLocked = (doc) => isSignable(doc) && Boolean(pubOf(doc)?.acceptedAt);
+
+/** Vuelve a leer las respuestas de los enlaces (al volver a la pestaña, por ejemplo). */
+export async function refreshPub() {
+  const { pub } = await api('/crm/pub');
+  const before = JSON.stringify(state.pub || {});
+  state.pub = pub || {};
+  if (JSON.stringify(state.pub) !== before) {
+    emit('pub');
+    emit('change', { col: 'pub' });
+  }
 }
 
 export const find = (col, id) => state[col].find((x) => x.id === id);
@@ -235,10 +254,47 @@ export const monthText = (key) => {
   return t.charAt(0).toUpperCase() + t.slice(1);
 };
 export const shortMonth = (key) => dfShortMonth.format(new Date(`${key}-15T12:00:00`)).replace('.', '');
+const dfShortDay = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' });
+/** "21 mar", para tarjetas y filas. */
+export const shortDate = (iso) => (iso ? dfShortDay.format(new Date(`${iso}T12:00:00`)).replace('.', '') : '');
+export const nowISO = () => new Date().toISOString();
+/** La hora local de un instante guardado en ISO: "09:12". */
+export const timeText = (iso) => (iso ? new Date(iso).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', hour12: false }) : '');
+
+// ── Horas ──
+
+/** "2 h 30 min", "45 min". */
+export function durationText(minutes) {
+  const total = Math.round(minutes || 0);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (!h) return `${m} min`;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+/** Cronómetro: "04:09" o "1:02:03". */
+export function clockText(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+/** Lee una duración como se escribe: "1:30", "1,5" (horas), "90 min", "2 h", "1 h 15 min". En minutos. */
+export function parseDuration(text) {
+  const s = String(text ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!s) return null;
+  let m = /^(\d+):(\d{1,2})$/.exec(s);
+  if (m) return Number(m[1]) * 60 + Number(m[2]);
+  m = /^(?:(\d+(?:[.,]\d+)?) ?h(?:oras?|rs?)?)? ?(?:(\d+) ?m(?:in(?:utos?)?)?)?$/.exec(s);
+  if (m && (m[1] || m[2])) return Math.round(parseNum(m[1] || '0') * 60) + Number(m[2] || 0);
+  return /^\d+(?:[.,]\d+)?$/.test(s) ? Math.round(parseNum(s) * 60) : null;
+}
 
 // ── Documentos ──
 
-export const DOC_WORD = { invoice: 'Factura', quote: 'Cotización', receipt: 'Recibo' };
+export const DOC_WORD = { invoice: 'Factura', quote: 'Cotización', receipt: 'Recibo', proposal: 'Propuesta' };
 
 export function totals(doc) {
   const items = doc.items || [];
@@ -256,11 +312,16 @@ export function totals(doc) {
 /** Estado que se ve: el guardado (borrador, enviada, anulada…) más lo que dicen pagos y fechas. */
 export function docStatus(doc, today = todayISO()) {
   if (doc.type === 'receipt') return 'issued';
-  if (doc.status === 'draft' || doc.status === 'void') return doc.status;
-  if (doc.type === 'quote') {
-    if (doc.status === 'accepted' || doc.status === 'declined') return doc.status;
-    return doc.validUntil && doc.validUntil < today ? 'expired' : 'sent';
+  if (isSignable(doc)) {
+    // Lo que respondió el cliente en el enlace manda sobre lo marcado a mano.
+    const pub = pubOf(doc);
+    if (pub?.acceptedAt) return 'accepted';
+    if (pub?.declinedAt) return 'declined';
+    if (doc.status === 'draft' || doc.status === 'void' || doc.status === 'accepted' || doc.status === 'declined') return doc.status;
+    if (doc.validUntil && doc.validUntil < today) return 'expired';
+    return pub?.viewedAt ? 'viewed' : 'sent';
   }
+  if (doc.status === 'draft' || doc.status === 'void') return doc.status;
   const t = totals(doc);
   if (t.total > 0 && t.paid >= t.total - 0.005) return 'paid';
   if (doc.dueDate && doc.dueDate < today) return 'overdue';
@@ -275,6 +336,7 @@ export const STATUS = {
   paid: ['Pagada', 'var(--income)'],
   void: ['Anulada', 'var(--body)'],
   sent: ['Enviada', 'var(--blue)'],
+  viewed: ['Vista', 'var(--violet)'],
   accepted: ['Aceptada', 'var(--income)'],
   declined: ['Rechazada', 'var(--expense)'],
   expired: ['Vencida', 'var(--bs)'],
@@ -323,7 +385,7 @@ export function newDoc(type, customer = null) {
     number: '',
     issueDate: today,
     dueDate: type === 'invoice' ? addDays(today, Number(s.dueDays) || 15) : '',
-    validUntil: type === 'quote' ? addDays(today, Number(s.quoteDays) || 15) : '',
+    validUntil: type === 'quote' || type === 'proposal' ? addDays(today, Number(s.quoteDays) || 15) : '',
     currency: customer?.currency || s.currency || 'USD',
     equiv: null,
     customerId: customer?.id || '',
@@ -339,7 +401,7 @@ export function newDoc(type, customer = null) {
     sections: s.terms ? [{ id: uid(), title: 'Términos y condiciones', body: s.terms }] : [],
     payments: [],
     signature: true,
-    style: { ...DEFAULT_STYLE, ...s.style },
+    style: { ...DEFAULT_STYLE, ...s.style, ...(type === 'proposal' ? { cover: 'sky' } : {}) },
   };
 }
 
@@ -424,7 +486,25 @@ const ICONS = {
   hash: '<path d="M5 9h15M4 15h15M10 3 8 21M16 3l-2 18"/>',
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
   ban: '<circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/>',
+  folder: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6l2.2 2.2h7.2A2.5 2.5 0 0 1 21 9.7v7.8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>',
+  tasks: '<path d="M12 6h9M12 12h9M12 18h9"/><path d="m3 6 1.6 1.6L7.8 4.4M3 12l1.6 1.6 3.2-3.2M3 18l1.6 1.6 3.2-3.2"/>',
+  timer: '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.6 1.6M9.5 2.5h5M18.6 6.4l1.4-1.4"/>',
+  play: '<path d="M8 5.2v13.6a.8.8 0 0 0 1.2.7l10.6-6.8a.8.8 0 0 0 0-1.4L9.2 4.5A.8.8 0 0 0 8 5.2z" fill="currentColor"/>',
+  pause: '<rect x="6.5" y="5" width="3.6" height="14" rx="1.2" fill="currentColor"/><rect x="13.9" y="5" width="3.6" height="14" rx="1.2" fill="currentColor"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="2.6" fill="currentColor"/>',
+  flag: '<path d="M5 21V4.5M5 4.5h11.5l-2.2 4.2 2.2 4.3H5"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.1"/><circle cx="4.5" cy="12" r="1.1"/><circle cx="4.5" cy="18" r="1.1"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
+  board: '<rect x="3.5" y="4" width="5" height="16" rx="1.6"/><rect x="10.5" y="4" width="5" height="11" rx="1.6"/><rect x="17.5" y="4" width="3" height="7" rx="1.4"/>',
+  message: '<path d="M5 4.5h14a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-5 4v-4a1.5 1.5 0 0 1-1.5-1.5V6A1.5 1.5 0 0 1 5 4.5z"/>',
+  square: '<rect x="4.5" y="4.5" width="15" height="15" rx="4.5"/>',
+  squareCheck: '<rect x="4.5" y="4.5" width="15" height="15" rx="4.5"/><path d="m8.6 12.2 2.4 2.4 4.4-4.8"/>',
 };
+
+/** Cada módulo puede sumar sus iconos sin tocar esta lista. */
+export function addIcons(map) {
+  Object.assign(ICONS, map);
+}
 
 export function icon(name) {
   const span = el('span', { class: 'ic', 'aria-hidden': 'true' });
@@ -448,6 +528,11 @@ export function avatar(name, size = '') {
 
 export function tag(status) {
   const [label, color] = STATUS[status] || [status, 'var(--body)'];
+  return chip(label, color);
+}
+
+/** Etiqueta con punto de color: estados, prioridades… */
+export function chip(label, color = 'var(--body)') {
   return el('span', { class: 'ng-tag', style: { '--c': color }, text: label });
 }
 
@@ -522,7 +607,8 @@ export function popover(anchor, content, { align = 'start', side = 'below', clas
   const pop = el('div', { class: `ng-pop ${className}`.trim() });
   pop.popover = 'auto';
   pop.append(content);
-  document.body.append(pop);
+  // Dentro de una ventana modal el menú va dentro de ella: fuera no se podría tocar.
+  (anchor.closest('dialog[open]') || document.body).append(pop);
   pop.addEventListener('toggle', (e) => {
     if (e.newState === 'closed') pop.remove();
   });

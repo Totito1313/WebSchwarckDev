@@ -1,0 +1,89 @@
+/* Negocio: bloques de las propuestas y la hoja de solo lectura.
+   Los usan el panel y la página pública del enlace. La hoja es siempre papel claro. */
+
+/* Título de la propuesta: grande, pero sin mayúsculas */
+.sh-title.is-proposal { margin: 22px 0 30px; font-size: clamp(34px, 6vw, 56px); line-height: 1.04; letter-spacing: -0.035em; text-transform: none; }
+.ng-sheet[data-layout='classic'] .sh-title.is-proposal { font-size: 30px; letter-spacing: -0.02em; }
+.sh-in.sh-proposal-title { margin-top: 22px; margin-bottom: 30px; color: var(--accent); font-size: clamp(34px, 6vw, 56px); font-weight: 800; line-height: 1.08; letter-spacing: -0.035em; }
+.ng-sheet[data-font='mono'] .sh-in.sh-proposal-title { font-weight: 700; letter-spacing: -0.03em; }
+
+/* Bloques */
+.pb { position: relative; margin-top: 36px; }
+.pb-head { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.pb-title { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.sh-in.pb-title { flex: 1; }
+.pb-tools { display: flex; gap: 4px; margin-left: auto; opacity: 0; transition: opacity 0.2s; }
+.pb:hover .pb-tools, .pb-tools:focus-within { opacity: 1; }
+@media (hover: none) { .pb-tools { opacity: 1; } }
+.pb-tools .ng-ibtn { width: 30px; height: 30px; background: var(--sh-band); color: var(--sh-soft); }
+.pb-tools .ng-ibtn:hover { background: #e7edf2; color: var(--sh-ink); }
+.pb-tools .ng-ibtn .ic svg { width: 15px; height: 15px; }
+.pb-tools .is-hidden { visibility: hidden; }
+.pb-t { display: block; padding: 3px 0; }
+.pb-p { margin: 0; padding: 3px 0; white-space: pre-wrap; }
+.pb-strong { font-weight: 600; }
+.pb .is-soft { color: var(--sh-soft); }
+.pb-body { font-size: 16px; line-height: 1.6; }
+.pb-add { margin-top: 10px; }
+.pb-addblock { margin-top: 28px; }
+
+.pb-goals { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.pb-goals li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: start; gap: 12px; }
+.pb-num { display: grid; place-items: center; width: 28px; height: 28px; margin-top: 2px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 12%, #fff); color: var(--accent); font-size: 13px; font-weight: 700; }
+
+.pb-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.pb-cell { position: relative; display: grid; align-content: start; gap: 2px; padding: 14px 16px; border-radius: 14px; background: var(--sh-band); }
+.pb-cell .pb-item-del, .pb-person .pb-item-del, .pb-quote .pb-item-del, .pb-shot .pb-item-del { position: absolute; top: 6px; right: 6px; margin: 0; background: #fff; }
+
+.pb-timeline { display: grid; gap: 18px; margin: 0 0 0 6px; padding: 0 0 0 22px; border-left: 2px solid var(--sh-line); list-style: none; }
+.pb-timeline li { position: relative; display: grid; gap: 0; padding-right: 30px; }
+.pb-timeline li::before { content: ''; position: absolute; top: 7px; left: -29px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px #fff; }
+.pb-timeline .pb-item-del { position: absolute; top: 0; right: 0; margin: 0; }
+.pb-when { color: var(--sh-faint); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+
+.pb-team { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 16px; }
+.pb-person { position: relative; display: grid; justify-items: center; gap: 0; text-align: center; }
+.pb-person .sh-in { text-align: center; }
+.pb-avatar { display: grid; place-items: center; width: 58px; height: 58px; margin-bottom: 6px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 12%, #fff); color: var(--accent); font-size: 18px; font-weight: 700; }
+
+.pb-quotes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.pb-quote { position: relative; display: grid; gap: 8px; margin: 0; padding: 16px 18px; border-radius: 16px; background: var(--sh-band); }
+.pb-quote-text { font-size: 15px; font-style: italic; line-height: 1.5; }
+.pb-quote figcaption { display: grid; }
+
+.pb-work { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.pb-shot { position: relative; display: grid; align-content: start; gap: 4px; margin: 0; }
+.pb-shot img, .pb-shot-empty { width: 100%; aspect-ratio: 4 / 3; margin-bottom: 6px; border-radius: 14px; object-fit: cover; }
+.pb-shot-empty { display: grid; place-items: center; background: var(--sh-band); color: var(--sh-faint); }
+.pb-shot-empty svg { width: 28px; height: 28px; }
+.pb-shot-pick { position: absolute; top: 10px; left: 10px; background: #fff; }
+
+/* Hoja de solo lectura */
+.sh-line { display: block; padding: 3px 0; overflow-wrap: anywhere; }
+.sh-line.is-strong { font-weight: 600; }
+.sh-line.is-soft { color: var(--sh-soft); font-size: 0.93em; }
+.ng-sheet.is-static .sh-item .sh-num { padding: 3px 0; font-variant-numeric: tabular-nums; text-align: right; }
+.ng-sheet.is-static .sh-dates .sh-line { text-align: right; }
+.sh-kv.is-static > div { display: grid; grid-template-columns: minmax(80px, 130px) minmax(0, 1fr); gap: 8px; padding: 3px 0; }
+.sh-kv.is-static dt { color: var(--sh-soft); }
+.sh-kv.is-static dd { margin: 0; }
+.sh-static-p { margin: 0; white-space: pre-wrap; }
+.ng-sheet.is-static .sh-section-title { display: block; margin-bottom: 4px; }
+
+/* Firma o rechazo del cliente */
+.sh-accept { display: grid; justify-items: start; gap: 6px; margin-top: 34px; padding: 18px 20px; border: 1.5px solid; border-radius: 16px; break-inside: avoid; }
+.sh-accept.is-ok { border-color: color-mix(in srgb, #1f9d46 40%, transparent); background: color-mix(in srgb, #1f9d46 5%, #fff); }
+.sh-accept.is-no { border-color: color-mix(in srgb, #e0352b 35%, transparent); background: color-mix(in srgb, #e0352b 5%, #fff); }
+.sh-accept small { color: var(--sh-soft); font-size: 13px; }
+.sh-accept-typed { font-family: 'Allura', cursive; font-size: 46px; line-height: 1.05; }
+.sh-accept-drawn { width: auto; max-width: 280px; height: 96px; object-fit: contain; }
+
+@media (max-width: 760px) {
+  .pb-grid, .pb-quotes, .pb-work { grid-template-columns: minmax(0, 1fr); }
+  .ng-sheet.is-static .sh-dates .sh-line { text-align: left; }
+}
+@media print {
+  .pb-tools, .pb-addblock, .pb-add { display: none !important; }
+  .pb { break-inside: avoid; }
+  .pb-cell, .pb-quote, .pb-num, .pb-avatar, .pb-timeline li::before, .sh-accept { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
