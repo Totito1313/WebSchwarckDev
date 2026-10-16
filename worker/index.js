@@ -5,6 +5,7 @@
 //
 // Almacén: un espacio KV enlazado como SITE.
 //   changelog            lista de novedades (JSON). Si falta, vale data/changelog.json
+//   cerofiao:download    el botón de descarga de CeroFiao: estado, enlaces y textos
 //   review:<id>          una reseña; todo su contenido va en los metadatos de la
 //                        clave, así listar las reseñas es una sola lectura
 //   reviews:public       las aprobadas, ya ordenadas, para servirlas de una lectura
@@ -70,6 +71,9 @@ async function route(request, env, url) {
   if (pathname === '/api/changelog' && method === 'GET') {
     const entries = (await readChangelog(env)).filter((e) => e.published !== false);
     return json({ entries }, 200, { 'cache-control': 'public, max-age=120' });
+  }
+  if (pathname === '/api/download' && method === 'GET') {
+    return json(await readDownload(env), 200, { 'cache-control': 'public, max-age=60' });
   }
   if (pathname === '/api/reviews' && method === 'GET') return publicReviews(env);
   if (pathname === '/api/reviews' && method === 'POST') return submitReview(request, env, url);
@@ -189,6 +193,57 @@ function validateChangelog(list) {
     seen.add(id);
     return { id, title, date, tag, published: raw?.published !== false, items };
   });
+}
+
+// ── Botón de descarga de CeroFiao ──
+//
+// El panel decide en qué punto está la app y qué dicen sus botones: próximamente
+// (la página lleva a la descarga y el cierre pide acceso por correo), prueba
+// abierta (todos llevan al enlace para unirse) o en Google Play (todos llevan a la
+// ficha). Los textos vacíos usan los de cada estado (src/cf-download.js).
+
+const DOWNLOAD_KEY = 'cerofiao:download';
+const DOWNLOAD_MODES = ['soon', 'test', 'play'];
+const DOWNLOAD_DEFAULT = { mode: 'soon', testUrl: '', playUrl: '', hero: '', bar: '', final: '', note: '' };
+
+async function readDownload(env) {
+  const saved = env.SITE ? await env.SITE.get(DOWNLOAD_KEY, 'json') : null;
+  return { ...DOWNLOAD_DEFAULT, ...(saved && typeof saved === 'object' ? saved : {}) };
+}
+
+function validateDownload(body) {
+  if (!DOWNLOAD_MODES.includes(body?.mode)) throw new HttpError(400, 'Elige en qué punto está la app.');
+  const link = (value, label) => {
+    const text = clean(value);
+    if (!text) return '';
+    let url;
+    try {
+      url = new URL(text);
+    } catch {
+      throw new HttpError(400, `${label}: no es un enlace válido.`);
+    }
+    if (url.protocol !== 'https:' && url.protocol !== 'mailto:') throw new HttpError(400, `${label}: usa un enlace que empiece por https:// o mailto:.`);
+    if (text.length > 500) throw new HttpError(400, `${label}: es demasiado largo.`);
+    return text;
+  };
+  const words = (value, max, label) => {
+    const text = clean(value).replace(/\s+/g, ' ');
+    if (text.length > max) throw new HttpError(400, `${label}: como mucho ${max} caracteres.`);
+    return text;
+  };
+  const out = {
+    mode: body.mode,
+    testUrl: link(body.testUrl, 'Enlace de la prueba'),
+    playUrl: link(body.playUrl, 'Enlace de Google Play'),
+    hero: words(body.hero, 48, 'Botón principal'),
+    bar: words(body.bar, 24, 'Botón de la barra'),
+    final: words(body.final, 48, 'Botón del cierre'),
+    note: words(body.note, 160, 'Nota del cierre'),
+    updatedAt: new Date().toISOString(),
+  };
+  if (out.mode === 'play' && !out.playUrl) throw new HttpError(400, 'Para «En Google Play» falta el enlace de la ficha.');
+  if (out.mode === 'test' && !out.testUrl) throw new HttpError(400, 'Para «Prueba abierta» falta el enlace para unirse.');
+  return out;
 }
 
 // ── Reseñas ──
@@ -724,6 +779,12 @@ async function admin(request, env, url) {
   }
 
   if (path === '/reviews' && method === 'GET') return json({ reviews: await allReviews(env) });
+  if (path === '/download' && method === 'GET') return json(await readDownload(env));
+  if (path === '/download' && method === 'PUT') {
+    const download = validateDownload(await readJson(request, 4000));
+    await env.SITE.put(DOWNLOAD_KEY, JSON.stringify(download));
+    return json(download);
+  }
 
   if (path === '/crm' && method === 'GET') return json({ ...(await readCrm(env)), pub: await readPubSafe(env) });
   if (path === '/crm/pub' && method === 'GET') return json({ pub: await readPubSafe(env) });

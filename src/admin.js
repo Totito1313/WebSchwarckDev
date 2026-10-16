@@ -1,7 +1,8 @@
-// Panel: novedades de CeroFiao y moderación de reseñas.
+// Panel: novedades de CeroFiao, moderación de reseñas y el botón de descarga.
 // Habla con /api/admin/*; la sesión va en una cookie que el navegador no deja leer a este código.
 
 import { initTheme } from './theme.js';
+import { DOWNLOAD_TEXTS, resolveDownload } from './cf-download.js';
 
 initTheme();
 
@@ -85,7 +86,7 @@ const touch = () => {
   say(saveMsg, 'Hay cambios sin guardar.');
 };
 addEventListener('beforeunload', (event) => {
-  if (dirty) event.preventDefault();
+  if (dirty || dlDirty) event.preventDefault();
 });
 
 function drawEntries() {
@@ -236,6 +237,108 @@ function drawReviews() {
   }));
 }
 
+// ── Botón de descarga ──
+const dlBox = document.querySelector('[data-dl]');
+const dlSave = document.querySelector('[data-dl-save]');
+const dlMsg = document.querySelector('[data-dl-msg]');
+const MODES = [
+  ['soon', 'Próximamente', 'La app aún no se puede instalar. Los botones de arriba y de la barra llevan a la sección de descarga, y el del cierre pide acceso a la prueba (por correo, o con el enlace de abajo si lo pones).'],
+  ['test', 'Prueba abierta', 'Cualquiera puede unirse a la prueba. Todos los botones llevan al enlace para unirse.'],
+  ['play', 'En Google Play', 'La app está publicada. Todos los botones llevan a su ficha de Google Play.'],
+];
+let download = null;
+let dlDirty = false;
+
+const dlTouch = () => {
+  dlDirty = true;
+  dlSave.disabled = false;
+  say(dlMsg, 'Hay cambios sin guardar.');
+};
+
+function drawDownload() {
+  const field = (label, input, hint) => el('label', { className: 'adm-field' }, el('span', { textContent: label }), input, hint ? el('small', { className: 'adm-hint', textContent: hint }) : '');
+  const text = (key, max) => {
+    const input = el('input', { type: 'text', value: download[key] || '', maxLength: max, placeholder: DOWNLOAD_TEXTS[download.mode][key] });
+    input.addEventListener('input', () => {
+      download[key] = input.value;
+      dlTouch();
+      drawPreview();
+    });
+    return input;
+  };
+  const url = (key, placeholder) => {
+    const input = el('input', { type: 'text', inputMode: 'url', value: download[key] || '', maxLength: 500, placeholder });
+    input.addEventListener('input', () => {
+      download[key] = input.value.trim();
+      dlTouch();
+      drawPreview();
+    });
+    return input;
+  };
+  const modes = el('div', { className: 'adm-filter adm-dl-modes', role: 'group', ariaLabel: 'En qué punto está la app' },
+    ...MODES.map(([key, label]) => el('button', {
+      type: 'button',
+      textContent: label,
+      onclick: () => {
+        if (download.mode === key) return;
+        download.mode = key;
+        dlTouch();
+        drawDownload();
+      },
+    })));
+  for (const [i, b] of [...modes.children].entries()) b.setAttribute('aria-pressed', String(MODES[i][0] === download.mode));
+  const preview = el('div', { className: 'adm-dl-preview', ariaLive: 'polite' });
+  const drawPreview = () => {
+    const { note, buttons } = resolveDownload(download);
+    const where = (href) => (href ? href.replace(/^mailto:([^?]+).*/, 'Correo a $1') : 'Baja a la sección de descarga');
+    const pill = (role, title) => el('div', { className: 'adm-dl-item' },
+      el('small', { textContent: title }),
+      el('span', { className: `adm-dl-pill is-${role}`, textContent: buttons[role].label }),
+      el('code', { textContent: where(buttons[role].href) }),
+    );
+    preview.replaceChildren(
+      el('p', { className: 'adm-dl-label', textContent: 'Así se ve' }),
+      pill('hero', 'Arriba, en la portada de la app'),
+      pill('bar', 'En la barra'),
+      pill('final', 'En el cierre'),
+      el('p', { className: 'adm-dl-note', textContent: note }),
+    );
+  };
+  drawPreview();
+  dlBox.replaceChildren(
+    el('section', { className: 'adm-entry' },
+      el('div', { className: 'adm-field' }, el('span', { textContent: 'En qué punto está la app' }), modes),
+      el('p', { className: 'adm-hint', textContent: MODES.find(([k]) => k === download.mode)[2] }),
+      field('Enlace de Google Play', url('playUrl', 'https://play.google.com/store/apps/details?id=…'), download.mode === 'play' ? 'Hace falta para «En Google Play».' : 'Déjalo listo para cuando se publique.'),
+      field('Enlace para pedir acceso o unirse a la prueba', url('testUrl', 'https://… o mailto:…'), download.mode === 'test' ? 'Hace falta para «Prueba abierta».' : 'Opcional. Sin él, el botón del cierre abre un correo a soporte.'),
+    ),
+    el('section', { className: 'adm-entry' },
+      el('p', { className: 'adm-hint', textContent: 'Vacíos, los botones dicen lo de cada estado (el texto gris).' }),
+      el('div', { className: 'adm-row is-two' },
+        field('Botón principal', text('hero', 48)),
+        field('Botón de la barra', text('bar', 24)),
+      ),
+      field('Botón del cierre', text('final', 48)),
+      field('Nota del cierre', text('note', 160)),
+    ),
+    preview,
+  );
+}
+
+dlSave.addEventListener('click', async () => {
+  dlSave.disabled = true;
+  say(dlMsg, 'Guardando…');
+  try {
+    download = await api('/download', { method: 'PUT', body: download });
+    dlDirty = false;
+    say(dlMsg, 'Guardado. La página lo enseña en un minuto como mucho.', 'ok');
+    drawDownload();
+  } catch (err) {
+    dlSave.disabled = false;
+    say(dlMsg, err.message, 'error');
+  }
+});
+
 // ── Arranque ──
 // El panel solo se enseña con los datos cargados: un panel vacío por un fallo de red
 // invitaría a guardar encima de todas las novedades.
@@ -244,8 +347,9 @@ async function openPanel() {
   show('loading');
   let log;
   let revs;
+  let dl;
   try {
-    [log, revs] = await Promise.all([api('/changelog'), api('/reviews')]);
+    [log, revs, dl] = await Promise.all([api('/changelog'), api('/reviews'), api('/download')]);
   } catch (err) {
     if (views.loading.hidden) return; // la sesión caducó: ya se está pidiendo la contraseña
     loadingNote.textContent = `No se pudieron cargar los datos (${err.message}). Recarga la página.`;
@@ -258,8 +362,14 @@ async function openPanel() {
     say(saveMsg, '');
   }
   reviews = revs.reviews;
+  if (!dlDirty) {
+    download = dl;
+    dlSave.disabled = true;
+    say(dlMsg, '');
+  }
   drawEntries();
   drawReviews();
+  drawDownload();
   show('panel');
 }
 

@@ -66,6 +66,7 @@
     <div class="adm-tabs" role="tablist" aria-label="Secciones del panel">
       <button type="button" role="tab" id="tab-changelog" aria-selected="true" aria-controls="pane-changelog" data-tab="changelog">Novedades</button>
       <button type="button" role="tab" id="tab-reviews" aria-selected="false" aria-controls="pane-reviews" data-tab="reviews">Reseñas <span class="adm-badge" data-pending hidden></span></button>
+      <button type="button" role="tab" id="tab-download" aria-selected="false" aria-controls="pane-download" data-tab="download">Botón de descarga</button>
     </div>
 
     <div id="pane-changelog" role="tabpanel" aria-labelledby="tab-changelog" data-pane="changelog">
@@ -97,6 +98,19 @@
       </div>
       <p class="adm-msg" role="status" data-review-msg></p>
       <div class="adm-list" data-reviews></div>
+    </div>
+    <div id="pane-download" role="tabpanel" aria-labelledby="tab-download" data-pane="download" hidden>
+      <div class="adm-bar">
+        <div>
+          <h1>Botón de descarga</h1>
+          <p>En qué punto está CeroFiao y qué dicen sus botones: el de arriba, el de la barra y el del cierre. Los cambios tardan hasta un minuto en verse. <a href="/cerofiao/#descarga" target="_blank" rel="noopener">Ver en la página</a></p>
+        </div>
+        <div class="adm-actions">
+          <button class="btn dark" type="button" data-dl-save disabled>Guardar cambios</button>
+        </div>
+      </div>
+      <p class="adm-msg" role="status" data-dl-msg></p>
+      <div class="adm-dl" data-dl></div>
     </div>
   </section>
 </main>

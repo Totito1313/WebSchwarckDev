@@ -33,6 +33,20 @@ Técnica y minimalista, con el gradiente del logo como único acento y el vidrio
 
 Para verla sola, sin API, `npm run dev` (o la configuración «portada» de `.claude/launch.json`).
 
+### La página de CeroFiao
+
+El hero (el teléfono que cambia de pantalla mientras pasan las tarjetas) y la sección oscura (el teléfono fijo que cada tarjeta recorta) son el corazón de la página. Alrededor:
+
+- **Fondo vivo**: una trama de puntos con una luz que sigue al cursor y tres auroras de la paleta de la app que derivan despacio y se desplazan con la lectura. Arriba, una barra fina marca cuánto se ha leído.
+- **Monedas** en fichas de vidrio, cada símbolo en su color.
+- **Balance**: el aura y el borde, que gira despacio, toman el color de la moneda elegida.
+- **Carrusel en 3D**: la pantalla del centro de frente y las de los lados giradas.
+- **Tarjetas** que dejan ver la aurora y se iluminan bajo el cursor.
+- **«Sin cuenta, sin anuncios, sin suscripción»**: cada una con un cero enorme que llega girando como un contador.
+- **Cierre**: la aurora del hero, monedas que suben flotando y el icono de la app latiendo. Su botón lo decide el panel («Botón de descarga»).
+
+Con «reducir movimiento» todo queda quieto. Los estilos nuevos están al final de `src/cerofiao.css` («Pulido»).
+
 - `src/motion.js`: revelados y animaciones ligadas al scroll. Sin JavaScript, o si la persona pidió menos movimiento, las páginas quedan completas y quietas.
 - `src/theme.js`: tema claro u oscuro. Sin elección guardada sigue al sistema.
 - `data/changelog.json`: las novedades de CeroFiao tal como salen sin panel. Vite las pinta en la página al construir.
@@ -67,6 +81,12 @@ Está en `/admin/`. Sirve para:
 
 - **Novedades**: añadir, editar, ordenar, ocultar o borrar versiones. La primera de la lista sale abierta en la página.
 - **Reseñas**: aprobar, rechazar o borrar lo que envía la gente. Nada se publica sin aprobarlo.
+- **Botón de descarga**: en qué punto está CeroFiao y qué dicen sus botones (el de arriba, el de la barra, el del menú del teléfono y el del cierre).
+  - **Próximamente**: los botones llevan a la sección de descarga y el del cierre pide acceso a la prueba, por correo o con el enlace que pongas.
+  - **Prueba abierta**: todos llevan al enlace para unirse.
+  - **En Google Play**: todos llevan a la ficha.
+  - Cada texto se puede cambiar; vacío, dice lo de su estado. Debajo se ve cómo quedan.
+  - Se guarda en KV (`cerofiao:download`), la página lo pide a `/api/download` y lo recuerda en el navegador para no parpadear la próxima vez (`src/cf-download.js`). Sin JavaScript se ven los textos de «Próximamente».
 
 Todo el panel (`/admin/`, `/admin/tienda/` y `/admin/negocio/`) lleva el sistema de diseño de la app CeroFiao: los tokens de `core-designsystem` (fondo gris claro o negro puro, superficies blancas o `#17171A` con borde de 1 px, el cian `#00B8D4`/`#00E5FF`), botones en píldora, chips y segmentos con la opción activa en negro (blanco en oscuro), Anton en las cifras, campos rellenos como en el kit de HeroUI de CeroFiao y la navegación en una cápsula de cristal. Las barras de desplazamiento son una píldora fina, los desplegables abren una lista con ese mismo estilo (en Chrome y Edge; en el resto, la del sistema), la pieza activa de pestañas y segmentos se desliza de una opción a otra (`src/panel-motion.js`) y el cambio de página es una transición suave. Vive en `src/panel.css`, que se carga la última solo en esas páginas y traduce a esos valores los tokens que ya usan sus estilos: la web pública y la página que abre el cliente no cambian. La letra es One UI Sans si está instalada en el equipo; si no, Inter.
 
@@ -210,8 +230,8 @@ Cada publicación lleva título, marca, fecha y hora, formato, categoría, rol e
 
 ### Dónde se guardan los datos
 
-En un espacio KV de Cloudflare enlazado como `SITE` (lo crea `wrangler deploy` la primera vez). Guarda la lista de novedades, las reseñas y los datos del negocio (cada colección en una clave `crm:*`, también las páginas, los leads y las campañas; cada archivo subido —recibos, fotos de líneas, portadas e imágenes— en `crm:file:*`, cada enlace público en `crm:share:*`, lo que pasa en él en `crm:pub:*` y `crm:sig:*`, y el último número de cada serie de documentos en `crm:seq`). Las reseñas llevan el nombre que escribió la persona, su calificación, el texto y la fecha; no se guarda correo ni dirección IP.
+En un espacio KV de Cloudflare enlazado como `SITE` (lo crea `wrangler deploy` la primera vez). Guarda la lista de novedades, el botón de descarga de CeroFiao, las reseñas y los datos del negocio (cada colección en una clave `crm:*`, también las páginas, los leads y las campañas; cada archivo subido —recibos, fotos de líneas, portadas e imágenes— en `crm:file:*`, cada enlace público en `crm:share:*`, lo que pasa en él en `crm:pub:*` y `crm:sig:*`, y el último número de cada serie de documentos en `crm:seq`). Las reseñas llevan el nombre que escribió la persona, su calificación, el texto y la fecha; no se guarda correo ni dirección IP.
 
 ## Cuando CeroFiao esté en Google Play
 
-En `src/cerofiao.js`, pega la URL de la ficha en `PLAY_URL`. Todos los botones pasan de «Próximamente» a «Descargar».
+En el panel, «Botón de descarga» › «En Google Play», pega el enlace de la ficha y guarda. Todos los botones de la página pasan a llevar a ella en un minuto como mucho, sin desplegar nada.

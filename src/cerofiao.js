@@ -3,28 +3,50 @@ import { initTheme } from './theme.js';
 import { initSmoothScroll } from './smooth.js';
 import { renderChangelog } from './changelog-render.js';
 import { finePointer, initWordmark } from './studio-fx.js';
+import { loadDownload } from './cf-download.js';
 
-// Enlace de CeroFiao en Google Play. Mientras esté vacío, los botones dicen
-// "Próximamente" y llevan a la sección de descarga; al publicar la app, pega
-// aquí la URL de la ficha y todos los botones pasan a "Descargar".
-const PLAY_URL = '';
-
-if (PLAY_URL) {
-  document.documentElement.classList.add('play-live');
-  for (const a of document.querySelectorAll('[data-play]')) {
-    a.href = PLAY_URL;
-    a.rel = 'noopener';
-    const label = a.querySelector('[data-play-label]');
-    if (label) label.textContent = a.dataset.play || 'Descargar en Google Play';
-  }
-}
+// El botón de descarga (texto y enlace) lo decide el panel: /admin › Botón de descarga.
+loadDownload();
 
 const motion = initMotion();
 initTheme();
 initSmoothScroll();
 
 // El pie del estudio: el nombre gigante se ilumina bajo el cursor (src/studio-fx.js).
-initWordmark(motion, finePointer());
+const fine = finePointer();
+initWordmark(motion, fine);
+
+// ── Fondo vivo: cuánto se ha leído (la barra de arriba y las auroras) ──
+const root = document.documentElement;
+onScroll(() => {
+  const max = root.scrollHeight - innerHeight;
+  setVar(root, '--sp', max > 0 ? scrollY / max : 0);
+});
+
+// ── Con ratón: la luz del fondo y la de cada tarjeta siguen al cursor ──
+if (fine) {
+  const bg = document.querySelector('.cf-bg');
+  let raf = 0;
+  let mx = 0;
+  let my = 0;
+  addEventListener('pointermove', (e) => {
+    mx = e.clientX;
+    my = e.clientY;
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      bg?.style.setProperty('--mx', `${mx}px`);
+      bg?.style.setProperty('--my', `${my}px`);
+    });
+  }, { passive: true });
+  for (const card of document.querySelectorAll('[data-spot], [data-spots] > li')) {
+    card.addEventListener('pointermove', (e) => {
+      const r = card.getBoundingClientRect();
+      card.style.setProperty('--sx', `${e.clientX - r.left}px`);
+      card.style.setProperty('--sy', `${e.clientY - r.top}px`);
+    });
+  }
+}
 
 // ── Hero: el teléfono sube, el texto se va y las pantallas pasan dentro ──
 const hero = document.querySelector('[data-hero]');
@@ -91,9 +113,12 @@ if (bal) {
   };
   const active = () => buttons.find((b) => b.getAttribute('aria-pressed') === 'true');
 
+  // El aura y el borde de la tarjeta toman el color de la moneda.
+  const tint = (btn) => { if (btn.dataset.color) bal.style.setProperty('--bal-c', btn.dataset.color); };
   const select = (btn) => {
     for (const b of buttons) b.setAttribute('aria-pressed', String(b === btn));
     placeThumb(btn);
+    tint(btn);
     sym.textContent = btn.dataset.sym;
     sym.classList.toggle('is-word', btn.dataset.sym.length > 1);
     const from = current;
@@ -112,6 +137,7 @@ if (bal) {
 
   for (const btn of buttons) btn.addEventListener('click', () => { if (btn.getAttribute('aria-pressed') !== 'true') select(btn); });
   placeThumb(active());
+  tint(active());
   seg.classList.add('is-live');
   addEventListener('resize', () => placeThumb(active()));
   document.fonts?.ready.then(() => placeThumb(active()));
@@ -127,7 +153,19 @@ for (const strip of document.querySelectorAll('[data-strip]')) {
   const smooth = reducedMotion ? 'auto' : 'smooth';
   const stepSize = () => items[0].getBoundingClientRect().width + parseFloat(getComputedStyle(track).columnGap || '24');
 
+  // Carrusel en 3D: cada pantalla sabe a qué distancia está del centro (−1 a 1).
+  const depth = () => {
+    if (reducedMotion) return;
+    const mid = track.scrollLeft + track.clientWidth / 2;
+    const reach = Math.max(1, track.clientWidth / 2);
+    for (const item of items) {
+      const d = Math.max(-1, Math.min(1, (item.offsetLeft + item.offsetWidth / 2 - mid) / reach));
+      setVar(item, '--d', d, 3);
+      setVar(item, '--ad', Math.abs(d), 3);
+    }
+  };
   const sync = () => {
+    depth();
     const max = track.scrollWidth - track.clientWidth;
     prev.disabled = track.scrollLeft <= 2;
     next.disabled = track.scrollLeft >= max - 2;

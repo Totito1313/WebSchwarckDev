@@ -773,7 +773,6 @@ fieldset.field { margin: 0; padding: 0; border: 0; min-width: 0; }
 .cta img { width: 88px; margin: 0 auto 32px; border-radius: 22px; box-shadow: var(--shadow-card); }
 .cta .lede { max-width: 36ch; margin: 20px auto 32px; }
 .cta small { display: block; margin-top: 16px; color: var(--body); font-size: 14px; }
-.play-live .only-soon { display: none; }
 @keyframes float { 50% { transform: translate3d(0, -8px, 0) rotate(-3deg); } }
 .motion .cta img { animation: float 6s ease-in-out infinite; }
 
@@ -845,4 +844,197 @@ fieldset.field { margin: 0; padding: 0; border: 0; min-width: 0; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ══ Pulido: fondo vivo, luces bajo el cursor y un cierre que celebra ══
+   El hero y la sección oscura (teléfono fijo entre tarjetas) quedan como están. */
+
+@property --bal-c { syntax: '<color>'; inherits: true; initial-value: #1fc7c0; }
+@property --ang { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+:root { --dot: rgba(20, 40, 60, 0.085); --bg-o: 0.36; --edge: rgba(20, 40, 60, 0.06); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) { --dot: rgba(255, 255, 255, 0.055); --bg-o: 0.5; --edge: rgba(255, 255, 255, 0.07); }
+}
+:root[data-theme='dark'] { --dot: rgba(255, 255, 255, 0.055); --bg-o: 0.5; --edge: rgba(255, 255, 255, 0.07); }
+
+/* Fondo: una trama de puntos con una luz que sigue al cursor y tres auroras que
+   derivan despacio y se desplazan con la lectura (--sp, de 0 a 1). */
+.cf-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(560px circle at var(--mx, 50%) var(--my, 24%), color-mix(in srgb, var(--cyan) 11%, transparent), transparent 66%),
+    radial-gradient(circle at 1px 1px, var(--dot) 1px, transparent 1.6px) 0 0 / 24px 24px;
+}
+.cf-bg i { position: absolute; border-radius: 50%; opacity: var(--bg-o); filter: blur(110px); }
+.cf-bg i:nth-child(1) { top: 6vh; left: -14vw; width: 48vw; height: 42vw; background: var(--blob-a); translate: 0 calc(var(--sp, 0) * -36vh); animation: cf-drift-a 28s ease-in-out infinite alternate; }
+.cf-bg i:nth-child(2) { top: 38vh; right: -12vw; width: 42vw; height: 38vw; background: var(--blob-b); opacity: calc(var(--bg-o) * 0.8); translate: 0 calc(var(--sp, 0) * -20vh); animation: cf-drift-b 34s ease-in-out infinite alternate; }
+.cf-bg i:nth-child(3) { bottom: -18vw; left: 24vw; width: 52vw; height: 34vw; background: var(--blob-c); translate: 0 calc(var(--sp, 0) * -14vh); animation: cf-drift-c 40s ease-in-out infinite alternate; }
+@keyframes cf-drift-a { to { transform: translate(10vw, 8vh) scale(1.15); } }
+@keyframes cf-drift-b { to { transform: translate(-12vw, -6vh) scale(0.85); } }
+@keyframes cf-drift-c { to { transform: translate(8vw, -10vh) scale(1.2); } }
+
+.cf-progress { position: fixed; inset: 0 0 auto; z-index: 101; height: 2px; pointer-events: none; }
+.cf-progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--cyan), var(--blue)); transform-origin: 0 50%; transform: scaleX(var(--sp, 0)); }
+.cf-grad { background: linear-gradient(110deg, #1fc7c0, #22a8e0 50%, #5b7cf0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* Las tarjetas dejan ver un poco la aurora de detrás. */
+.card, .more li, .nots li, .rel, .rev { background-color: color-mix(in srgb, var(--cloud) 88%, transparent); box-shadow: inset 0 0 0 1px var(--edge); }
+.card.peek.tint-a { background: linear-gradient(150deg, color-mix(in srgb, var(--cloud) 88%, transparent) 40%, var(--tint-a)); }
+.card.peek.tint-b { background: linear-gradient(150deg, color-mix(in srgb, var(--cloud) 88%, transparent) 40%, var(--tint-b)); }
+
+/* Luz y borde que siguen al cursor (src/cerofiao.js escribe --sx y --sy). */
+[data-spot], [data-spots] > li { position: relative; isolation: isolate; }
+[data-spot]::before, [data-spots] > li::before, [data-spot]::after, [data-spots] > li::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+}
+[data-spot]::before, [data-spots] > li::before { z-index: -1; background: radial-gradient(420px circle at var(--sx, 50%) var(--sy, 50%), color-mix(in srgb, var(--c, var(--cyan)) 14%, transparent), transparent 68%); }
+[data-spot]::after, [data-spots] > li::after {
+  z-index: 3;
+  padding: 1px;
+  background: radial-gradient(240px circle at var(--sx, 50%) var(--sy, 50%), color-mix(in srgb, var(--c, var(--cyan)) 80%, transparent), transparent 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+@media (hover: hover) {
+  [data-spot]:hover::before, [data-spots] > li:hover::before, [data-spot]:hover::after, [data-spots] > li:hover::after { opacity: 1; }
+}
+
+/* Monedas: fichas de vidrio, cada símbolo en su color. */
+.coin-row { gap: 12px; }
+.coin-row li {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 22px 10px 10px;
+  border-radius: 999px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  box-shadow: var(--glass-shadow);
+  transition: transform 0.45s var(--ease), box-shadow 0.45s var(--ease);
+}
+.coin-row span {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c) 16%, transparent);
+  color: var(--c);
+  font-family: var(--font-num);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+@media (hover: hover) {
+  .coin-row li:hover { transform: translateY(-4px) rotate(-1.5deg); box-shadow: var(--glass-shadow-strong), 0 18px 34px -18px var(--c); }
+}
+
+/* Balance: un aura del color de la moneda elegida y un borde que gira despacio. */
+.bal {
+  position: relative;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(color-mix(in srgb, var(--cloud) 92%, transparent), color-mix(in srgb, var(--cloud) 92%, transparent)) padding-box,
+    conic-gradient(from var(--ang), transparent 0 55%, color-mix(in srgb, var(--bal-c) 70%, transparent) 75%, transparent 92%) border-box;
+  isolation: isolate;
+  transition: --bal-c 0.7s var(--ease);
+  animation: cf-spin 9s linear infinite;
+}
+.bal::before {
+  content: '';
+  position: absolute;
+  inset: 12% 18% auto;
+  z-index: -1;
+  height: 62%;
+  border-radius: 50%;
+  background: var(--bal-c);
+  opacity: 0.22;
+  filter: blur(60px);
+  pointer-events: none;
+}
+.bal-sym { background: linear-gradient(135deg, color-mix(in srgb, var(--bal-c) 70%, #5b9bf0), var(--bal-c)); -webkit-background-clip: text; background-clip: text; }
+@keyframes cf-spin { to { --ang: 360deg; } }
+
+/* Carrusel en 3D: la pantalla del centro de frente y las de los lados giradas
+   (src/cerofiao.js escribe --d, de −1 a 1, y su valor absoluto --ad). */
+.strip-track { perspective: 1200px; }
+.strip .shot picture { display: block; transform: rotateY(calc(var(--d, 0) * -16deg)) scale(calc(1 - var(--ad, 0) * 0.08)); filter: saturate(calc(1 - var(--ad, 0) * 0.35)); }
+.strip .shot figcaption { opacity: calc(1 - var(--ad, 0) * 0.55); }
+
+/* Lo que no tiene: un cero enorme que llega girando, como un contador. */
+.zero { height: 1em; margin-bottom: 18px; overflow: hidden; font-family: var(--font-num); font-size: clamp(64px, 7vw, 96px); line-height: 1; }
+.zero-strip { display: grid; transform: translateY(-83.3333%); transition: transform 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) calc(var(--i, 0) * 140ms + 200ms); }
+.zero-strip i { display: block; height: 1em; font-style: normal; background: linear-gradient(135deg, #1fc7c0, #5b7cf0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.motion .nots li:not(.in) .zero-strip { transform: none; }
+
+/* Cierre: la aurora del hero, monedas que suben y el icono que late. */
+.cta { isolation: isolate; }
+.cta-sky { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.cta-sky i { position: absolute; border-radius: 50%; filter: blur(70px); }
+.cta-sky i:nth-child(1) { top: 10%; left: -10%; width: 50%; height: 50%; background: var(--blob-a); opacity: calc(0.6 * var(--blob-o)); animation: cf-drift-a 18s ease-in-out infinite alternate; }
+.cta-sky i:nth-child(2) { top: 30%; right: -12%; width: 48%; height: 46%; background: var(--blob-b); opacity: calc(0.5 * var(--blob-o)); animation: cf-drift-b 22s ease-in-out infinite alternate; }
+.cta-sky i:nth-child(3) { bottom: -20%; left: 26%; width: 50%; height: 40%; background: var(--blob-c); opacity: calc(0.8 * var(--blob-o)); animation: cf-drift-c 26s ease-in-out infinite alternate; }
+.cta-coins { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.cta-coins li {
+  position: absolute;
+  bottom: -60px;
+  left: var(--x);
+  display: grid;
+  place-items: center;
+  min-width: 52px;
+  height: 52px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--glass);
+  box-shadow: var(--glass-shadow);
+  color: var(--c);
+  font-family: var(--font-num);
+  font-size: 22px;
+  scale: var(--z, 1);
+  opacity: 0;
+  animation: cf-coin 14s linear infinite;
+  animation-delay: var(--t, 0s);
+}
+@keyframes cf-coin {
+  0% { opacity: 0; transform: translateY(0) rotate(-8deg); }
+  12% { opacity: 0.9; }
+  80% { opacity: 0.7; }
+  100% { opacity: 0; transform: translateY(-560px) rotate(10deg); }
+}
+.cta-icon { position: relative; display: grid; place-items: center; width: 88px; height: 88px; margin: 0 auto 36px; }
+.cta .cta-icon img { position: relative; z-index: 1; width: 88px; margin: 0; border-radius: 22px; box-shadow: var(--shadow-card), 0 0 0 1px var(--edge); }
+.cta-ring { position: absolute; inset: 0; border: 1.5px solid color-mix(in srgb, var(--cyan) 60%, transparent); border-radius: 26px; opacity: 0; animation: cf-ring 3.6s cubic-bezier(0.2, 0.8, 0.2, 1) infinite; }
+.cta-ring:nth-child(2) { animation-delay: 1.2s; }
+.cta-ring:nth-child(3) { animation-delay: 2.4s; }
+@keyframes cf-ring { 0% { opacity: 0.8; scale: 1; } 100% { opacity: 0; scale: 2.4; } }
+.cta .pill.lg { box-shadow: 0 18px 40px -18px color-mix(in srgb, var(--blue) 70%, transparent); }
+
+@media (max-width: 900px) {
+  .cf-bg i { filter: blur(80px); }
+}
+@media (max-width: 560px) {
+  .coin-row li { gap: 10px; padding: 7px 16px 7px 7px; font-size: 18px; }
+  .coin-row span { min-width: 36px; height: 36px; font-size: 18px; }
+  .cta-coins li:nth-child(n+5) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cf-bg i, .cta-sky i, .cta-coins, .cta-ring, .bal { animation: none !important; }
+  .cf-bg i { translate: none !important; }
+  .strip .shot picture { transform: none !important; filter: none !important; }
+  .cta-coins { display: none; }
 }
