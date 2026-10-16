@@ -1,0 +1,146 @@
+/* Barra superior del estudio y cambio entre páginas.
+   Autocontenida: no depende de los colores de cada página. La usan la
+   portada, Lion Fitness y la página 404. */
+
+@view-transition { navigation: auto; }
+
+:root {
+  --sb-bg: rgba(255, 255, 255, 0.7);
+  --sb-bg-strong: rgba(255, 255, 255, 0.9);
+  --sb-line: rgba(15, 23, 42, 0.07);
+  --sb-ink: #0b1220;
+  --sb-muted: #5b6574;
+  --sb-hover: rgba(15, 23, 42, 0.055);
+  --sb-cta-bg: #0b1220;
+  --sb-cta-fg: #f4f8fb;
+  --sb-accent: #06b6d4;
+  --sb-shadow: rgba(255, 255, 255, 0.6) 0 1px 0 0 inset, rgba(20, 40, 60, 0.06) 0 4px 24px;
+  --sb-shadow-strong: rgba(255, 255, 255, 0.6) 0 1px 0 0 inset, rgba(20, 40, 60, 0.14) 0 10px 34px -6px, rgba(20, 40, 60, 0.05) 0 0 0 1px;
+  --sb-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --sb-bg: rgba(14, 18, 25, 0.62);
+    --sb-bg-strong: rgba(14, 18, 25, 0.86);
+    --sb-line: rgba(255, 255, 255, 0.08);
+    --sb-ink: #eef3f8;
+    --sb-muted: #8d99a8;
+    --sb-hover: rgba(255, 255, 255, 0.07);
+    --sb-cta-bg: #eef3f8;
+    --sb-cta-fg: #0b1220;
+    --sb-accent: #2dd4bf;
+    --sb-shadow: rgba(255, 255, 255, 0.06) 0 1px 0 0 inset, rgba(0, 0, 0, 0.4) 0 6px 24px;
+    --sb-shadow-strong: rgba(255, 255, 255, 0.07) 0 1px 0 0 inset, rgba(0, 0, 0, 0.55) 0 12px 34px -6px, rgba(255, 255, 255, 0.05) 0 0 0 1px;
+  }
+}
+:root[data-theme='dark'] {
+  --sb-bg: rgba(14, 18, 25, 0.62);
+  --sb-bg-strong: rgba(14, 18, 25, 0.86);
+  --sb-line: rgba(255, 255, 255, 0.08);
+  --sb-ink: #eef3f8;
+  --sb-muted: #8d99a8;
+  --sb-hover: rgba(255, 255, 255, 0.07);
+  --sb-cta-bg: #eef3f8;
+  --sb-cta-fg: #0b1220;
+  --sb-accent: #2dd4bf;
+  --sb-shadow: rgba(255, 255, 255, 0.06) 0 1px 0 0 inset, rgba(0, 0, 0, 0.4) 0 6px 24px;
+  --sb-shadow-strong: rgba(255, 255, 255, 0.07) 0 1px 0 0 inset, rgba(0, 0, 0, 0.55) 0 12px 34px -6px, rgba(255, 255, 255, 0.05) 0 0 0 1px;
+}
+
+/* Una cápsula de vidrio centrada, como la de CeroFiao. */
+.sb {
+  position: fixed;
+  z-index: 100;
+  top: 16px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  margin-inline: auto;
+  padding: 6px;
+  border-radius: 999px;
+  background: var(--sb-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow: var(--sb-shadow);
+  color: var(--sb-ink);
+  font: 500 14px/1 'Geist', 'Inter', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  view-transition-name: site-bar;
+  transition: background 0.3s, box-shadow 0.3s, top 0.35s var(--sb-ease);
+}
+.sb.is-stuck { top: 10px; background: var(--sb-bg-strong); box-shadow: var(--sb-shadow-strong); }
+.sb a { color: inherit; text-decoration: none; }
+.sb-logo { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; transition: background 0.2s; }
+.sb-logo img { display: block; width: 26px; height: 26px; transition: rotate 0.6s var(--sb-ease), scale 0.3s var(--sb-ease); }
+.sb-logo:hover { background: var(--sb-hover); }
+.sb-logo:hover img { rotate: -14deg; scale: 1.08; }
+
+.sb-links { position: relative; display: flex; gap: 2px; }
+.sb-links a { position: relative; z-index: 1; padding: 13px 15px; border-radius: 999px; color: var(--sb-muted); transition: color 0.2s; }
+.sb-links a:hover, .sb-links a[aria-current] { color: var(--sb-ink); }
+.sb-links a[aria-current]::after { content: ''; position: absolute; left: 50%; bottom: 5px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--sb-accent); }
+.sb-glow { position: absolute; z-index: 0; top: 0; left: 0; width: 0; height: 100%; border-radius: 999px; background: var(--sb-hover); opacity: 0; transition: opacity 0.2s, translate 0.35s var(--sb-ease), width 0.35s var(--sb-ease); pointer-events: none; }
+.sb-links:hover .sb-glow { opacity: 1; }
+
+.sb-end { display: flex; align-items: center; gap: 4px; }
+.sb .theme-btn { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--sb-muted); cursor: pointer; transition: background 0.2s, color 0.2s; }
+.sb .theme-btn[hidden] { display: none; }
+.sb .theme-btn:hover { background: var(--sb-hover); color: var(--sb-ink); }
+.sb .theme-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; transition: rotate 0.5s var(--sb-ease); }
+.sb .theme-btn:hover svg { rotate: 25deg; }
+.sb .theme-btn .sun { display: none; }
+:root[data-theme='dark'] .sb .theme-btn .sun { display: block; }
+:root[data-theme='dark'] .sb .theme-btn .moon { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .sb .theme-btn .sun { display: block; }
+  :root:not([data-theme]) .sb .theme-btn .moon { display: none; }
+}
+.sb-cta { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 999px; background: var(--sb-cta-bg); color: var(--sb-cta-fg) !important; transition: scale 0.2s var(--sb-ease), box-shadow 0.3s; }
+.sb-cta:hover { scale: 1.03; box-shadow: 0 8px 22px -10px color-mix(in srgb, var(--sb-accent) 70%, transparent); }
+.sb-cta:active { scale: 0.97; }
+.sb-cta svg, .sb-panel-cta svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; transition: translate 0.25s var(--sb-ease); }
+.sb-cta:hover svg { translate: 2px -2px; }
+.sb :focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 2px; }
+
+/* Menú del teléfono */
+.sb-menu { display: none; position: relative; }
+.sb-menu summary { display: grid; place-content: center; gap: 5px; width: 40px; height: 40px; border-radius: 50%; list-style: none; cursor: pointer; transition: background 0.2s; }
+.sb-menu summary:hover { background: var(--sb-hover); }
+.sb-menu summary::-webkit-details-marker { display: none; }
+.sb-menu summary i { display: block; width: 16px; height: 1.6px; border-radius: 2px; background: var(--sb-ink); transition: rotate 0.3s var(--sb-ease), translate 0.3s var(--sb-ease); }
+.sb-menu[open] summary i:first-child { translate: 0 3.3px; rotate: 45deg; }
+.sb-menu[open] summary i:last-child { translate: 0 -3.3px; rotate: -45deg; }
+.sb-panel { position: absolute; right: -6px; top: calc(100% + 14px); display: grid; gap: 2px; min-width: 240px; padding: 8px; border-radius: 24px; background: var(--sb-bg-strong); -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5); box-shadow: var(--sb-shadow-strong), 0 30px 60px -30px rgba(2, 12, 27, 0.5); transform-origin: top right; animation: sb-drop 0.32s var(--sb-ease); }
+.sb-panel a { padding: 14px 16px; border-radius: 16px; font-size: 17px; letter-spacing: -0.02em; animation: sb-item 0.4s var(--sb-ease) both; }
+.sb-panel a:nth-child(2) { animation-delay: 0.03s; }
+.sb-panel a:nth-child(3) { animation-delay: 0.06s; }
+.sb-panel a:nth-child(4) { animation-delay: 0.09s; }
+.sb-panel a:nth-child(5) { animation-delay: 0.12s; }
+.sb-panel a:hover { background: var(--sb-hover); }
+.sb-panel .sb-panel-cta { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; background: var(--sb-cta-bg); color: var(--sb-cta-fg) !important; }
+.sb-panel .sb-panel-cta:hover { background: var(--sb-cta-bg); }
+@keyframes sb-drop { from { opacity: 0; scale: 0.94; translate: 0 -6px; } }
+@keyframes sb-item { from { opacity: 0; translate: 0 6px; } }
+
+@media (max-width: 760px) {
+  .sb { left: 12px; right: 12px; justify-content: space-between; width: auto; max-width: none; }
+  .sb-links, .sb-cta { display: none; }
+  .sb-menu { display: block; }
+}
+
+/* Cambio de página: rápido, y la barra se queda quieta. */
+:root:not(.theme-swap)::view-transition-old(root) { animation: sb-out 0.14s ease-in both; }
+:root:not(.theme-swap)::view-transition-new(root) { animation: sb-in 0.26s var(--sb-ease) both; }
+::view-transition-group(site-bar) { animation-duration: 0.26s; animation-timing-function: var(--sb-ease); }
+@keyframes sb-out { to { opacity: 0; transform: translateY(-8px); filter: blur(4px); } }
+@keyframes sb-in { from { opacity: 0; transform: translateY(14px); filter: blur(4px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root), ::view-transition-group(site-bar) { animation: none !important; }
+  .sb-panel, .sb-panel a { animation: none; }
+}

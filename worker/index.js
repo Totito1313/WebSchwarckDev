@@ -14,6 +14,7 @@
 //   crm:pub:<docId>      aperturas, firma o rechazo de ese enlace (en metadatos)
 //   crm:sig:<docId>      la firma dibujada, como imagen PNG en texto
 //   crm:file:<id>        un archivo subido (recibo, imagen de una línea o de una tarea…)
+//   crm:seq              el último número usado por serie (FAC-2026…): nunca baja
 //   crm:<colección>      clientes, catálogo, formas de cobro, documentos, proyectos,
 //                        tareas, horas, páginas, leads, campañas…, cada colección en una sola clave
 //                        (ver CRM más abajo)
@@ -156,6 +157,9 @@ async function burstOk(limiter, key) {
     return true;
   }
 }
+
+/** La fecha de hoy en Venezuela, donde está el negocio: el último día de validez dura hasta su medianoche. */
+const todayHere = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
 
 const clean = (text) => String(text ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim();
 
@@ -343,20 +347,27 @@ function tidy(value, depth = 0) {
 
 const isRecord = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 
-/** Facturas, cotizaciones y recibos se numeran aquí, por tipo y por año: FAC-2026-0001. */
-function numberDoc(doc, list, before) {
+/**
+ * Facturas, cotizaciones y recibos se numeran aquí, por tipo y por año: FAC-2026-0001.
+ * El último número de cada serie queda en crm:seq: borrar la última factura no
+ * libera su número para la siguiente. Devuelve true si se usó un número nuevo.
+ */
+function numberDoc(doc, list, before, seq) {
   if (!DOC_PREFIX[doc.type]) throw new HttpError(400, 'Tipo de documento no válido.');
   if (before?.number && before.type === doc.type) {
     doc.number = before.number;
-    return;
+    return false;
   }
-  const year = /^\d{4}-\d{2}-\d{2}$/.test(doc.issueDate || '') ? doc.issueDate.slice(0, 4) : new Date().toISOString().slice(0, 4);
-  const prefix = `${DOC_PREFIX[doc.type]}-${year}-`;
-  let top = 0;
+  const year = /^\d{4}-\d{2}-\d{2}$/.test(doc.issueDate || '') ? doc.issueDate.slice(0, 4) : todayHere().slice(0, 4);
+  const series = `${DOC_PREFIX[doc.type]}-${year}`;
+  const prefix = `${series}-`;
+  let top = Number(seq[series]) || 0;
   for (const other of list) {
     if (typeof other.number === 'string' && other.number.startsWith(prefix)) top = Math.max(top, Number(other.number.slice(prefix.length)) || 0);
   }
   doc.number = prefix + String(top + 1).padStart(4, '0');
+  seq[series] = top + 1;
+  return true;
 }
 
 async function writeCrm(env, ops) {
@@ -366,6 +377,8 @@ async function writeCrm(env, ops) {
   const touched = new Set();
   const cleanup = [];
   const saved = [];
+  const conflicts = [];
+  let seq = null;
 
   for (const op of ops) {
     if (op?.col === 'settings') {
@@ -402,12 +415,23 @@ async function writeCrm(env, ops) {
     let item = tidy(op.item);
     if (!isRecord(item)) throw new HttpError(400, 'Elemento no válido.');
     const before = at >= 0 ? list[at] : null;
+    // Un documento editado a la vez en dos sitios: si el panel partió de una versión
+    // vieja, no pisa la nueva (con sus pagos). Se le devuelve la del servidor.
+    if (op.col === 'docs' && before && typeof op.base === 'string' && op.base && before.updatedAt && op.base !== before.updatedAt) {
+      conflicts.push({ col: op.col, item: before });
+      continue;
+    }
     // Lo que el cliente firmó ya no cambia: solo su estado y a qué factura o proyecto llevó.
+    let locked = false;
     if (op.col === 'docs' && before && SIGNABLE.includes(before.type) && (await pubMeta(env, id)).acceptedAt) {
       item = { ...before, status: item.status, invoiceId: item.invoiceId ?? before.invoiceId ?? '', projectId: item.projectId ?? before.projectId ?? '', share: item.share ?? null };
+      locked = true;
     }
     item.id = id;
-    if (op.col === 'docs') numberDoc(item, list, before);
+    if (op.col === 'docs') {
+      if (!seq && !(before?.number && before.type === item.type)) seq = (await env.SITE.get('crm:seq', 'json')) || {};
+      if (numberDoc(item, list, before, seq || {})) touched.add('seq');
+    }
     item.createdAt = before?.createdAt || now;
     item.updatedAt = now;
     if (enc.encode(JSON.stringify(item)).length > (spec.bytes || CRM_ITEM_BYTES)) throw new HttpError(413, 'Ese elemento pesa demasiado.');
@@ -415,17 +439,19 @@ async function writeCrm(env, ops) {
     else if (list.length >= spec.max) throw new HttpError(400, 'Llegaste al máximo de elementos de esa lista.');
     else list.push(item);
     touched.add(op.col);
-    saved.push({ col: op.col, item });
+    saved.push(locked ? { col: op.col, item, locked } : { col: op.col, item });
   }
 
+  const keyOf = (col) => (col === 'settings' ? 'crm:settings' : col === 'seq' ? 'crm:seq' : CRM[col].key);
+  const valueOf = (col) => JSON.stringify(col === 'seq' ? seq : data[col]);
   try {
-    await Promise.all([...touched].map((col) => env.SITE.put(col === 'settings' ? 'crm:settings' : CRM[col].key, JSON.stringify(data[col]))));
+    await Promise.all([...touched].map((col) => env.SITE.put(keyOf(col), valueOf(col))));
     await Promise.all(cleanup.map((key) => env.SITE.delete(key)));
   } catch (err) {
     if (/429|too many/i.test(String(err?.message))) throw new HttpError(429, 'Demasiados cambios seguidos.');
     throw err;
   }
-  return { ok: true, saved };
+  return { ok: true, saved, conflicts };
 }
 
 // Recibos de los gastos: imágenes o PDF, cada uno en su clave (crm:file:<id>).
@@ -476,6 +502,16 @@ const PUBLIC_FIELDS = ['type', 'number', 'status', 'issueDate', 'dueDate', 'vali
   'balanceAfter', 'invoiceNumber'];
 
 const pubMeta = async (env, docId) => (await env.SITE.getWithMetadata(`crm:pub:${docId}`)).metadata || {};
+
+/** Igual que readPub, pero si KV no deja listar (cuota del día agotada) el panel carga igual. */
+async function readPubSafe(env) {
+  try {
+    return await readPub(env);
+  } catch (err) {
+    console.error('pub', err);
+    return null;
+  }
+}
 
 async function readPub(env) {
   const pub = {};
@@ -573,7 +609,8 @@ async function publicDoc(request, env, url) {
 
   if (!action) {
     const now = Date.now();
-    if (!pub.lastViewAt || now - pub.lastViewAt > VIEW_GAP) {
+    // Lo que abre el dueño desde su panel («Abrir») no cuenta como visita del cliente.
+    if (body.own !== true && (!pub.lastViewAt || now - pub.lastViewAt > VIEW_GAP)) {
       const next = { ...pub, views: (pub.views || 0) + 1, viewedAt: pub.viewedAt || new Date(now).toISOString(), lastViewAt: now };
       try {
         await env.SITE.put(pubKey, '1', { metadata: next });
@@ -590,7 +627,8 @@ async function publicDoc(request, env, url) {
 
   if (!SIGNABLE.includes(doc.type)) throw new HttpError(400, 'Este documento no se firma.');
   if (pub.acceptedAt || pub.declinedAt) throw new HttpError(409, 'Este documento ya tiene respuesta.');
-  if (doc.validUntil && doc.validUntil < new Date().toISOString().slice(0, 10)) throw new HttpError(410, 'Este documento ya venció. Pide uno actualizado.');
+  if (doc.status === 'void' || doc.status === 'declined') throw new HttpError(409, 'Este documento ya no admite respuesta. Pide uno actualizado.');
+  if (doc.validUntil && doc.validUntil < todayHere()) throw new HttpError(410, 'Este documento ya venció. Pide uno actualizado.');
   if (!(await burstOk(env.WRITE_LIMIT, who))) throw new HttpError(429, 'Demasiadas peticiones. Espera un minuto.');
 
   if (action === 'accept') {
@@ -687,8 +725,8 @@ async function admin(request, env, url) {
 
   if (path === '/reviews' && method === 'GET') return json({ reviews: await allReviews(env) });
 
-  if (path === '/crm' && method === 'GET') return json({ ...(await readCrm(env)), pub: await readPub(env) });
-  if (path === '/crm/pub' && method === 'GET') return json({ pub: await readPub(env) });
+  if (path === '/crm' && method === 'GET') return json({ ...(await readCrm(env)), pub: await readPubSafe(env) });
+  if (path === '/crm/pub' && method === 'GET') return json({ pub: await readPubSafe(env) });
   if (path === '/crm/share' && method === 'POST') return json(await createShare(env, await readJson(request, 2000)), 201);
   const shareKey = /^\/crm\/share\/([A-Za-z0-9_-]{32})$/.exec(path);
   if (shareKey && method === 'DELETE') {

@@ -199,8 +199,18 @@ function lostDialog(l, done) {
 
 /** Lo pasa a cliente (o devuelve el que ya tiene). */
 export function toCustomer(l) {
-  const existing = l.customerId && find('customers', l.customerId);
-  if (existing) return existing;
+  // Ya era cliente (por su ficha o por su correo): se enlaza con ese en vez de crear otro igual.
+  const mail = (l.email || '').trim().toLowerCase();
+  const existing = (l.customerId && find('customers', l.customerId)) || (mail && state.customers.find((c) => (c.email || '').trim().toLowerCase() === mail));
+  if (existing) {
+    if (l.customerId !== existing.id) {
+      l.customerId = existing.id;
+      logActivity(l, 'note', `Enlazado con el cliente ${existing.name}`);
+      put('leads', l);
+      toast(`${existing.name} ya estaba en tus clientes: quedó enlazado.`);
+    }
+    return existing;
+  }
   const brand = l.brandId && find('brands', l.brandId);
   const c = {
     id: uid(),

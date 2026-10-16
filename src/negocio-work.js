@@ -183,6 +183,8 @@ export function removeProject(p) {
   for (const t of state.tasks.filter((x) => x.projectId === p.id)) remove('tasks', t.id);
   for (const e of state.time.filter((x) => x.projectId === p.id)) remove('time', e.id);
   for (const d of state.docs.filter((x) => x.projectId === p.id)) put('docs', { ...d, projectId: '' });
+  // Las páginas también se quedan, sin proyecto (si no, apuntarían a uno que ya no existe).
+  for (const pg of (state.pages || []).filter((x) => x.projectId === p.id)) put('pages', { ...pg, projectId: '' });
   remove('projects', p.id);
 }
 

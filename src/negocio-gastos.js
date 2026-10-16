@@ -8,7 +8,7 @@
 import {
   state, find, put, remove, uid, money, amountText, parseNum, dateText, monthText, shortMonth, todayISO, addDays,
   convert, strongest, unitName, el, icon, iconButton, avatar, empty, seg, field, input, select, dialog, confirmBox,
-  toast, autosize, addIcons, CURRENCY_CODES,
+  toast, autosize, addIcons, CURRENCY_CODES, numText,
 } from './negocio-core.js';
 
 addIcons({
@@ -69,7 +69,11 @@ export function stat({ label, value, sub, delta, upIsGood = true, tone, ico, wor
 /** El gasto en la moneda principal, o null si está en otra moneda y no tiene tasa. */
 export function expenseBase(e) {
   const amount = Number(e.amount) || 0;
-  return e.currency === base() ? amount : convert(amount, e.currency, base(), e.rate);
+  if (e.currency === base()) return amount;
+  // La tasa se escribió frente a la moneda principal de entonces (`rateBase`). Si
+  // la principal cambió, esa tasa ya no vale y el gasto cuenta como «sin tasa».
+  if (e.rateBase && e.rateBase !== base()) return null;
+  return convert(amount, e.currency, base(), e.rate);
 }
 
 export function sumExpenses(expenses) {
@@ -215,7 +219,7 @@ export function expenseForm(expense, onSaved) {
   const title = input({ value: x.title, required: true, maxLength: 120, placeholder: 'Suscripción de Figma' });
   const amount = input({ value: x.amount ? amountText(x.amount) : '', inputmode: 'decimal', required: true, placeholder: '0,00', 'aria-label': 'Importe' });
   const currency = select(CURRENCY_CODES.map((k) => [k, k]), x.currency, { 'aria-label': 'Moneda' });
-  const rate = input({ value: x.rate ? amountText(x.rate) : '', inputmode: 'decimal', placeholder: '0,00', 'aria-label': 'Tasa' });
+  const rate = input({ value: x.rate ? numText(x.rate) : '', inputmode: 'decimal', placeholder: '0,00', 'aria-label': 'Tasa' });
   const source = select(SOURCES.map((s) => [s, s]), x.rateSource || 'BCV', { 'aria-label': 'Fuente de la tasa' });
   const rateFrom = el('span');
   const rateTo = el('span');
@@ -235,7 +239,11 @@ export function expenseForm(expense, onSaved) {
   drawRate();
 
   const date = input({ type: 'date', value: x.date, required: true });
-  const category = select([...sortedCategories().map((c) => [c.id, c.name]), ['new', 'Nueva categoría…']], x.categoryId, { 'aria-label': 'Categoría' });
+  // Un gasto con una categoría archivada la conserva: no se cambia sola por la primera de la lista.
+  const current = x.categoryId && find('categories', x.categoryId);
+  const choices = sortedCategories().map((c) => [c.id, c.name]);
+  if (current?.archived) choices.push([current.id, `${current.name} (archivada)`]);
+  const category = select([...choices, ['new', 'Nueva categoría…']], x.categoryId, { 'aria-label': 'Categoría' });
   category.addEventListener('change', () => {
     if (category.value !== 'new') return;
     category.value = x.categoryId || sortedCategories()[0]?.id || '';
@@ -367,6 +375,7 @@ export function expenseForm(expense, onSaved) {
         amount: value,
         currency: cur,
         rate: cur === base() ? 0 : r,
+        rateBase: cur === base() ? '' : base(),
         rateSource: cur === base() ? '' : source.value,
         date: date.value || todayISO(),
         categoryId: cleanCat,
@@ -398,7 +407,7 @@ function newCategory(onDone) {
       const text = name.value.trim();
       if (!text) return false;
       const cats = list('categories');
-      const c = { id: uid(), name: text, color: COLORS[cats.length % COLORS.length], order: cats.length, archived: false };
+      const c = { id: uid(), name: text, color: COLORS[cats.length % COLORS.length], order: Math.max(-1, ...cats.map((x) => x.order ?? 0)) + 1, archived: false };
       put('categories', c);
       onDone?.(c);
       return true;
@@ -418,10 +427,11 @@ export function categoriesForm(onDone) {
       const move = (step) => {
         const other = cats[i + step];
         if (!other) return;
+        // Se renumeran todas y se guardan las que cambiaron: así no quedan órdenes repetidos.
+        const before = new Map(cats.map((cat) => [cat.id, cat.order]));
         cats.forEach((cat, k) => { cat.order = k; });
         [c.order, other.order] = [other.order, c.order];
-        put('categories', c);
-        put('categories', other);
+        for (const cat of cats) if (before.get(cat.id) !== cat.order) put('categories', cat);
         draw();
       };
       return el('div', { class: `ng-cat${c.archived ? ' is-off' : ''}` },

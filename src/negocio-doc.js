@@ -6,7 +6,7 @@
 
 import {
   state, find, put, remove, uid, bus, saving, flushNow, totals, docStatus, money, amountText, numText, parseNum, round2,
-  dateText, todayISO, addDays, strongest, unitName, snapshotCustomer, snapshotPayment, el, icon, iconButton, avatar, tag, empty, seg,
+  dateText, todayISO, addDays, strongest, unitName, snapshotCustomer, snapshotBusiness, snapshotPayment, el, icon, iconButton, avatar, tag, empty, seg,
   toggle, menu, picker, confirmBox, toast, qr, autosize, safeLink, input, select, CURRENCIES, CURRENCY_CODES, METHODS,
   methodLabel, DOC_WORD, DEFAULT_STYLE, api, pubOf, isSignable, isLocked, field,
 } from './negocio-core.js';
@@ -32,6 +32,12 @@ export function docEditor(id, { backTo } = {}) {
     return { node };
   }
   doc.style = { ...DEFAULT_STYLE, ...doc.style };
+  // Un documento incompleto (importado, o de una versión vieja) se abre igual.
+  doc.from ||= snapshotBusiness();
+  doc.customer ||= snapshotCustomer(null);
+  doc.items ||= [];
+  doc.payments ||= [];
+  doc.sections ||= [];
   let drawer = null;
   let refs = {};
 
@@ -447,9 +453,9 @@ export function docEditor(id, { backTo } = {}) {
       refs.due = el('b');
       box.append(el('div', { class: 'sh-row is-soft' }, el('span', { text: 'Pagado' }), refs.paid), el('div', { class: 'sh-row sh-due' }, el('span', { text: 'Saldo pendiente' }), refs.due));
     }
-    if (doc.signature) {
+    if (doc.signature !== false && (doc.from.signature || doc.from.name)) {
       box.append(el('div', { class: 'sh-sign' },
-        el('span', { class: 'sh-sign-name', text: state.settings.signature || doc.from.name || '' }),
+        el('span', { class: 'sh-sign-name', text: doc.from.signature || doc.from.name }),
         el('small', { text: doc.from.name || '' }),
       ));
     }
@@ -471,10 +477,10 @@ export function docEditor(id, { backTo } = {}) {
       ),
       el('div', { class: 'sh-rate' },
         el('span', { text: `1 ${unitName(strong)} =` }),
-        numIn(e.rate, (v) => { e.rate = v; }, { label: 'Tasa de cambio', cls: 'is-mini' }),
+        numIn(e.rate, (v) => { e.rate = v; e.date = doc.issueDate; }, { label: 'Tasa de cambio', cls: 'is-mini' }),
         el('span', { text: unitName(weak) }),
         select(SOURCES.map((s) => [s, s]), e.source, { class: 'sh-pick no-print', 'aria-label': 'Fuente de la tasa', onchange: (ev) => { e.source = ev.target.value; touch(); drawSheet(); } }),
-        el('span', { class: 'print-only', text: `· ${e.source}, ${dateText(doc.issueDate)}` }),
+        el('span', { class: 'print-only', text: `· ${e.source}, ${dateText(e.date || doc.issueDate)}` }),
       ),
     );
   }
@@ -632,6 +638,7 @@ export function docEditor(id, { backTo } = {}) {
   function duplicate() {
     const copy = structuredClone(doc);
     const today = todayISO();
+    if (copy.equiv) copy.equiv.date = doc.equiv.date || doc.issueDate;
     Object.assign(copy, { id: uid(), number: '', status: 'draft', issueDate: today, payments: [], invoiceId: '', fromQuoteId: '', fromQuote: '', share: null });
     delete copy.createdAt;
     delete copy.updatedAt;
@@ -647,6 +654,7 @@ export function docEditor(id, { backTo } = {}) {
   function toInvoice({ project = false } = {}) {
     const today = todayISO();
     const inv = structuredClone(doc);
+    if (inv.equiv) inv.equiv.date = doc.equiv.date || doc.issueDate;
     Object.assign(inv, { id: uid(), type: 'invoice', status: 'draft', number: '', issueDate: today, dueDate: addDays(today, Number(state.settings.dueDays) || 15), validUntil: '', payments: [], fromQuoteId: doc.id, fromQuote: doc.number, share: null });
     delete inv.createdAt;
     delete inv.updatedAt;
@@ -721,11 +729,12 @@ export function docEditor(id, { backTo } = {}) {
     }
     if (isSignable(doc)) {
       const linked = doc.invoiceId && find('docs', doc.invoiceId);
-      const convert = { label: 'Convertir en factura', icon: 'file', run: () => toInvoice() };
+      // Ya convertida: el botón lleva a su factura en vez de crear otra.
+      const convert = linked ? { label: 'Ver factura', icon: 'file', run: () => go(`#/doc/${linked.id}`) } : { label: 'Convertir en factura', icon: 'file', run: () => toInvoice() };
       const withProject = !linked && { label: 'Factura y proyecto', icon: 'folder', run: () => toInvoice({ project: true }) };
       const answered = pubOf(doc)?.acceptedAt || pubOf(doc)?.declinedAt;
       if (status === 'draft') return { primary: send, more: [convert, withProject, dup, '-', del] };
-      if (status === 'accepted') return { primary: linked ? { label: 'Ver factura', icon: 'file', run: () => go(`#/doc/${linked.id}`) } : convert, more: [withProject, !answered && { label: 'Reabrir', icon: 'undo', run: () => setStatus('sent') }, dup, '-', del] };
+      if (status === 'accepted') return { primary: convert, more: [withProject, !answered && { label: 'Reabrir', icon: 'undo', run: () => setStatus('sent') }, dup, '-', del] };
       if (status === 'declined') return { primary: answered ? null : { label: 'Reabrir', icon: 'undo', run: () => setStatus('sent') }, more: [dup, '-', del] };
       return {
         primary: convert,
@@ -776,6 +785,8 @@ export function docEditor(id, { backTo } = {}) {
         }))));
         left.append(tplBtn);
       }
+    } else if (locked) {
+      left.append(el('span', { class: glass }, icon('quote'), TITLE[doc.type]));
     } else {
       const typeBtn = el('button', { type: 'button', class: glass, 'aria-label': 'Tipo de documento' }, icon(doc.type === 'quote' ? 'quote' : 'file'), TITLE[doc.type], icon('down'));
       const hasPayments = doc.payments?.length > 0;
@@ -818,12 +829,20 @@ export function docEditor(id, { backTo } = {}) {
         },
         extra: doc.projectId ? el('button', { type: 'button', class: 'ng-pick-new', onclick: () => { doc.projectId = ''; touch(); drawBar(); } }, icon('x'), 'Sin proyecto') : null,
       }));
-      const curBtn = el('button', { type: 'button', class: glass, 'aria-label': 'Moneda' }, doc.currency, icon('down'));
-      curBtn.addEventListener('click', () => menu(curBtn, CURRENCY_CODES.map((k) => ({
-        label: `${k} · ${CURRENCIES[k].label}`,
-        icon: k === doc.currency ? 'check' : null,
-        run: () => { changeCurrency(k); touch(); drawBar(); drawSheet(); },
-      }))));
+      // Con pagos registrados la moneda ya no cambia: los pagos y sus recibos están en esta.
+      const paid = doc.payments?.length > 0;
+      const curBtn = el('button', { type: 'button', class: glass, 'aria-label': 'Moneda', title: paid ? 'Tiene pagos: la moneda ya no cambia' : null }, doc.currency, icon(paid ? 'lock' : 'down'));
+      curBtn.addEventListener('click', () => {
+        if (paid) {
+          toast('Esta factura ya tiene pagos en esta moneda. Para otra moneda, duplícala.', 'error');
+          return;
+        }
+        menu(curBtn, CURRENCY_CODES.map((k) => ({
+          label: `${k} · ${CURRENCIES[k].label}`,
+          icon: k === doc.currency ? 'check' : null,
+          run: () => { changeCurrency(k); touch(); drawBar(); drawSheet(); },
+        })));
+      });
       left.append(...[custBtn, projBtn, curBtn].filter(Boolean));
     }
     left.append(savingNote);
@@ -897,7 +916,7 @@ export function docEditor(id, { backTo } = {}) {
         el('input', { class: 'ng-share-url', value: url, readOnly: true, 'aria-label': 'Enlace', onfocus: (e) => e.target.select() }),
         el('div', { class: 'ng-head-actions' },
           el('button', { type: 'button', class: 'pill', onclick: copy }, icon('copy'), 'Copiar enlace'),
-          el('a', { class: 'pill ghost', href: url, target: '_blank', rel: 'noopener' }, icon('external'), 'Abrir'),
+          el('a', { class: 'pill ghost', href: `${location.origin}/documento/?vista=panel#${s.token}`, target: '_blank', rel: 'noopener', title: 'Abrirlo tú no cuenta como visita del cliente' }, icon('external'), 'Abrir'),
         ),
         el('ul', { class: 'ng-share-facts' },
           el('li', {}, icon('lock'), s.hasPassword ? 'Con contraseña' : 'Sin contraseña'),
@@ -1034,13 +1053,15 @@ export function docEditor(id, { backTo } = {}) {
         doc.status === 'draft' && el('small', { class: 'ng-hint', text: 'Al registrar un pago, la factura deja de ser borrador.' }),
         submit,
       );
-      form.addEventListener('submit', (e) => {
+      form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const value = round2(parseNum(amount.value));
         if (!(value > 0)) {
           toast('Escribe un importe mayor que cero.', 'error');
           return;
         }
+        // Un cero de más (5.000 en vez de 500) no debe dejar la factura «pagada» sin avisar.
+        if (value > t.due + 0.005 && !(await confirmBox(`El pago es de ${money(value, cur)} y el saldo es de ${money(t.due, cur)}: sobran ${money(round2(value - t.due), cur)}. ¿Registrarlo así?`, 'Registrar igual'))) return;
         const tplId = method.value.startsWith('tpl:') ? method.value.slice(4) : '';
         const tpl = tplId && find('paytemplates', tplId);
         const methodText = tpl ? tpl.name || methodLabel(tpl.method) : methodLabel(method.value);
@@ -1092,7 +1113,8 @@ export function docEditor(id, { backTo } = {}) {
       number: '',
       issueDate: payment.date,
       currency: doc.currency,
-      equiv: doc.equiv ? { ...doc.equiv } : null,
+      // La tasa conserva la fecha en que se puso: el recibo no la presenta como la del día del pago.
+      equiv: doc.equiv ? { ...doc.equiv, date: doc.equiv.date || doc.issueDate } : null,
       customerId: doc.customerId,
       customer: { ...doc.customer },
       from: { ...doc.from },

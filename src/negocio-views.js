@@ -9,7 +9,7 @@ import {
 import { projectForm, projectRow } from './negocio-projects.js';
 import { applyTemplate, PROPOSAL_TEMPLATES } from './negocio-propuesta.js';
 import { pagesCard } from './negocio-paginas.js';
-import { uploadFile, fileUrl } from './negocio-gastos.js';
+import { uploadFile, fileUrl, periodRange, within } from './negocio-gastos.js';
 
 export const go = (hash) => {
   location.hash = hash;
@@ -64,14 +64,8 @@ const WORDS = {
 const PERIODS = [['30d', '30 días'], ['month', 'Este mes'], ['year', 'Este año'], ['all', 'Todo']];
 const ui = { period: 'year' };
 
-function inPeriod(iso, period, today = todayISO()) {
-  if (!iso || period === 'all') return Boolean(iso) || period === 'all';
-  if (period === 'month') return iso.slice(0, 7) === today.slice(0, 7);
-  if (period === 'year') return iso.slice(0, 4) === today.slice(0, 4);
-  const from = new Date(`${today}T12:00:00`);
-  from.setDate(from.getDate() - 30);
-  return iso >= from.toLocaleDateString('en-CA') && iso <= today;
-}
+// Los mismos tramos que Inicio y Gastos: «30 días» son 30 (hoy incluido) y nada pasa de hoy.
+const inPeriod = (iso, period) => (period === 'all' ? true : within(iso, periodRange(period)));
 
 const base = () => state.settings.currency || 'USD';
 const owedText = (pending, overdue) => `${pending} ${pending === 1 ? 'pendiente' : 'pendientes'} · ${overdue} ${overdue === 1 ? 'vencida' : 'vencidas'}`;

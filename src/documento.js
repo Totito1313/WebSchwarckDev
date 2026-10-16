@@ -12,13 +12,15 @@ initTheme();
 
 const app = document.querySelector('[data-app]');
 const token = location.hash.slice(1);
+// Abierto por el dueño desde su panel («Abrir»): no cuenta como visita del cliente.
+const own = new URLSearchParams(location.search).get('vista') === 'panel';
 let password = '';
 
 async function call(action = '', body = {}) {
   const res = await fetch(`/api/public/doc/${token}${action ? `/${action}` : ''}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ...body, password }),
+    body: JSON.stringify({ ...body, password, ...(own && !action ? { own: true } : {}) }),
   });
   const data = await res.json().catch(() => ({}));
   return { ok: res.ok, status: res.status, data };
@@ -65,6 +67,8 @@ function gate(error = '') {
 function statusOf(doc, response) {
   if (response.acceptedAt) return ['Aceptada', 'var(--income)'];
   if (response.declinedAt) return ['Rechazada', 'var(--expense)'];
+  if (doc.status === 'void') return ['Anulada', 'var(--body)'];
+  if (doc.status === 'declined') return ['Ya no está vigente', 'var(--body)'];
   if (doc.type === 'invoice') {
     const t = totals(doc);
     if (t.total > 0 && t.paid >= t.total - 0.005) return ['Pagada', 'var(--income)'];
@@ -83,17 +87,34 @@ function signPad() {
   let ink = false;
   let drawing = false;
   const ctx = canvas.getContext('2d');
-  const fit = () => {
-    const r = canvas.getBoundingClientRect();
-    const ratio = Math.max(1, devicePixelRatio || 1);
-    canvas.width = Math.round(r.width * ratio);
-    canvas.height = Math.round(r.height * ratio);
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  // Cambiar el tamaño del lienzo lo borra. En el móvil, abrir o cerrar el teclado
+  // dispara `resize` sin cambiar el ancho: solo se rehace si cambia de verdad, y
+  // lo dibujado se copia al lienzo nuevo.
+  let width = 0;
+  const pen = () => {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.lineWidth = 2.4;
     ctx.strokeStyle = '#16181b';
-    ink = false;
+  };
+  const fit = (keep = true) => {
+    const r = canvas.getBoundingClientRect();
+    if (keep && Math.round(r.width) === width) return;
+    width = Math.round(r.width);
+    const ratio = Math.max(1, devicePixelRatio || 1);
+    const old = keep && ink && canvas.width ? Object.assign(document.createElement('canvas'), { width: canvas.width, height: canvas.height }) : null;
+    old?.getContext('2d').drawImage(canvas, 0, 0);
+    canvas.width = Math.round(r.width * ratio);
+    canvas.height = Math.round(r.height * ratio);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (old) ctx.drawImage(old, 0, 0, canvas.width, canvas.height);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    pen();
+    if (!old) ink = false;
+  };
+  const wipe = () => {
+    width = 0;
+    fit(false);
   };
   const at = (e) => {
     const r = canvas.getBoundingClientRect();
@@ -114,11 +135,11 @@ function signPad() {
   const end = () => { drawing = false; };
   canvas.addEventListener('pointerup', end);
   canvas.addEventListener('pointercancel', end);
-  requestAnimationFrame(fit);
-  addEventListener('resize', fit);
+  requestAnimationFrame(() => fit(false));
+  addEventListener('resize', () => fit());
   return {
     canvas,
-    clear: fit,
+    clear: wipe,
     hasInk: () => ink,
     /** La firma se guarda a tamaño de pantalla, sin fondo: así pesa poco. */
     image() {
@@ -204,8 +225,10 @@ function render({ doc, business, response, drawn }) {
   const title = `${DOC_TITLE[doc.type] || 'Documento'} ${doc.number || ''}`.trim();
   document.title = [doc.type === 'proposal' && doc.title ? doc.title : title, business.name].filter(Boolean).join(' · ');
   const [statusText, statusColor] = statusOf(doc, response);
-  const link = doc.type === 'invoice' && totals(doc).due > 0.004 ? safeLink(doc.payment?.link) : '';
-  const signable = (doc.type === 'quote' || doc.type === 'proposal') && !response.acceptedAt && !response.declinedAt && !(doc.validUntil && doc.validUntil < todayISO());
+  // Una factura anulada no se cobra, y lo anulado o rechazado ya no se firma.
+  const closed = doc.status === 'void' || doc.status === 'declined';
+  const link = doc.type === 'invoice' && !closed && totals(doc).due > 0.004 ? safeLink(doc.payment?.link) : '';
+  const signable = (doc.type === 'quote' || doc.type === 'proposal') && !closed && !response.acceptedAt && !response.declinedAt && !(doc.validUntil && doc.validUntil < todayISO());
 
   const brand = el('span', { class: 'ng-gchip dc-brand' },
     business.logo && el('img', { src: business.logo, alt: '' }),

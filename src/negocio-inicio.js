@@ -22,14 +22,18 @@ const invoices = () => list('docs').filter((d) => d.type === 'invoice' && counts
 function collected(r) {
   let sum = 0;
   let count = 0;
+  let skipped = 0;
   for (const d of invoices()) {
     for (const p of d.payments || []) {
       if (!within(p.date, r)) continue;
-      sum += inBase(d, Number(p.amount) || 0) || 0;
+      // En otra moneda y sin equivalencia no se puede sumar: se cuenta aparte y se avisa.
+      const v = inBase(d, Number(p.amount) || 0);
+      if (v == null) skipped += 1;
+      else sum += v;
       count += 1;
     }
   }
-  return { sum, count };
+  return { sum, count, skipped };
 }
 
 function greeting() {
@@ -172,7 +176,7 @@ export function homePage() {
       ),
       firstSteps(draw),
       el('div', { class: 'ng-dash-top' },
-        stat({ label: 'Cobrado', value: money(inc.sum, cur), delta: change(inc.sum, incBefore), sub: `${inc.count} ${inc.count === 1 ? 'pago' : 'pagos'} · ${money(billed, cur)} facturado` }),
+        stat({ label: 'Cobrado', value: money(inc.sum, cur), delta: change(inc.sum, incBefore), sub: `${inc.count} ${inc.count === 1 ? 'pago' : 'pagos'} · ${money(billed, cur)} facturado${inc.skipped ? ` · ${inc.skipped} sin equivalencia` : ''}` }),
         stat({ label: 'Gastado', value: money(spent.sum, cur), delta: change(spent.sum, spentBefore), upIsGood: false, sub: `${spentList.length} ${spentList.length === 1 ? 'gasto' : 'gastos'}${spent.skipped ? ` · ${spent.skipped} sin tasa` : ''}` }),
         stat({ label: 'Por cobrar', value: money(owed, cur), ico: 'clock', tone: overdue.length ? 'var(--expense)' : null, sub: overdue.length ? `${overdue.length} ${overdue.length === 1 ? 'factura vencida' : 'facturas vencidas'}` : `${open.length} ${open.length === 1 ? 'factura abierta' : 'facturas abiertas'}` }),
         el('article', { class: 'ng-hero' },

@@ -12,87 +12,85 @@
   <meta property="og:description" content="Lion Fitness es la app de entrenamiento de Schwarck Developer. Está en desarrollo.">
   <meta property="og:image" content="https://schwarckdev.com/img/og-schwarck.jpg">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="theme-color" content="#f4f4f5" data-light="#f4f4f5" data-dark="#09090b">
-  <script>try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <meta name="theme-color" content="#f5f7f9" data-light="#f5f7f9" data-dark="#07090c">
+  <script>try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t}catch(e){}if(!matchMedia('(prefers-reduced-motion: reduce)').matches)document.documentElement.classList.add('intro');addEventListener('pagereveal',function(e){if(e.viewTransition)document.documentElement.classList.add('vt-in')})</script>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="/src/studio.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/src/site-bar.css">
+  <link rel="stylesheet" href="/src/home.css">
 </head>
-<body>
+<body id="top">
 
 <a class="skip" href="#contenido">Saltar al contenido</a>
+<div class="grid-bg" aria-hidden="true"></div>
 
-<header class="top">
-  <div class="wrap">
-    <a class="brand" href="/"><span class="mark"></span>Schwarck</a>
-    <nav class="top-nav" aria-label="Principal">
-      <a href="/#apps">Apps</a>
-      <a href="/cerofiao/">CeroFiao</a>
-      <a href="/lionfitness/" aria-current="page">Lion Fitness</a>
-    </nav>
-    <div class="top-end">
-      <button class="theme-btn" type="button" data-theme-toggle hidden><svg class="moon" viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 11.6A6.5 6.5 0 0 1 8.4 3.5a6.5 6.5 0 1 0 8.1 8.1Z"/></svg><svg class="sun" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.4"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7 6 6M14 14l1.3 1.3M4.7 15.3 6 14M14 6l1.3-1.3"/></svg></button>
-      <a class="btn dark pill" href="mailto:soporte@schwarckdev.com">Escríbenos</a>
-      <details class="menu">
-        <summary aria-label="Menú"><i></i><i></i></summary>
-        <nav class="menu-panel" aria-label="Menú">
-          <a href="/#apps">Apps</a>
-          <a href="/cerofiao/">CeroFiao</a>
-          <a href="/lionfitness/">Lion Fitness</a>
-          <a href="mailto:soporte@schwarckdev.com">Escríbenos</a>
-          <div class="menu-theme" data-theme-group hidden>Tema <span class="theme-set" role="group" aria-label="Tema">
-              <button type="button" data-theme-set="system" aria-pressed="true">Sistema</button>
-              <button type="button" data-theme-set="light" aria-pressed="false">Claro</button>
-              <button type="button" data-theme-set="dark" aria-pressed="false">Oscuro</button>
-            </span></div>
-        </nav>
-      </details>
-    </div>
+<header class="sb">
+  <a class="sb-logo" href="/" aria-label="Schwarck Developer, inicio"><img src="/favicon.svg" alt="" width="30" height="30"></a>
+  <nav class="sb-links" aria-label="Principal">
+    <span class="sb-glow" aria-hidden="true"></span>
+    <a href="/" data-sb-path="/">Estudio</a>
+    <a href="/cerofiao/" data-sb-path="/cerofiao/">CeroFiao</a>
+    <a href="/lionfitness/" data-sb-path="/lionfitness/">Lion Fitness</a>
+    <a href="/#contacto">Contacto</a>
+  </nav>
+  <div class="sb-end">
+    <button class="theme-btn" type="button" data-theme-toggle hidden><svg class="moon" viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 11.6A6.5 6.5 0 0 1 8.4 3.5a6.5 6.5 0 1 0 8.1 8.1Z"/></svg><svg class="sun" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.4"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7 6 6M14 14l1.3 1.3M4.7 15.3 6 14M14 6l1.3-1.3"/></svg></button>
+    <a class="sb-cta" href="mailto:soporte@schwarckdev.com">Escríbenos <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M4 10 10 4M5 4h5v5"/></svg></a>
+    <details class="sb-menu">
+      <summary aria-label="Menú"><i></i><i></i></summary>
+      <nav class="sb-panel" aria-label="Menú">
+        <a href="/">Estudio</a>
+        <a href="/cerofiao/">CeroFiao</a>
+        <a href="/lionfitness/">Lion Fitness</a>
+        <a href="/#contacto">Contacto</a>
+        <a class="sb-panel-cta" href="mailto:soporte@schwarckdev.com">Escríbenos <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M4 10 10 4M5 4h5v5"/></svg></a>
+      </nav>
+    </details>
   </div>
 </header>
 
 <main id="contenido" class="wrap solo">
   <div class="solo-copy">
-    <div class="tags"><span class="tag fill">En desarrollo</span></div>
-    <h1>Lion Fitness</h1>
-    <p>Nuestra app de entrenamiento todavía se está construyendo. Esta página tendrá sus pantallas y su descarga cuando esté lista.</p>
-    <div class="actions">
-      <a class="btn dark" href="/cerofiao/">Mientras tanto, conoce CeroFiao</a>
-      <a class="btn soft" href="/">Volver al estudio</a>
+    <span class="mono label ia" style="--d:0">lion fitness / en desarrollo</span>
+    <h1 class="ia" style="--d:1">Lion <span class="grad">Fitness</span></h1>
+    <p class="ia" style="--d:2">Nuestra app de entrenamiento todavía se está construyendo. Esta página tendrá sus pantallas y su descarga cuando esté lista.</p>
+    <div class="actions ia" style="--d:3">
+      <a class="btn primary" href="/cerofiao/" data-magnet>Mientras tanto, conoce CeroFiao <svg class="ico" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 14 14 6M7 6h7v7"/></svg></a>
+      <a class="btn ghost" href="/">Volver al estudio</a>
     </div>
   </div>
-  <div class="solo-art night">
-    <img class="solo-lion" src="/img/lionfitness/logo.webp" alt="Logo de Lion Fitness: una cabeza de león" width="567" height="720">
+  <div class="solo-art ia" style="--d:2" data-spot>
+    <img src="/img/lionfitness/logo.webp" alt="Logo de Lion Fitness: una cabeza de león" width="567" height="720">
+    <span class="mono lf-code">&lt;compilando/&gt;</span>
+    <span class="lf-bar" aria-hidden="true"><i></i></span>
   </div>
 </main>
 
 <footer class="foot">
   <div class="wrap">
     <div class="foot-top">
-      <a class="brand" href="/"><span class="mark"></span>Schwarck</a>
+      <a class="foot-brand" href="/"><img src="/favicon.svg" alt="" width="28" height="28">Schwarck Developer</a>
       <nav aria-label="Pie">
         <a href="/cerofiao/">CeroFiao</a>
         <a href="/cerofiao/#novedades">Novedades</a>
         <a href="/cerofiao/privacidad/">Privacidad</a>
         <a href="/lionfitness/">Lion Fitness</a>
-        <a href="mailto:soporte@schwarckdev.com">soporte@schwarckdev.com</a>
+        <a href="mailto:soporte@schwarckdev.com">Correo</a>
       </nav>
     </div>
-    <div class="foot-end">
+    <p class="wordmark" aria-hidden="true" data-wordmark><span class="wm-line">Schwarck</span><span class="wm-fill">Schwarck</span></p>
+    <div class="foot-end mono">
       <span>© 2026 Schwarck Developer</span>
-      <span class="foot-theme" data-theme-group hidden>Tema <span class="theme-set" role="group" aria-label="Tema">
-          <button type="button" data-theme-set="system" aria-pressed="true">Sistema</button>
-          <button type="button" data-theme-set="light" aria-pressed="false">Claro</button>
-          <button type="button" data-theme-set="dark" aria-pressed="false">Oscuro</button>
-        </span></span>
-      <a class="up" href="#top">Volver arriba <svg class="ico" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4m-5 5 5-5 5 5"/></svg></a>
+      <span class="foot-theme" data-theme-group hidden>tema <span class="theme-set" role="group" aria-label="Tema"><button type="button" data-theme-set="system" aria-pressed="true">Sistema</button><button type="button" data-theme-set="light" aria-pressed="false">Claro</button><button type="button" data-theme-set="dark" aria-pressed="false">Oscuro</button></span></span>
+      <a class="up" href="#top">volver arriba <svg class="ico" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4m-5 5 5-5 5 5"/></svg></a>
     </div>
   </div>
 </footer>
 
-<script type="module" src="/src/studio.js"></script>
+<script type="module" src="/src/site-bar.js"></script>
+<script type="module" src="/src/solo.js"></script>
 </body>
 </html>

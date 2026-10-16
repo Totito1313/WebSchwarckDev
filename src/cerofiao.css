@@ -7,6 +7,15 @@
 
 /* El cambio de tema se abre en círculo desde el botón (lo anima src/theme.js). */
 .theme-swap::view-transition-old(root), .theme-swap::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+/* Cambio de página con el estudio: rápido y sin parpadeo. */
+@view-transition { navigation: auto; }
+:root:not(.theme-swap)::view-transition-old(root) { animation: cf-page-out 0.14s ease-in both; }
+:root:not(.theme-swap)::view-transition-new(root) { animation: cf-page-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes cf-page-out { to { opacity: 0; transform: translateY(-8px); filter: blur(4px); } }
+@keyframes cf-page-in { from { opacity: 0; transform: translateY(14px); filter: blur(4px); } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; }
+}
 
 *, *::before, *::after { box-sizing: border-box; }
 

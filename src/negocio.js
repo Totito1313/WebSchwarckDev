@@ -2,7 +2,7 @@
 // Usa la misma sesión que el resto del panel (/api/admin/*) y la estética de CeroFiao.
 
 import { initTheme } from './theme.js';
-import { api, loadAll, bus, hasUnsaved, flushNow, find, el, icon, menu, toast, refreshPub } from './negocio-core.js';
+import { api, loadAll, reloadAll, bus, hasUnsaved, flushNow, find, el, icon, menu, toast, refreshPub, empty } from './negocio-core.js';
 import { docsPage, customersPage, customerPage, catalogPage, settingsPage, createDoc, customerForm, catalogForm, go } from './negocio-views.js';
 import { docEditor } from './negocio-doc.js';
 import { expensesPage, expenseForm } from './negocio-gastos.js';
@@ -160,7 +160,13 @@ function draw() {
   current?.destroy?.();
   const route = resolve();
   if (!route.editor) lastList = location.hash || '#/facturas';
-  current = route.build();
+  try {
+    current = route.build();
+  } catch (err) {
+    // Un dato roto no deja la pantalla anterior congelada: se dice qué pasó y se puede volver.
+    console.error(err);
+    current = { node: el('div', { class: 'ng-page' }, empty({ ico: 'ban', title: 'No se pudo abrir esto', text: 'Algún dato de esta página está incompleto. Vuelve atrás o recarga.', action: el('a', { class: 'pill', href: '#/inicio', text: 'Ir al inicio' }) })) };
+  }
   current.editor = route.editor;
   views.app.replaceChildren(current.node);
   document.body.classList.toggle('is-editor', Boolean(route.editor));
@@ -193,26 +199,62 @@ bus.addEventListener('change', () => {
 bus.addEventListener('status', (e) => {
   if (e.detail.status === 'error' && !current?.editor) toast(`No se guardó: ${e.detail.message}`, 'error');
 });
+// Otro dispositivo cambió el documento abierto, o el cliente lo firmó: se enseña la versión buena.
+const COL_WORD = { docs: 'Este documento' };
+bus.addEventListener('conflict', (e) => {
+  const { col, reason } = e.detail;
+  if (reason === 'signed') {
+    toast('El cliente ya firmó este documento: se guardó solo su estado.', 'error');
+    refreshPub().catch(() => {});
+  } else {
+    toast(`${COL_WORD[col] || 'Esto'} cambió en otro dispositivo. Se cargó la versión más reciente: repite tu último cambio si hace falta.`, 'error');
+  }
+  if (current?.editor) render();
+});
+// Un cambio que el servidor no acepta (pesa demasiado, por ejemplo) se aparta para que lo demás se guarde.
+const ITEM_WORD = { docs: 'el documento', pages: 'la página', tasks: 'la tarea', projects: 'el proyecto', posts: 'la publicación', leads: 'el lead', customers: 'el cliente', settings: 'los ajustes' };
+bus.addEventListener('rejected', (e) => {
+  const { op, message } = e.detail;
+  const name = op.item?.title || op.item?.name || op.item?.number || '';
+  toast(`No se guardó ${ITEM_WORD[op.col] || 'un cambio'}${name ? ` «${name}»` : ''}: ${message}`, 'error');
+});
 bus.addEventListener('auth', () => {
   say('Tu sesión caducó. Entra de nuevo y se guarda lo pendiente.');
   show('login');
 });
+// Lo que un editor tiene en espera (las páginas guardan tras 2 s sin escribir)
+// entra en la fila antes de mirar si queda algo sin guardar.
 addEventListener('beforeunload', (event) => {
+  current?.flush?.();
   if (hasUnsaved()) event.preventDefault();
+});
+// Al dejar la pestaña se guarda ya: en el teléfono el navegador puede cerrarla sin avisar.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden || !opened) return;
+  current?.flush?.();
+  if (hasUnsaved()) flushNow().catch(() => {});
 });
 
 // ── Arranque ──
 // Solo se enseña con los datos cargados: una lista vacía por un fallo de red
 // haría pensar que no hay nada.
-// Al volver a la pestaña se miran los enlaces públicos: quién abrió, firmó o rechazó.
-let lastPub = 0;
-const checkPub = () => {
-  if (!opened || document.hidden || Date.now() - lastPub < 20_000) return;
-  lastPub = Date.now();
-  refreshPub().catch(() => {});
-};
-document.addEventListener('visibilitychange', checkPub);
-addEventListener('focus', checkPub);
+// Al volver a la pestaña tras un rato se vuelve a leer todo: lo hecho desde el
+// teléfono aparece aquí, y las firmas y aperturas de los enlaces también. Cada
+// lectura lista los enlaces en KV (unas 1.000 al día en el plan gratuito), así
+// que como mucho una cada dos minutos.
+let lastSync = 0;
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    hiddenAt = Date.now();
+    return;
+  }
+  if (!opened || Date.now() - lastSync < 120_000 || Date.now() - hiddenAt < 30_000) return;
+  lastSync = Date.now();
+  reloadAll().then((changed) => {
+    if (changed && current?.editor) render();
+  }).catch(() => {});
+});
 
 async function openApp() {
   loadingNote.textContent = 'Cargando…';
@@ -228,7 +270,7 @@ async function openApp() {
     return;
   }
   opened = true;
-  lastPub = Date.now();
+  lastSync = Date.now();
   ensureKeys();
   mountTimer(document.querySelector('[data-timer]'));
   show('app');

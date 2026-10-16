@@ -72,12 +72,12 @@ export function renderSheet(doc, { logo = '', response = null, drawnSrc = '' } =
       const v = strong === cur ? t.total * e.rate : t.total / e.rate;
       box.append(el('div', { class: 'sh-equiv' },
         row('Equivale a', money(round2(v), e.currency)),
-        el('div', { class: 'sh-rate', text: `1 ${unitName(strong)} = ${amountText(e.rate)} ${unitName(strong === cur ? e.currency : cur)} · ${e.source || ''}, ${dateText(doc.issueDate)}` }),
+        el('div', { class: 'sh-rate', text: `1 ${unitName(strong)} = ${numText(e.rate)} ${unitName(strong === cur ? e.currency : cur)} · ${e.source || ''}, ${dateText(e.date || doc.issueDate)}` }),
       ));
     }
     if (doc.type === 'invoice' && t.paid > 0) box.append(row('Pagado', money(-t.paid, cur), 'is-soft'), row('Saldo pendiente', money(t.due, cur), 'sh-due'));
-    if (doc.signature !== false && (f.name || '')) {
-      box.append(el('div', { class: 'sh-sign' }, el('span', { class: 'sh-sign-name', text: f.name }), el('small', { text: f.name })));
+    if (doc.signature !== false && (f.signature || f.name)) {
+      box.append(el('div', { class: 'sh-sign' }, el('span', { class: 'sh-sign-name', text: f.signature || f.name }), el('small', { text: f.name || '' })));
     }
     return box;
   };
@@ -91,7 +91,8 @@ export function renderSheet(doc, { logo = '', response = null, drawnSrc = '' } =
     }
     const p = doc.payment;
     if (!p) return el('div', { class: 'sh-pay' });
-    const link = safeLink(p.link);
+    // Anulada o ya pagada: sin QR ni botón para pagar.
+    const link = doc.status === 'void' || (doc.type === 'invoice' && totals(doc).due <= 0.004) ? '' : safeLink(p.link);
     return el('div', { class: 'sh-pay' },
       label('Datos de pago'),
       p.name && el('b', { class: 'sh-static', text: p.name }),

@@ -20,6 +20,18 @@ Cada `git push` a `main` se publica solo en Cloudflare.
 
 Son páginas HTML con CSS y un poco de JavaScript, construidas con Vite. No hay framework.
 
+### La portada del estudio
+
+Técnica y minimalista, con el gradiente del logo como único acento y el vidrio y los teléfonos de CeroFiao. Geist para el texto y Geist Mono para las etiquetas. Las secciones van numeradas de [01] a [07] con mucho aire entre ellas: productos, proceso, principios, cifras, roadmap, preguntas y contacto.
+
+- **Movimiento**: el titular entra palabra a palabra y el teléfono del hero se monta en su marco técnico (esquinas, órbitas, chips que flotan y una etiqueta que se escribe sola); el hero se aleja al bajar. Con ratón, la retícula del fondo tiene un foco que sigue al cursor, las tarjetas se iluminan e inclinan, y los botones principales tienen imán. El proceso es un teléfono fijo cuya pantalla cambia con cada paso; las cifras giran como un cuentakilómetros; el roadmap se dibuja; el logo grande del contacto se traza solo, y el nombre gigante del pie se ilumina bajo el cursor (en el teléfono se llena de color al aparecer). En pantallas anchas, un índice lateral marca la sección en la que estás.
+- **Sin JavaScript o con «reducir movimiento»** todo se ve completo y quieto, y las preguntas quedan abiertas.
+- `src/home.css` y `src/home.js`: la portada. Lion Fitness y la página 404 usan el mismo CSS (bloque «Página sola») y `src/solo.js`.
+- `src/site-bar.css` y `src/site-bar.js`: la barra del estudio (una cápsula de vidrio centrada, con brillo que sigue al cursor entre enlaces y menú en el teléfono) y el cambio entre páginas, rápido y con la barra quieta. CeroFiao conserva su propia barra y usa la misma transición.
+- `src/studio-fx.js`: lo que comparten esas páginas: la luz del cursor, los botones con imán y el nombre gigante del pie.
+
+Para verla sola, sin API, `npm run dev` (o la configuración «portada» de `.claude/launch.json`).
+
 - `src/motion.js`: revelados y animaciones ligadas al scroll. Sin JavaScript, o si la persona pidió menos movimiento, las páginas quedan completas y quietas.
 - `src/theme.js`: tema claro u oscuro. Sin elección guardada sigue al sistema.
 - `data/changelog.json`: las novedades de CeroFiao tal como salen sin panel. Vite las pinta en la página al construir.
@@ -136,7 +148,7 @@ En «Leads» (`#/leads`) se lleva a quien todavía no es cliente: de dónde lleg
 ### Gastos e inicio
 
 - **Inicio** (la portada del negocio): lo cobrado, lo gastado y lo que falta por cobrar en el periodo elegido, comparado con el tramo anterior; el beneficio; un gráfico de entradas y salidas de los últimos 12 meses; lo último que pasó; las facturas por cobrar y los últimos gastos. Mientras falte algo por configurar enseña unos «Primeros pasos».
-- **Gastos**: cada gasto se apunta en una ventana (concepto, importe, moneda, fecha, categoría, proveedor, forma de pago, notas y recibo). Si no está en la moneda principal pide la tasa del día del pago (BCV, paralelo…), y con ella se pasa a la moneda principal para siempre.
+- **Gastos**: cada gasto se apunta en una ventana (concepto, importe, moneda, fecha, categoría, proveedor, forma de pago, notas y recibo). Si no está en la moneda principal pide la tasa del día del pago (BCV, paralelo…), y con ella se pasa a la moneda principal para siempre. El gasto recuerda frente a qué moneda se puso esa tasa: si un día cambias la moneda principal, ese gasto sale como «sin tasa» en vez de convertirse mal.
 - **Recibos**: foto o PDF de hasta 3 MB, arrastrándolo a la ventana. Las fotos se reducen antes de subirse. Se guardan aparte en KV (`crm:file:<id>`) y solo se sirven a quien tiene la sesión del panel.
 - **Proveedores**: se crean solos al escribir su nombre; con su web se muestra su logo (lo da DuckDuckGo a partir del dominio).
 - **Categorías**: se proponen ocho la primera vez; en «Categorías» se renombran, ordenan, recolorean, archivan o borran.
@@ -153,7 +165,10 @@ En «Leads» (`#/leads`) se lleva a quien todavía no es cliente: de dónde lleg
 - **Firma**: en cotizaciones y propuestas, el cliente acepta escribiendo su nombre o dibujando su firma, y queda la fecha y la hora. También puede rechazar con un motivo. Lo firmado se bloquea: el servidor no deja cambiar su contenido, solo su estado y a qué factura o proyecto llevó.
 - **Después de firmar**: «Convertir en factura» copia las líneas a una factura nueva, y «Factura y proyecto» además crea el proyecto con su presupuesto.
 
-El panel se entera de aperturas y firmas al volver a su pestaña.
+El panel se entera de aperturas y firmas al volver a su pestaña. Abrir el enlace con «Abrir» desde el panel no cuenta como visita del cliente.
+
+- **Lo que ya no se firma**: una cotización o propuesta anulada o marcada como rechazada ya no admite respuesta, y una factura anulada sale como «Anulada», sin botón ni QR para pagar. La validez dura hasta la medianoche de Venezuela del último día, igual en la página y en el servidor.
+- **Números**: el último número de cada serie (`FAC-2026`, `COT-2026`…) queda en `crm:seq` y nunca baja: borrar la última factura no hace que la siguiente repita su número.
 
 - `src/negocio-propuesta.js`: los bloques y las plantillas.
 - `src/negocio-sheet.js`: la hoja de solo lectura (enlace público y documentos firmados).
@@ -183,9 +198,17 @@ Cada publicación lleva título, marca, fecha y hora, formato, categoría, rol e
 - `src/negocio-marketing.js`: la página, las campañas, los resultados, las copias, el feed y las marcas.
 - `src/negocio-marketing.css`: sus estilos.
 
+### Guardado y varios dispositivos
+
+- Cada cambio se guarda solo, en lotes, un segundo y medio después de dejar de escribir (las páginas, a los dos segundos), y al momento al dejar la pestaña o cerrarla.
+- Si el servidor rechaza un cambio (por ejemplo, una página que pasa del tamaño máximo), ese cambio se aparta con un aviso que dice cuál fue y lo demás se sigue guardando.
+- Al volver a la pestaña tras un rato, el panel vuelve a leerlo todo: lo hecho desde el teléfono aparece aquí. Para no gastar la cuota diaria de KV, como mucho una vez cada dos minutos.
+- Un documento abierto a la vez en dos sitios no se pisa: cada guardado lleva la versión de la que partió, y si en el servidor hay una más nueva (con un pago registrado desde el teléfono, por ejemplo) el panel carga esa y avisa.
+- Lo firmado por el cliente mientras estaba abierto en el panel se queda como lo firmó: el panel carga esa versión y lo dice.
+
 ### Dónde se guardan los datos
 
-En un espacio KV de Cloudflare enlazado como `SITE` (lo crea `wrangler deploy` la primera vez). Guarda la lista de novedades, las reseñas y los datos del negocio (cada colección en una clave `crm:*`, también las páginas, los leads y las campañas; cada archivo subido —recibos, fotos de líneas, portadas e imágenes— en `crm:file:*`, cada enlace público en `crm:share:*`, y lo que pasa en él en `crm:pub:*` y `crm:sig:*`). Las reseñas llevan el nombre que escribió la persona, su calificación, el texto y la fecha; no se guarda correo ni dirección IP.
+En un espacio KV de Cloudflare enlazado como `SITE` (lo crea `wrangler deploy` la primera vez). Guarda la lista de novedades, las reseñas y los datos del negocio (cada colección en una clave `crm:*`, también las páginas, los leads y las campañas; cada archivo subido —recibos, fotos de líneas, portadas e imágenes— en `crm:file:*`, cada enlace público en `crm:share:*`, lo que pasa en él en `crm:pub:*` y `crm:sig:*`, y el último número de cada serie de documentos en `crm:seq`). Las reseñas llevan el nombre que escribió la persona, su calificación, el texto y la fecha; no se guarda correo ni dirección IP.
 
 ## Cuando CeroFiao esté en Google Play
 

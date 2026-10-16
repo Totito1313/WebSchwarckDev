@@ -50,11 +50,39 @@ export const state = { settings: { ...DEFAULT_SETTINGS, style: { ...DEFAULT_STYL
 export const bus = new EventTarget();
 const emit = (type, detail = {}) => bus.dispatchEvent(new CustomEvent(type, { detail }));
 
-export async function loadAll() {
-  const data = await api('/crm');
+function apply(data) {
   state.settings = { ...DEFAULT_SETTINGS, ...data.settings, style: { ...DEFAULT_STYLE, ...data.settings?.style } };
   for (const col of COLS) state[col] = Array.isArray(data[col]) ? data[col] : [];
-  state.pub = data.pub && typeof data.pub === 'object' ? data.pub : {};
+  // Sin `pub` (el servidor no pudo listar los enlaces hoy) se queda lo que había.
+  if (data.pub && typeof data.pub === 'object') state.pub = data.pub;
+  else state.pub ||= {};
+}
+
+export async function loadAll() {
+  apply(await api('/crm'));
+}
+
+/** Huella barata de los datos: cuántos hay y cuándo cambió el último de cada lista. */
+function fingerprint() {
+  const cols = COLS.map((col) => `${state[col].length}:${state[col].reduce((top, x) => (x.updatedAt > top ? x.updatedAt : top), '')}`);
+  return `${cols.join('|')}|${state.settings.updatedAt || ''}|${JSON.stringify(state.pub || {})}`;
+}
+
+/**
+ * Vuelve a leer todo del servidor, por ejemplo al volver a la pestaña tras un rato:
+ * lo cambiado desde el teléfono aparece aquí y una pestaña vieja no lo pisa.
+ * Si hay algo sin guardar, no se toca nada. Devuelve true si cambió algo.
+ */
+export async function reloadAll() {
+  if (hasUnsaved()) return false;
+  const data = await api('/crm');
+  if (hasUnsaved()) return false;
+  const before = fingerprint();
+  apply(data);
+  if (fingerprint() === before) return false;
+  emit('pub');
+  emit('change', { col: '*' });
+  return true;
 }
 
 /** Lo que pasó en el enlace público de un documento: aperturas, firma o rechazo. */
@@ -66,8 +94,9 @@ export const isLocked = (doc) => isSignable(doc) && Boolean(pubOf(doc)?.accepted
 /** Vuelve a leer las respuestas de los enlaces (al volver a la pestaña, por ejemplo). */
 export async function refreshPub() {
   const { pub } = await api('/crm/pub');
+  if (!pub) return;
   const before = JSON.stringify(state.pub || {});
-  state.pub = pub || {};
+  state.pub = pub;
   if (JSON.stringify(state.pub) !== before) {
     emit('pub');
     emit('change', { col: 'pub' });
@@ -78,12 +107,17 @@ export const find = (col, id) => state[col].find((x) => x.id === id);
 export const uid = () => crypto.randomUUID();
 
 // Fila de guardado: un cambio por elemento (el último gana) y un lote cada vez.
+// Si el servidor rechaza un lote (un elemento que pesa demasiado, por ejemplo), los
+// lotes siguientes se parten por la mitad hasta dar con el culpable, que se aparta
+// con un aviso: un solo cambio malo no deja sin guardar todo lo demás.
+const BATCH = 50;
 const pending = new Map();
 const waiters = [];
 let timer = 0;
 let busy = false;
 let lastSent = 0;
 let failures = 0;
+let batchSize = BATCH;
 export const saving = { status: 'saved', message: '' };
 
 function setStatus(status, message = '') {
@@ -96,7 +130,7 @@ function settle(error) {
   for (const w of waiters.splice(0)) error ? w.reject(error) : w.resolve();
 }
 
-function schedule(delay = 800) {
+function schedule(delay = 1500) {
   clearTimeout(timer);
   timer = setTimeout(flush, delay);
   if (!busy) setStatus('pending');
@@ -133,16 +167,32 @@ export function flushNow() {
 }
 
 /** Lo que devuelve el servidor (número, fechas) se copia sin pisar lo editado mientras tanto. */
-function merge(col, item) {
+function merge({ col, item, locked }) {
   if (col === 'settings') {
     state.settings.updatedAt = item.updatedAt;
     return;
   }
+  // El cliente firmó mientras tanto: el servidor guardó solo el estado; manda su versión.
+  if (locked) return adopt(col, item, 'signed');
   const local = find(col, item.id);
   if (!local) return;
   if (item.number) local.number = item.number;
   local.createdAt = item.createdAt;
   local.updatedAt = item.updatedAt;
+}
+
+/** El servidor tiene una versión más nueva (de otro dispositivo, o firmada): esa queda, en el mismo objeto. */
+function adopt(col, item, reason) {
+  const local = find(col, item.id);
+  if (local) {
+    for (const key of Object.keys(local)) if (!(key in item)) delete local[key];
+    Object.assign(local, item);
+  } else {
+    state[col].push(item);
+  }
+  pending.delete(`${col}:${item.id}`);
+  emit('conflict', { col, id: item.id, reason });
+  emit('change', { col, id: item.id });
 }
 
 async function flush() {
@@ -159,22 +209,42 @@ async function flush() {
     return;
   }
   busy = true;
-  const ops = [...pending.values()].slice(0, 50);
+  const ops = [...pending.values()].slice(0, batchSize);
   for (const op of ops) pending.delete(`${op.col}:${op.id || ''}`);
   setStatus('saving');
   lastSent = Date.now();
+  // Cada documento va con la versión del servidor de la que partió: si otro
+  // dispositivo lo cambió después, el servidor no lo pisa.
+  const body = ops.map((op) => (op.op === 'put' && op.col === 'docs' && op.item?.updatedAt ? { ...op, base: op.item.updatedAt } : op));
   try {
-    const { saved } = await api('/crm/batch', { method: 'POST', body: { ops } });
+    const { saved, conflicts = [] } = await api('/crm/batch', { method: 'POST', body: { ops: body } });
     failures = 0;
-    for (const { col, item } of saved) merge(col, item);
+    batchSize = Math.min(BATCH, batchSize * 2);
+    for (const entry of saved) merge(entry);
+    for (const { col, item } of conflicts) adopt(col, item, 'conflict');
     busy = false;
     emit('saved', { saved });
   } catch (err) {
     busy = false;
+    const refused = err.status >= 400 && err.status < 500 && ![401, 408, 429].includes(err.status);
+    if (refused && ops.length === 1) {
+      // Este cambio el servidor no lo acepta nunca: se aparta y sigue lo demás.
+      const [op] = ops;
+      setStatus('error', err.message);
+      emit('rejected', { op, message: err.message });
+      settle(err);
+      if (pending.size) timer = setTimeout(flush, 0);
+      return;
+    }
     // Lo que no llegó vuelve a la fila, salvo que ya haya una versión más nueva.
     for (const op of ops) {
       const key = `${op.col}:${op.id || ''}`;
       if (!pending.has(key)) pending.set(key, op);
+    }
+    if (refused) {
+      batchSize = Math.max(1, Math.floor(ops.length / 2));
+      timer = setTimeout(flush, 0);
+      return;
     }
     if (err.status === 401) {
       setStatus('error', 'La sesión caducó.');
@@ -366,7 +436,7 @@ export function snapshotCustomer(c) {
 }
 
 export function snapshotBusiness(s = state.settings) {
-  return { name: s.name || '', taxId: s.taxId || '', email: s.email || '', phone: s.phone || '', address: s.address || '', website: s.website || '' };
+  return { name: s.name || '', taxId: s.taxId || '', email: s.email || '', phone: s.phone || '', address: s.address || '', website: s.website || '', signature: s.signature || '' };
 }
 
 export function snapshotPayment(t) {

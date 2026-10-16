@@ -1016,6 +1016,7 @@ function editor(id, side) {
 
   return {
     node: box,
+    flush: flushPending,
     // Lo que cambia fuera (otra pestaña, una tarea renombrada) se ve sin pisar lo que se escribe.
     refresh: () => {
       if (box.contains(document.activeElement)) return;
@@ -1045,6 +1046,7 @@ export function pagesPage(id = '') {
       if (!side.node.contains(document.activeElement)) side.refresh();
       main.refresh();
     },
+    flush: () => main.flush?.(),
     destroy: () => main.destroy?.(),
   };
 }
