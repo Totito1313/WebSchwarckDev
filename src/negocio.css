@@ -643,6 +643,8 @@ span.ng-gchip { cursor: default; }
 .ng-bar.is-wide i { background: var(--income); }
 .ng-payform { padding-top: 4px; }
 .ng-payform .pill { justify-self: stretch; }
+/* El cajón es estrecho: la tasa encoge para que la fuente quepa en la misma línea. */
+.ng-payform .ng-rate input { flex: 1 1 60px; width: 60px; }
 .ng-hint { display: flex; align-items: center; gap: 8px; color: var(--body); font-size: 14px; }
 .ng-hint.is-ok { color: var(--income); font-weight: 500; }
 .ng-history { display: grid; gap: 8px; }

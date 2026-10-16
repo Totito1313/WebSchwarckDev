@@ -6,14 +6,14 @@
 
 import {
   state, find, put, remove, uid, bus, saving, flushNow, totals, docStatus, money, amountText, numText, parseNum, round2,
-  dateText, todayISO, addDays, strongest, unitName, snapshotCustomer, snapshotBusiness, snapshotPayment, el, icon, iconButton, avatar, tag, empty, seg,
+  convert, dateText, todayISO, addDays, strongest, unitName, snapshotCustomer, snapshotBusiness, snapshotPayment, el, icon, iconButton, avatar, tag, empty, seg,
   toggle, menu, picker, confirmBox, toast, qr, autosize, safeLink, input, select, CURRENCIES, CURRENCY_CODES, METHODS,
   methodLabel, DOC_WORD, DEFAULT_STYLE, api, pubOf, isSignable, isLocked, field,
 } from './negocio-core.js';
 import { go, customerForm, templateForm, catalogForm } from './negocio-views.js';
 import { ACCENTS, renderSheet, acceptance, stampText } from './negocio-sheet.js';
 import { renderBlocks, applyTemplate, PROPOSAL_TEMPLATES, BLOCKS, block } from './negocio-propuesta.js';
-import { uploadFile, fileUrl } from './negocio-gastos.js';
+import { uploadFile, fileUrl, SOURCES as RATE_SOURCES } from './negocio-gastos.js';
 import { newProject } from './negocio-work.js';
 
 const ACCENT_NAMES = { ink: 'Tinta', cyan: 'Cian', blue: 'Azul', green: 'Verde', violet: 'Violeta', orange: 'Naranja' };
@@ -1039,14 +1039,35 @@ export function docEditor(id, { backTo } = {}) {
       ];
       const method = select(methods, doc.payment?.templateId && state.paytemplates.some((x) => x.id === doc.payment.templateId) ? `tpl:${doc.payment.templateId}` : methods[0][0], { 'aria-label': 'Forma de pago' });
       const note = input({ placeholder: 'Referencia (opcional)', maxLength: 120, 'aria-label': 'Referencia' });
+      // Fuera de la moneda principal, el pago guarda la tasa del día en que entró:
+      // con ella cuenta en los informes, aunque la equivalencia de la factura sea de otro día.
+      const home = state.settings.currency;
+      const known = doc.equiv?.currency === home && doc.equiv.rate > 0 ? doc.equiv : null;
+      const rate = input({ value: known ? numText(known.rate) : '', inputmode: 'decimal', placeholder: '0,00', 'aria-label': 'Tasa' });
+      const source = select(RATE_SOURCES.map((s) => [s, s]), RATE_SOURCES.includes(known?.source) ? known.source : 'BCV', { 'aria-label': 'Fuente de la tasa' });
+      const strong = strongest(cur, home);
+      const rateHint = el('small');
+      const drawRateHint = () => {
+        const v = convert(parseNum(amount.value), cur, home, parseNum(rate.value));
+        rateHint.textContent = v == null ? `Con ella el pago pasa a ${home} en los informes.` : `Son ${money(round2(v), home)} en tu moneda principal.`;
+      };
+      const rateRow = cur !== home && el('div', { class: 'ng-field' },
+        el('span', { text: 'Tasa del día del pago' }),
+        el('div', { class: 'ng-rate' }, el('span', { text: `1 ${unitName(strong)} =` }), rate, el('span', { text: unitName(strong === cur ? home : cur) }), source),
+        rateHint,
+      );
+      drawRateHint();
+      rate.addEventListener('input', drawRateHint);
       let makeReceipt = true;
       const submit = el('button', { type: 'submit', class: 'pill' }, icon('dollar'), `Registrar ${money(t.due, cur)}`);
       amount.addEventListener('input', () => {
         submit.lastChild.textContent = `Registrar ${money(parseNum(amount.value), cur)}`;
+        drawRateHint();
       });
       const form = el('form', { class: 'ng-form ng-payform' },
         el('h3', { text: 'Nuevo pago' }),
         el('div', { class: 'ng-grid2' }, el('label', { class: 'ng-field' }, el('span', { text: 'Importe' }), amount), el('label', { class: 'ng-field' }, el('span', { text: 'Fecha' }), date)),
+        rateRow,
         el('label', { class: 'ng-field' }, el('span', { text: 'Forma de pago' }), method),
         el('label', { class: 'ng-field' }, el('span', { text: 'Referencia' }), note),
         toggle('Generar recibo', true, (v) => { makeReceipt = v; }),
@@ -1060,12 +1081,19 @@ export function docEditor(id, { backTo } = {}) {
           toast('Escribe un importe mayor que cero.', 'error');
           return;
         }
+        const r = parseNum(rate.value);
+        if (rateRow && !(r > 0)) {
+          toast(`Falta la tasa para pasarlo a ${home}.`, 'error');
+          rate.focus();
+          return;
+        }
         // Un cero de más (5.000 en vez de 500) no debe dejar la factura «pagada» sin avisar.
         if (value > t.due + 0.005 && !(await confirmBox(`El pago es de ${money(value, cur)} y el saldo es de ${money(t.due, cur)}: sobran ${money(round2(value - t.due), cur)}. ¿Registrarlo así?`, 'Registrar igual'))) return;
         const tplId = method.value.startsWith('tpl:') ? method.value.slice(4) : '';
         const tpl = tplId && find('paytemplates', tplId);
         const methodText = tpl ? tpl.name || methodLabel(tpl.method) : methodLabel(method.value);
         const payment = { id: uid(), date: date.value || todayISO(), amount: value, method: methodText, note: note.value.trim(), receiptId: '' };
+        if (rateRow) Object.assign(payment, { rate: r, rateBase: home, rateSource: source.value });
         if (makeReceipt) {
           const receipt = receiptFor(payment, round2(Math.max(0, t.due - value)));
           payment.receiptId = receipt.id;
@@ -1085,10 +1113,15 @@ export function docEditor(id, { backTo } = {}) {
     }
 
     const history = [...(doc.payments || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const rateText = (p) => {
+      if (!(p.rate > 0) || !p.rateBase) return '';
+      const strong = strongest(cur, p.rateBase);
+      return `1 ${unitName(strong)} = ${numText(p.rate)} ${unitName(strong === cur ? p.rateBase : cur)}`;
+    };
     box.append(el('h3', { text: 'Historial' }), history.length ? el('ul', { class: 'ng-history' }, history.map((p) => {
       const receipt = p.receiptId && find('docs', p.receiptId);
       return el('li', {},
-        el('div', {}, el('b', { text: money(p.amount, cur) }), el('small', { text: [dateText(p.date), p.method, p.note].filter(Boolean).join(' · ') })),
+        el('div', {}, el('b', { text: money(p.amount, cur) }), el('small', { text: [dateText(p.date), p.method, rateText(p), p.note].filter(Boolean).join(' · ') })),
         receipt && el('a', { class: 'ng-history-link', href: `#/doc/${receipt.id}`, text: receipt.number || 'Recibo' }),
         iconButton('trash', 'Borrar este pago', async () => {
           const yes = await confirmBox(`¿Borrar el pago de ${money(p.amount, cur)}?${receipt ? ' Su recibo también se borra.' : ''}`, 'Borrar');

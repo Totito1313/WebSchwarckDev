@@ -2,7 +2,7 @@
 // Cada página devuelve { node, refresh }: refresh repinta los datos sin tocar filtros ni foco.
 
 import {
-  state, find, put, remove, uid, newDoc, totals, docStatus, inBase, counts, money, dateText, monthText, shortMonth,
+  state, find, put, remove, uid, newDoc, totals, docStatus, inBase, paymentBase, counts, money, dateText, monthText, shortMonth,
   todayISO, el, icon, iconButton, avatar, tag, kpi, empty, seg, field, input, select, dialog, confirmBox, toast,
   parseNum, amountText, round2, CURRENCIES, CURRENCY_CODES, METHODS, methodLabel, safeLink, autosize, toggle, menu,
 } from './negocio-core.js';
@@ -69,15 +69,19 @@ const inPeriod = (iso, period) => (period === 'all' ? true : within(iso, periodR
 
 const base = () => state.settings.currency || 'USD';
 const owedText = (pending, overdue) => `${pending} ${pending === 1 ? 'pendiente' : 'pendientes'} · ${overdue} ${overdue === 1 ? 'vencida' : 'vencidas'}`;
-const sumBase = (pairs) => {
+/**
+ * Suma en la moneda principal pares [documento, importe], o [factura, pago] con
+ * `paymentBase`. `left` son los documentos que se quedaron fuera por la moneda.
+ */
+const sumBase = (pairs, toBase = inBase) => {
   let sum = 0;
-  let skipped = 0;
-  for (const [doc, amount] of pairs) {
-    const v = inBase(doc, amount);
-    if (v == null) skipped += 1;
+  const left = new Set();
+  for (const [doc, x] of pairs) {
+    const v = toBase(doc, x);
+    if (v == null) left.add(doc);
     else sum += v;
   }
-  return { sum, skipped };
+  return { sum, skipped: left.size, left };
 };
 
 export function head(title, text, ...actions) {
@@ -163,8 +167,8 @@ export function docsPage(type) {
       const billed = sumBase(inRange.map((d) => [d, totals(d).total]));
       const settled = sumBase(inRange.map((d) => { const t = totals(d); return [d, Math.min(t.paid, t.total)]; }));
       const payments = [];
-      for (const d of docs) for (const p of d.payments || []) if (inPeriod(p.date, ui.period)) payments.push([d, Number(p.amount) || 0]);
-      const collected = sumBase(payments);
+      for (const d of docs) for (const p of d.payments || []) if (inPeriod(p.date, ui.period)) payments.push([d, p]);
+      const collected = sumBase(payments, paymentBase);
       const open = docs.filter((d) => totals(d).due > 0);
       const owed = sumBase(open.map((d) => [d, totals(d).due]));
       const overdue = open.filter((d) => docStatus(d) === 'overdue').length;
@@ -175,7 +179,8 @@ export function docsPage(type) {
         kpi({ label: 'Por cobrar', value: money(owed.sum, cur), ico: 'clock', sub: owedText(open.length - overdue, overdue), tone: overdue ? 'var(--expense)' : null }),
         kpi({ label: 'Facturas pagadas', value: `${paidCount} / ${inRange.length}`, ico: 'wallet', bar: inRange.length ? paidCount / inRange.length : 0 }),
       );
-      const skipped = billed.skipped + owed.skipped;
+      // Una factura que falta en varias cifras se cuenta una sola vez.
+      const skipped = new Set([...billed.left, ...collected.left, ...owed.left]).size;
       note.hidden = !skipped;
       note.textContent = `${skipped} ${skipped === 1 ? 'documento en otra moneda no entra' : 'documentos en otras monedas no entran'} en estas cifras: ponles una equivalencia en ${CURRENCIES[cur]?.label.toLowerCase() || cur}.`;
     } else {
@@ -214,7 +219,7 @@ export function docsPage(type) {
       if (m in billed) billed[m] += inBase(doc, totals(doc).total) || 0;
       for (const p of doc.payments || []) {
         const pm = (p.date || '').slice(0, 7);
-        if (pm in paid) paid[pm] += inBase(doc, Number(p.amount) || 0) || 0;
+        if (pm in paid) paid[pm] += paymentBase(doc, p) || 0;
       }
     }
     const top = Math.max(1, ...months.map((m) => Math.max(billed[m], paid[m])));
@@ -280,11 +285,14 @@ export function customerStats(id) {
   const docs = state.docs.filter((d) => d.customerId === id);
   const invoices = docs.filter((d) => d.type === 'invoice' && counts(d));
   const billed = sumBase(invoices.map((d) => [d, totals(d).total])).sum;
-  const collected = sumBase(invoices.map((d) => [d, totals(d).paid])).sum;
+  // «Cobrado» suma cada pago con su tasa del día; la barra mide lo pagado de cada
+  // factura a su propia tasa, para que una factura pagada entera la llene.
+  const collected = sumBase(invoices.flatMap((d) => (d.payments || []).map((p) => [d, p])), paymentBase).sum;
+  const settled = sumBase(invoices.map((d) => [d, totals(d).paid])).sum;
   const open = invoices.filter((d) => totals(d).due > 0);
   const due = sumBase(open.map((d) => [d, totals(d).due])).sum;
   const overdue = open.filter((d) => docStatus(d) === 'overdue').length;
-  return { docs, billed, collected, due, pending: open.length - overdue, overdue, quotes: docs.filter((d) => d.type === 'quote').length };
+  return { docs, billed, collected, settled, due, pending: open.length - overdue, overdue, quotes: docs.filter((d) => d.type === 'quote').length };
 }
 
 export function customerForm(customer, onSaved) {
@@ -429,7 +437,7 @@ export function customerPage(id) {
         ),
       ),
       el('div', { class: 'ng-kpis' },
-        kpi({ label: 'Total facturado', value: money(s.billed, cur), ico: 'dollar', bar: s.billed ? s.collected / s.billed : 0 }),
+        kpi({ label: 'Total facturado', value: money(s.billed, cur), ico: 'dollar', bar: s.billed ? s.settled / s.billed : 0 }),
         kpi({ label: 'Cobrado', value: money(s.collected, cur), ico: 'checkCircle', sub: 'De sus facturas' }),
         kpi({ label: 'Por cobrar', value: money(s.due, cur), ico: 'clock', sub: owedText(s.pending, s.overdue), tone: s.overdue ? 'var(--expense)' : null }),
         kpi({ label: 'Documentos', value: String(s.docs.length), ico: 'file', sub: `${s.quotes} ${s.quotes === 1 ? 'cotización' : 'cotizaciones'}` }),

@@ -2,7 +2,7 @@
 // con lo último que pasó. Todo se calcula con los datos ya cargados.
 
 import {
-  state, find, totals, docStatus, counts, inBase, money, dateText, monthText, shortMonth, todayISO, addDays,
+  state, find, totals, docStatus, counts, inBase, paymentBase, money, dateText, monthText, shortMonth, todayISO, addDays,
   el, icon, avatar, tag, seg,
 } from './negocio-core.js';
 import { createDoc } from './negocio-views.js';
@@ -26,8 +26,9 @@ function collected(r) {
   for (const d of invoices()) {
     for (const p of d.payments || []) {
       if (!within(p.date, r)) continue;
-      // En otra moneda y sin equivalencia no se puede sumar: se cuenta aparte y se avisa.
-      const v = inBase(d, Number(p.amount) || 0);
+      // Cada pago va con su tasa del día (o, si es de antes, con la equivalencia de la
+      // factura). Sin ninguna de las dos no se puede sumar: se cuenta aparte y se avisa.
+      const v = paymentBase(d, p);
       if (v == null) skipped += 1;
       else sum += v;
       count += 1;
@@ -156,7 +157,7 @@ export function homePage() {
     const outM = Object.fromEntries(months.map((m) => [m, 0]));
     for (const d of invoices()) for (const p of d.payments || []) {
       const m = (p.date || '').slice(0, 7);
-      if (m in inM) inM[m] += inBase(d, Number(p.amount) || 0) || 0;
+      if (m in inM) inM[m] += paymentBase(d, p) || 0;
     }
     for (const e of list('expenses')) {
       const m = (e.date || '').slice(0, 7);

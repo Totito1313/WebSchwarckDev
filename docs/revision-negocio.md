@@ -12,7 +12,7 @@ Los problemas reales estaban en tres sitios, y se corrigieron todos los graves:
 2. **Varios dispositivos**: el panel cargaba los datos una vez y nunca más. Una pestaña abierta todo el día en el portátil podía borrar, sin avisar, un pago registrado desde el teléfono.
 3. **Documentos firmados y dinero**: se podía cambiar el tipo de una cotización ya firmada, convertir dos veces la misma cotización en factura, cambiar la moneda de una factura con pagos, registrar un pago con un cero de más sin aviso, y firmar desde el enlace una cotización anulada.
 
-En total: 28 problemas confirmados leyendo el código, 25 corregidos y 3 anotados para más adelante. Lo corregido se probó en local contra el Worker.
+En total: 28 problemas confirmados leyendo el código, 26 corregidos y 2 anotados para más adelante. Lo corregido se probó en local contra el Worker.
 
 ## Corregido
 
@@ -45,6 +45,7 @@ En total: 28 problemas confirmados leyendo el código, 25 corregidos y 3 anotado
 - **Gastos tras cambiar la moneda principal.** La tasa de cada gasto se escribió frente a la moneda principal de entonces, pero se aplicaba frente a la actual, y los informes viejos salían mal. Ahora el gasto recuerda esa moneda; si ya no coincide, cuenta como «sin tasa» en vez de convertirse mal. Afecta a los gastos nuevos: los viejos se suponen en la moneda actual. `src/negocio-gastos.js:75`
 - **La tasa de un gasto perdía decimales al editarlo.** Se mostraba redondeada a dos decimales y así se volvía a guardar. Ahora se muestra completa.
 - **Categoría archivada.** Al editar un gasto con categoría archivada, el formulario la cambiaba sola por la primera de la lista (y también la del proveedor). Ahora aparece como «(archivada)» y se conserva. `src/negocio-gastos.js:245`
+- **Cobros con la tasa de la factura, no la del día del pago.** Un pago en bolívares semanas después de la factura se pasaba a la moneda principal con la tasa de la factura. Ahora el formulario de pago pide la tasa del día (rellenada con la de la factura) y cada pago la guarda; Inicio, Facturas, Clientes y Proyectos la usan. Los pagos de antes siguen como estaban. `src/negocio-core.js:436`
 - **Inicio contaba como 0 los cobros sin equivalencia.** Ahora la tarjeta «Cobrado» dice cuántos quedaron fuera, como ya hacía «Gastado». `src/negocio-inicio.js:31`
 - **Texto de una página perdido al cerrar la pestaña.** Las páginas guardan a los 2 s. El aviso de «cambios sin guardar» miraba antes de que entraran en la fila, así que cerrar justo después de escribir los perdía. Ahora los editores vacían su espera antes de esa comprobación, y todo se guarda al momento al dejar la pestaña (en el teléfono el navegador puede cerrarla sin avisar). `src/negocio.js:228`
 - **Autoguardado del editor de documentos.** Guardaba tras cada pausa de 0,8 s, y cada guardado reescribe la colección entera en KV. Ahora espera 1,5 s, y al dejar la pestaña guarda enseguida.
@@ -61,7 +62,6 @@ En total: 28 problemas confirmados leyendo el código, 25 corregidos y 3 anotado
 
 ## Pendiente (no se tocó)
 
-- **Cobros con la tasa de la factura, no la del día del pago.** Para pasar un cobro a la moneda principal se usa la equivalencia de la factura. Con bolívares, un pago semanas después sale a otra tasa. Lo correcto es que cada pago guarde su tasa; es un cambio del formulario de pago y de los informes, mejor en su propia tanda.
 - **Los borradores gastan número.** Un documento recibe número en cuanto se guarda la primera vez. Numerar al enviarlo es posible, pero cambia el flujo.
 - **Crecimiento.** Cada colección vive en una sola clave de KV y cada guardado la reescribe entera. Con miles de documentos convendrá pasar los documentos a D1 o a una clave por documento. Hoy no es un problema.
 

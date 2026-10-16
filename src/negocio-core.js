@@ -428,6 +428,22 @@ export function inBase(doc, amount) {
   return null;
 }
 
+/**
+ * Un pago de la factura en otra moneda. Cada pago guarda la tasa del día en que
+ * entró (`rate`, frente a `rateBase`); los pagos de antes no la tienen y se pasan
+ * con la equivalencia de la factura, como siempre.
+ */
+export function paymentIn(doc, p, code) {
+  const amount = Number(p.amount) || 0;
+  if (doc.currency === code) return amount;
+  if (p.rate > 0 && p.rateBase === code) return convert(amount, doc.currency, code, p.rate);
+  if (doc.equiv?.currency === code) return convert(amount, doc.currency, code, doc.equiv.rate);
+  return null;
+}
+
+/** Un pago en la moneda base del negocio, si se puede saber. */
+export const paymentBase = (doc, p) => paymentIn(doc, p, state.settings.currency);
+
 export const counts = (doc) => doc.type !== 'receipt' && doc.status !== 'draft' && doc.status !== 'void';
 
 export function snapshotCustomer(c) {

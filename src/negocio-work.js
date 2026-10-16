@@ -7,7 +7,7 @@
 // factura.
 
 import {
-  state, find, put, remove, uid, bus, totals, counts, convert, round2, todayISO, nowISO, dateText, shortDate,
+  state, find, put, remove, uid, bus, totals, counts, convert, paymentIn, round2, todayISO, nowISO, dateText, shortDate,
   durationText, clockText, newDoc, toast,
 } from './negocio-core.js';
 
@@ -490,7 +490,9 @@ export function projectStats(p) {
       continue;
     }
     invoiced += total;
-    paid += inCurrency(d, Math.min(t.paid, t.total), cur);
+    // Cada pago con su tasa del día. Lo que pase del total (un pago de más) no cuenta.
+    const got = (d.payments || []).reduce((sum, x) => sum + paymentIn(d, x, cur), 0);
+    paid += t.paid > t.total ? (got * t.total) / t.paid : got;
     due += inCurrency(d, t.due, cur);
   }
   const budget = Number(p.budget) || 0;

@@ -198,7 +198,7 @@ export function showReceipt(receipt) {
 
 // ── Formulario de gasto ──
 
-const SOURCES = ['BCV', 'Paralelo', 'Binance P2P', 'Banco', 'Acordada'];
+export const SOURCES = ['BCV', 'Paralelo', 'Binance P2P', 'Banco', 'Acordada'];
 const METHODS = ['Tarjeta', 'Zelle', 'Pago Móvil', 'Transferencia', 'Binance', 'Efectivo', 'PayPal'];
 let lastCategory = '';
 
