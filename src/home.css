@@ -427,34 +427,6 @@ html.motion .contact:not(.in) .contact-mark path { stroke-dashoffset: 1; fill-op
 .copy[data-state='done'] [data-when='done'], .copy[data-state='fail'] [data-when='fail'] { opacity: 1; translate: 0 0; }
 .copy[data-state='done'] { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); color: var(--accent-ink); }
 
-/* ══ Pie: el nombre del estudio, enorme, que se ilumina bajo el cursor ══ */
-.foot { margin-top: var(--sec); padding: 52px 0 30px; border-top: 1px solid var(--line); }
-.foot-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 24px; }
-.foot-brand { display: flex; align-items: center; gap: 10px; font-weight: 500; text-decoration: none; }
-.foot-brand img { width: 28px; height: 28px; transition: rotate 0.6s var(--ease); }
-.foot-brand:hover img { rotate: -14deg; }
-.foot-top nav { display: flex; flex-wrap: wrap; gap: 6px 26px; }
-.foot-top nav a, .foot-end a { color: var(--body); text-decoration: none; transition: color 0.2s; }
-.foot-top nav a:hover, .foot-end a:hover { color: var(--ink); }
-@property --fp { syntax: '<number>'; inherits: true; initial-value: 0; }
-.wordmark { position: relative; display: grid; margin: clamp(40px, 7vw, 80px) 0 clamp(20px, 3vw, 36px); font-size: clamp(64px, 17.4vw, 248px); font-weight: 600; line-height: 0.8; letter-spacing: -0.068em; text-align: center; white-space: nowrap; user-select: none; }
-.wm-line, .wm-fill { grid-area: 1 / 1; justify-self: center; padding: 0.06em 0.06em 0.1em 0; }
-.wm-line { color: transparent; -webkit-text-stroke: 1px var(--line-strong); }
-.wm-fill { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
-html.motion .wm-fill { -webkit-mask-image: radial-gradient(300px circle at var(--fx, 50%) var(--fy, 50%), #000 15%, transparent 72%); mask-image: radial-gradient(300px circle at var(--fx, 50%) var(--fy, 50%), #000 15%, transparent 72%); opacity: var(--fo, 0); transition: opacity 0.5s; }
-html.motion .wordmark.is-sweep { transition: --fp 2.2s var(--ease-io) 0.2s; }
-html.motion .wordmark.is-sweep.lit { --fp: 1; }
-html.motion .wordmark.is-sweep .wm-fill { -webkit-mask-image: linear-gradient(90deg, #000 calc(var(--fp, 0) * 120% - 20%), transparent calc(var(--fp, 0) * 120%)); mask-image: linear-gradient(90deg, #000 calc(var(--fp, 0) * 120% - 20%), transparent calc(var(--fp, 0) * 120%)); opacity: 1; }
-.foot-end { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; color: var(--dim); }
-.foot-end .up { display: inline-flex; align-items: center; gap: 6px; }
-.foot-end .up .ico { transition: translate 0.3s var(--ease); }
-.foot-end .up:hover .ico { translate: 0 -3px; }
-.foot-theme { display: inline-flex; align-items: center; }
-.foot-theme[hidden] { display: none; }
-.theme-set { display: inline-flex; margin-left: 10px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; }
-.theme-set button { padding: 5px 12px; border: 0; border-radius: 999px; background: none; color: var(--dim); font: inherit; cursor: pointer; transition: background 0.25s, color 0.25s; }
-.theme-set button:hover { color: var(--ink); }
-.theme-set button[aria-pressed='true'] { background: var(--ink); color: var(--bg); }
 
 /* ══ Índice lateral: dónde estás en la página ══ */
 .rail { position: fixed; z-index: 50; top: 50%; right: 22px; display: none; gap: 4px; translate: 12px -50%; opacity: 0; pointer-events: none; transition: opacity 0.4s, translate 0.5s var(--ease); }
@@ -558,8 +530,6 @@ html.motion .principles li[data-reveal].in .fill { opacity: 1; }
   .contact .btn { width: 100%; justify-content: center; }
   .contact .btn.primary { font-size: 14px; }
   .contact-meta { align-items: flex-start; }
-  .foot-end { flex-direction: column; align-items: flex-start; }
-  .theme-set { margin-left: 8px; }
 }
 
 /* ══ Página sola: Lion Fitness y 404 ══ */

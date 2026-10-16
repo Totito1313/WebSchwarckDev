@@ -2,6 +2,7 @@ import { initMotion, onScroll, pinned, through, range, easeOut, setVar, reducedM
 import { initTheme } from './theme.js';
 import { initSmoothScroll } from './smooth.js';
 import { renderChangelog } from './changelog-render.js';
+import { finePointer, initWordmark } from './studio-fx.js';
 
 // Enlace de CeroFiao en Google Play. Mientras esté vacío, los botones dicen
 // "Próximamente" y llevan a la sección de descarga; al publicar la app, pega
@@ -22,9 +23,8 @@ const motion = initMotion();
 initTheme();
 initSmoothScroll();
 
-// ── Navegación: gana cuerpo al dejar el borde superior ──
-const nav = document.querySelector('.nav');
-if (nav) onScroll(() => nav.classList.toggle('is-stuck', scrollY > 24));
+// El pie del estudio: el nombre gigante se ilumina bajo el cursor (src/studio-fx.js).
+initWordmark(motion, finePointer());
 
 // ── Hero: el teléfono sube, el texto se va y las pantallas pasan dentro ──
 const hero = document.querySelector('[data-hero]');

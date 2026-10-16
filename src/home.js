@@ -159,7 +159,7 @@ const rail = document.querySelector('.rail');
 if (rail && hero) {
   const links = [...rail.querySelectorAll('a')];
   const targets = links.map((a) => document.querySelector(a.getAttribute('href')));
-  const foot = document.querySelector('.foot');
+  const foot = document.querySelector('.sf');
   let current = -2;
   let shown = null;
   onScroll((vh) => {

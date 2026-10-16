@@ -1,0 +1,79 @@
+/* Pie del estudio: enlaces, el nombre gigante que se ilumina bajo el cursor
+   (src/studio-fx.js) y el selector de tema. Autocontenido como la barra
+   (src/site-bar.css): lo usan la portada, CeroFiao, su privacidad, Lion
+   Fitness y la 404 sin depender de los colores de cada página. */
+
+:root {
+  --sf-ink: #0b1220;
+  --sf-body: #4f5a68;
+  --sf-dim: #7d8796;
+  --sf-paper: #f5f7f9;
+  --sf-line: rgba(11, 18, 32, 0.085);
+  --sf-line-strong: rgba(11, 18, 32, 0.16);
+  --sf-accent: #06b6d4;
+  --sf-grad: linear-gradient(110deg, #2dd4bf, #06b6d4 45%, #0284c7);
+  --sf-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --sf-ease-io: cubic-bezier(0.65, 0, 0.35, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --sf-ink: #eef3f8;
+    --sf-body: #9aa6b4;
+    --sf-dim: #6b7787;
+    --sf-paper: #07090c;
+    --sf-line: rgba(255, 255, 255, 0.075);
+    --sf-line-strong: rgba(255, 255, 255, 0.15);
+    --sf-accent: #2dd4bf;
+  }
+}
+:root[data-theme='dark'] {
+  --sf-ink: #eef3f8;
+  --sf-body: #9aa6b4;
+  --sf-dim: #6b7787;
+  --sf-paper: #07090c;
+  --sf-line: rgba(255, 255, 255, 0.075);
+  --sf-line-strong: rgba(255, 255, 255, 0.15);
+  --sf-accent: #2dd4bf;
+}
+
+.sf { margin-top: var(--sf-gap, clamp(128px, 16vw, 208px)); padding: 52px 0 30px; border-top: 1px solid var(--sf-line); color: var(--sf-ink); font: 400 15px/1.6 'Geist', 'Inter', system-ui, sans-serif; letter-spacing: -0.011em; }
+.sf-in { width: min(1120px, calc(100% - 48px)); margin-inline: auto; }
+.sf a { color: inherit; text-decoration: none; }
+.sf :focus-visible { outline: 2px solid var(--sf-accent); outline-offset: 3px; border-radius: 8px; }
+.sf-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 24px; }
+.sf-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 500; }
+.sf-brand img { width: 28px; height: 28px; transition: rotate 0.6s var(--sf-ease); }
+.sf-brand:hover img { rotate: -14deg; }
+.sf-nav { display: flex; flex-wrap: wrap; gap: 6px 26px; }
+.sf-nav a, .sf-end a { color: var(--sf-body); transition: color 0.2s; }
+.sf-nav a:hover, .sf-end a:hover { color: var(--sf-ink); }
+
+@property --fp { syntax: '<number>'; inherits: true; initial-value: 0; }
+.sf .wordmark { position: relative; display: grid; margin: clamp(40px, 7vw, 80px) 0 clamp(20px, 3vw, 36px); font-size: clamp(64px, 17.4vw, 248px); font-weight: 600; line-height: 0.8; letter-spacing: -0.068em; text-align: center; white-space: nowrap; user-select: none; }
+.sf .wm-line, .sf .wm-fill { grid-area: 1 / 1; justify-self: center; padding: 0.06em 0.06em 0.1em 0; }
+.sf .wm-line { color: transparent; -webkit-text-stroke: 1px var(--sf-line-strong); }
+.sf .wm-fill { background: var(--sf-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+html.motion .sf .wm-fill { -webkit-mask-image: radial-gradient(300px circle at var(--fx, 50%) var(--fy, 50%), #000 15%, transparent 72%); mask-image: radial-gradient(300px circle at var(--fx, 50%) var(--fy, 50%), #000 15%, transparent 72%); opacity: var(--fo, 0); transition: opacity 0.5s; }
+html.motion .sf .wordmark.is-sweep { transition: --fp 2.2s var(--sf-ease-io) 0.2s; }
+html.motion .sf .wordmark.is-sweep.lit { --fp: 1; }
+html.motion .sf .wordmark.is-sweep .wm-fill { -webkit-mask-image: linear-gradient(90deg, #000 calc(var(--fp, 0) * 120% - 20%), transparent calc(var(--fp, 0) * 120%)); mask-image: linear-gradient(90deg, #000 calc(var(--fp, 0) * 120% - 20%), transparent calc(var(--fp, 0) * 120%)); opacity: 1; }
+
+.sf-end { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; color: var(--sf-dim); font: 400 12px/1.6 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0; text-transform: lowercase; }
+.sf-up { display: inline-flex; align-items: center; gap: 6px; }
+.sf-up svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: translate 0.3s var(--sf-ease); }
+.sf-up:hover svg { translate: 0 -3px; }
+.sf-theme { display: inline-flex; align-items: center; }
+.sf-theme[hidden] { display: none; }
+.sf .theme-set { display: inline-flex; gap: 0; margin: 0 0 0 10px; padding: 3px; border: 1px solid var(--sf-line); border-radius: 999px; background: none; }
+.sf .theme-set button { padding: 5px 12px; border: 0; border-radius: 999px; background: none; color: var(--sf-dim); font: inherit; text-transform: none; cursor: pointer; transition: background 0.25s, color 0.25s; }
+.sf .theme-set button:hover { color: var(--sf-ink); }
+.sf .theme-set button[aria-pressed='true'] { background: var(--sf-ink); color: var(--sf-paper); }
+
+@media (max-width: 560px) {
+  .sf-in { width: calc(100% - 32px); }
+  .sf-end { flex-direction: column; align-items: flex-start; }
+  .sf .theme-set { margin-left: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sf *, .sf *::before, .sf *::after { transition-duration: 0.01ms !important; }
+}
