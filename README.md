@@ -100,6 +100,18 @@ La contraseña no está en el repositorio. Se define en Cloudflare:
 
 Mientras no exista, el panel muestra estas mismas instrucciones y nadie puede entrar.
 
+### El modelo en línea de CeroFiao
+
+`POST /api/cerofiao/ai` atiende a la app cuando alguien enciende **Ajustes › Escáner y voz › Modelo en línea**: recibe la conversación (lo que se preguntó, o el texto leído de una factura, y las cifras que la app le pasa al modelo), se la da a Workers AI con `@cf/google/gemma-4-26b-a4b-it` y devuelve `{ text, tool_calls, usage }`. No guarda nada. El modelo lo fija el servidor, cada conexión tiene un tope de 30 preguntas por minuto (`AI_LIMIT`) y el gasto va a la cuenta de Cloudflare (Workers AI, con su cuota gratis diaria).
+
+Para encenderlo, una sola vez:
+
+1. Workers y Pages › `webschwarckdev` › Settings › Variables and Secrets.
+2. Añade un **secreto** llamado `CEROFIAO_AI_KEY`: una clave larga que inventes (por ejemplo, 32 letras y números al azar).
+3. En la app, pon esa misma clave en Modelo en línea.
+
+Sin la clave, el punto contesta 503 y la app dice que el modelo en línea no está activado.
+
 ### Gráficos para Google Play
 
 En `/admin/tienda/` se componen las imágenes de la ficha con las capturas de la app y se descargan en la medida que pide Play Console:

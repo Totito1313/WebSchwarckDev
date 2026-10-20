@@ -25,6 +25,7 @@
 //
 // Secretos: ADMIN_PASSWORD (lo define el dueño en Cloudflare; sin él no hay panel) y,
 // si se quiere, SESSION_SECRET (cambiarlo cierra todas las sesiones abiertas).
+// CEROFIAO_AI_KEY abre el modelo en línea de CeroFiao (/api/cerofiao/ai, ver abajo).
 
 import seed from '../data/changelog.json';
 
@@ -79,6 +80,7 @@ async function route(request, env, url) {
   if (pathname === '/api/reviews' && method === 'POST') return submitReview(request, env, url);
   if (pathname.startsWith('/api/public/doc/')) return publicDoc(request, env, url);
   if (pathname.startsWith('/api/admin/')) return admin(request, env, url);
+  if (pathname === '/api/cerofiao/ai' && method === 'POST') return cerofiaoAi(request, env);
   return fail(404, 'No existe.');
 }
 
@@ -827,4 +829,83 @@ async function admin(request, env, url) {
   }
 
   return fail(404, 'No existe.');
+}
+
+// ── CeroFiao: el modelo en línea (CF-2057) ──
+//
+// Si la persona lo enciende en la app (Ajustes › Escáner y voz › Modelo en línea),
+// la app manda aquí lo que preguntó o el texto leído de una factura, y las cifras que
+// ella misma le pasa al modelo para contestar. Este punto se lo da a Workers AI y
+// devuelve la respuesta. No guarda nada: ni en el almacén ni en los registros.
+//
+// El modelo lo fija el servidor; la app no puede pedir otro. Con la clave
+// CEROFIAO_AI_KEY (un secreto que pone el dueño en Cloudflare, y la misma en la app)
+// y el enlace AI de wrangler.jsonc. Sin cualquiera de los dos, no atiende.
+
+const AI_MODEL = '@cf/google/gemma-4-26b-a4b-it';
+const AI_MAX_BYTES = 64_000;
+const AI_MAX_MESSAGES = 24;
+const AI_MAX_TOOLS = 16;
+const AI_MAX_TOKENS = 1024;
+
+async function cerofiaoAi(request, env) {
+  if (!env.AI || !env.CEROFIAO_AI_KEY) throw new HttpError(503, 'El modelo en línea no está activado.');
+  const given = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+  if (!given || !(await samePassword(given, env.CEROFIAO_AI_KEY))) throw new HttpError(401, 'Clave incorrecta.');
+  if (!(await burstOk(env.AI_LIMIT, await caller(request, env)))) throw new HttpError(429, 'Demasiadas preguntas seguidas. Espera un minuto.');
+
+  const body = await readJson(request, AI_MAX_BYTES);
+  const messages = (Array.isArray(body.messages) ? body.messages : []).map(aiMessage).filter(Boolean);
+  if (!messages.length || messages.length > AI_MAX_MESSAGES) throw new HttpError(400, 'Faltan los mensajes, o son demasiados.');
+  const input = {
+    messages,
+    max_completion_tokens: Math.min(Math.max(Number(body.max_tokens) || 512, 1), AI_MAX_TOKENS),
+    temperature: Math.min(Math.max(Number(body.temperature ?? 0.3) || 0, 0), 1.5),
+  };
+  if (Array.isArray(body.tools) && body.tools.length) input.tools = body.tools.slice(0, AI_MAX_TOOLS);
+  if (body.response_format && typeof body.response_format === 'object') input.response_format = body.response_format;
+
+  let result;
+  try {
+    result = await env.AI.run(AI_MODEL, input);
+  } catch (err) {
+    // Solo el tipo de error: nada de lo que se preguntó queda en los registros.
+    console.error('cerofiao-ai', err?.name || 'error');
+    throw new HttpError(502, 'La IA no contestó. Prueba otra vez.');
+  }
+  return json(aiReply(result));
+}
+
+/** Un mensaje de la conversación, solo con lo que el modelo necesita. */
+function aiMessage(m) {
+  if (!m || typeof m !== 'object') return null;
+  const role = String(m.role || '');
+  const content = typeof m.content === 'string' ? m.content : '';
+  if (role === 'system' || role === 'user') return { role, content };
+  if (role === 'assistant') {
+    const calls = Array.isArray(m.tool_calls) ? m.tool_calls.map(aiCall) : [];
+    return calls.length ? { role, content, tool_calls: calls } : { role, content };
+  }
+  if (role === 'tool') return { role, content, tool_call_id: String(m.tool_call_id || ''), ...(m.name ? { name: String(m.name) } : {}) };
+  return null;
+}
+
+/** Una llamada a una herramienta, como la escribe la API de OpenAI (la que sigue Workers AI). */
+function aiCall(call, i) {
+  const fn = call?.function || call || {};
+  const args = fn.arguments;
+  return {
+    id: String(call?.id || `llamada_${i}`),
+    type: 'function',
+    function: { name: String(fn.name || ''), arguments: typeof args === 'string' ? args : JSON.stringify(args ?? {}) },
+  };
+}
+
+/** La respuesta de Workers AI, en la forma que lee la app: texto y llamadas a herramientas. */
+function aiReply(result) {
+  const message = result?.choices?.[0]?.message;
+  const raw = message ? message.content : result?.response;
+  const text = typeof raw === 'string' ? raw : raw == null ? '' : JSON.stringify(raw);
+  const calls = (message ? message.tool_calls : result?.tool_calls) || [];
+  return { text, tool_calls: calls.map(aiCall), usage: result?.usage ?? null };
 }
