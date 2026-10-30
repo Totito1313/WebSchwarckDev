@@ -1,4 +1,4 @@
-// Botón de descarga de CeroFiao. Lo decide el panel (/admin › Botón de descarga)
+// Botón de descarga de CeroFiao. Lo decide el panel (/apps › Botón de descarga)
 // y lo sirve /api/download. Cada botón de la página lleva `data-play` con su
 // papel: `hero` (el de arriba), `bar` (el de la barra), `menu` (el del menú del
 // teléfono) y `final` (el del cierre). Sin JavaScript se ven los textos del HTML,

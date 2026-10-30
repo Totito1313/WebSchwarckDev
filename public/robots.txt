@@ -1,6 +1,8 @@
 User-agent: *
 Allow: /
 Disallow: /admin/
+Disallow: /apps/
+Disallow: /cliente/
 Disallow: /api/
 
 Sitemap: https://schwarckdev.com/sitemap.xml

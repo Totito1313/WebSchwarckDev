@@ -6,7 +6,7 @@
    negro (en blanco en oscuro), Anton en las cifras, etiquetas en mayúsculas
    espaciadas y la navegación en una cápsula de cristal.
 
-   Se carga la última y solo en las páginas del panel (/admin/, /admin/tienda/
+   Se carga la última y solo en las páginas del panel (/admin/, /apps/, /apps/tienda/
    y /admin/negocio/): traduce a estos valores los tokens que ya usan sus
    estilos, así la web pública y la página que abre el cliente no cambian.
    La letra de la app es One UI Sans: se usa si está instalada en el equipo
@@ -305,7 +305,7 @@ body.ng .ng-hero .pill.glass { background: rgba(255, 255, 255, 0.2); color: #fff
 body.ng .ng-toast { border-radius: var(--cf-r-button); }
 
 /* ══════════════════════════════════════════════════════════════
-   Panel y estudio de gráficos (/admin/ y /admin/tienda/)
+   Panel, Mis apps y estudio de gráficos (/admin/, /apps/ y /apps/tienda/)
    ══════════════════════════════════════════════════════════════ */
 body.pn {
   --paper: var(--cf-bg);

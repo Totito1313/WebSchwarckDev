@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tu proyecto | Schwarck</title>
+  <meta name="description" content="Avances, reporte diario, calendario de contenido, resultados, recursos y peticiones de tu proyecto con Schwarck.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#f1f2f3" data-light="#f1f2f3" data-dark="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Mi proyecto">
+  <script>try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="manifest" href="/cliente/manifest.webmanifest">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/cliente/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://zblcnysojrogwbflived.supabase.co">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/src/panel.css">
+  <link rel="stylesheet" href="/src/cliente.css">
+</head>
+<body class="cl">
+
+<noscript><p class="cl-note">Esta app necesita JavaScript.</p></noscript>
+
+<!-- Arranque -->
+<section class="cl-gate" data-view="loading">
+  <div class="cl-splash"><img src="/favicon.svg" alt="" width="56" height="56"><span class="cl-spin" aria-hidden="true"></span></div>
+</section>
+
+<!-- Sin portales todavía (estudio) -->
+<section class="cl-gate" data-view="setup" hidden>
+  <div class="cl-gate-card"></div>
+</section>
+
+<!-- Entrar -->
+<section class="cl-gate" data-view="login" hidden>
+  <form class="cl-gate-card" data-login>
+    <img src="/favicon.svg" alt="" width="44" height="44">
+    <h1>Tu proyecto</h1>
+    <p>Entra con el correo y la contraseña que te dio Schwarck.</p>
+    <label class="cl-field"><span class="cl-field-label">Correo</span><input class="cl-input" type="email" name="email" autocomplete="username" inputmode="email" required></label>
+    <label class="cl-field"><span class="cl-field-label">Contraseña</span>
+      <span class="cl-pass"><input class="cl-input" type="password" name="password" autocomplete="current-password" required><button type="button" class="cl-glass xs" data-reveal aria-label="Ver la contraseña"><span data-icon="eye"></span></button></span>
+    </label>
+    <button class="cl-btn lg" type="submit">Entrar</button>
+    <p class="cl-msg" role="status" data-login-msg></p>
+    <small class="cl-fine">¿Olvidaste la contraseña? Pídele una nueva a Schwarck: te la cambia al momento. <a href="/cliente/?demo">Ver una demostración</a>.</small>
+  </form>
+</section>
+
+<!-- La app -->
+<div class="cl-app" data-view="app" hidden>
+  <header class="cl-nav" data-nav>
+    <div class="cl-nav-bar">
+      <button class="cl-glass cl-nav-lead" type="button" data-switch aria-label="Cambiar de cliente"><span class="cl-logo sm" data-logo></span></button>
+      <span class="cl-nav-title" data-nav-title aria-hidden="true"></span>
+      <span class="cl-nav-trail">
+        <button class="cl-glass cl-bell" type="button" aria-label="Novedades" data-bell><span data-icon="bell"></span><i class="cl-dot" data-unread hidden></i></button>
+        <a class="cl-glass cl-nav-me" href="#/perfil" aria-label="Perfil" data-me-avatar></a>
+      </span>
+    </div>
+  </header>
+
+  <main class="cl-main" data-main></main>
+
+  <button class="cl-fab" type="button" data-fab aria-label="Enviar algo a Schwarck"></button>
+
+  <nav class="cl-tabs" aria-label="Secciones">
+    <span class="cl-tabs-thumb" aria-hidden="true"></span>
+    <a href="#/" data-tab="inicio"><span data-icon="home"></span><span>Inicio</span></a>
+    <a href="#/cronologia" data-tab="cronologia"><span data-icon="timeline"></span><span>Cronología</span></a>
+    <a href="#/marketing" data-tab="marketing"><span data-icon="megaphone"></span><span>Marketing</span></a>
+    <a href="#/recursos" data-tab="recursos"><span data-icon="folder"></span><span>Recursos</span></a>
+    <a href="#/peticiones" data-tab="peticiones"><span data-icon="inbox"></span><span>Peticiones</span><i class="cl-count" data-pending hidden></i></a>
+  </nav>
+</div>
+
+<div class="cl-toast" role="status" aria-live="polite" data-toast></div>
+
+<script type="module" src="/src/cliente.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "id": "/cliente/",
+  "name": "Schwarck · Tu proyecto",
+  "short_name": "Mi proyecto",
+  "description": "Anuncios, avances, calendario de contenido, recursos y tareas de tu proyecto con Schwarck.",
+  "lang": "es",
+  "start_url": "/cliente/?app",
+  "scope": "/cliente/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/cliente/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/cliente/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/cliente/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Tareas", "url": "/cliente/#/tareas", "icons": [{ "src": "/cliente/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Calendario", "url": "/cliente/#/calendario", "icons": [{ "src": "/cliente/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Enviar algo", "url": "/cliente/#/enviar", "icons": [{ "src": "/cliente/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

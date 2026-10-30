@@ -17,6 +17,25 @@
   Cache-Control: no-store
   X-Robots-Tag: noindex
 
+# Mis apps: novedades, reseñas, botón de descarga y gráficos para Play.
+/apps/*
+  Cache-Control: no-store
+  X-Robots-Tag: noindex
+
+# La app del cliente: no se indexa. El service worker se revisa en cada visita
+# para que una versión nueva llegue enseguida a los teléfonos.
+/cliente/*
+  X-Robots-Tag: noindex
+  Referrer-Policy: no-referrer
+
+/cliente/sw.js
+  Cache-Control: no-cache
+  Service-Worker-Allowed: /cliente/
+
+/cliente/manifest.webmanifest
+  Cache-Control: no-cache
+  Content-Type: application/manifest+json
+
 # La página que abre el cliente con un enlace: ni se guarda en caché ni se indexa.
 /documento/*
   Cache-Control: no-store

@@ -5,7 +5,7 @@ import { renderChangelog } from './changelog-render.js';
 import { finePointer, initWordmark } from './studio-fx.js';
 import { loadDownload } from './cf-download.js';
 
-// El botón de descarga (texto y enlace) lo decide el panel: /admin › Botón de descarga.
+// El botón de descarga (texto y enlace) lo decide el panel: /apps › Botón de descarga.
 loadDownload();
 
 const motion = initMotion();

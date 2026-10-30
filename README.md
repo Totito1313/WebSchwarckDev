@@ -1,6 +1,6 @@
 # Sitio de Schwarck
 
-El sitio de [schwarckdev.com](https://schwarckdev.com): la página del estudio, la de CeroFiao, su política de privacidad, el marcador de Lion Fitness y un panel de administración.
+El sitio de [schwarckdev.com](https://schwarckdev.com): la página del estudio, la de CeroFiao, su política de privacidad, el marcador de Lion Fitness, un panel de administración y la app que instala cada cliente.
 
 Cada `git push` a `main` se publica solo en Cloudflare.
 
@@ -12,9 +12,11 @@ Cada `git push` a `main` se publica solo en Cloudflare.
 | `/cerofiao/` | `cerofiao/index.html` | La app, con novedades y reseñas |
 | `/cerofiao/privacidad/` | `cerofiao/privacidad/index.html` | Política de privacidad (la URL que pide Play Console) |
 | `/lionfitness/` | `lionfitness/index.html` | Marcador |
-| `/admin/` | `admin/index.html` | Panel: novedades y reseñas |
-| `/admin/tienda/` | `admin/tienda/index.html` | Estudio de gráficos para la ficha de Google Play |
-| `/admin/negocio/` | `admin/negocio/index.html` | Negocio: clientes, leads, facturas, proyectos, tareas, páginas y marketing |
+| `/admin/` | `admin/index.html` | Panel: la entrada a todo lo de abajo (se llega desde el icono de la barra de la portada) |
+| `/admin/negocio/` | `admin/negocio/index.html` | Negocio: clientes, leads, facturas, proyectos, tareas, páginas y marketing (y la entrada al portal de clientes) |
+| `/apps/` | `apps/index.html` | Mis apps: novedades, reseñas y botón de descarga de CeroFiao |
+| `/apps/tienda/` | `apps/tienda/index.html` | Estudio de gráficos para la ficha de Google Play (antes `/admin/tienda/`, que redirige aquí) |
+| `/cliente/` | `cliente/index.html` | El portal de clientes, una app que se instala en el teléfono: el cliente ve su proyecto y el estudio lo gestiona |
 | `/documento/#…` | `documento/index.html` | Lo que abre el cliente con un enlace: ver, pagar o firmar |
 | `/api/*` | `worker/index.js` | La API que usan la página y el panel |
 
@@ -77,7 +79,11 @@ npx wrangler dev
 
 ## El panel
 
-Está en `/admin/`. Sirve para:
+`/admin/` es la entrada: cuatro tarjetas que llevan a Negocio, al portal de clientes (la app, en modo estudio), a Mis apps y a la demostración del modo estudio. Se llega desde el icono de cuadrícula de la barra de la portada (y desde «Panel» en su menú del teléfono y en el pie). Cada sección pide la contraseña del panel por su cuenta; la entrada solo dice si la sesión sigue abierta.
+
+### Mis apps
+
+Está en `/apps/` (antes era `/admin/`). Sirve para:
 
 - **Novedades**: añadir, editar, ordenar, ocultar o borrar versiones. La primera de la lista sale abierta en la página.
 - **Reseñas**: aprobar, rechazar o borrar lo que envía la gente. Nada se publica sin aprobarlo.
@@ -88,7 +94,7 @@ Está en `/admin/`. Sirve para:
   - Cada texto se puede cambiar; vacío, dice lo de su estado. Debajo se ve cómo quedan.
   - Se guarda en KV (`cerofiao:download`), la página lo pide a `/api/download` y lo recuerda en el navegador para no parpadear la próxima vez (`src/cf-download.js`). Sin JavaScript se ven los textos de «Próximamente».
 
-Todo el panel (`/admin/`, `/admin/tienda/` y `/admin/negocio/`) lleva el sistema de diseño de la app CeroFiao: los tokens de `core-designsystem` (fondo gris claro o negro puro, superficies blancas o `#17171A` con borde de 1 px, el cian `#00B8D4`/`#00E5FF`), botones en píldora, chips y segmentos con la opción activa en negro (blanco en oscuro), Anton en las cifras, campos rellenos como en el kit de HeroUI de CeroFiao y la navegación en una cápsula de cristal. Las barras de desplazamiento son una píldora fina, los desplegables abren una lista con ese mismo estilo (en Chrome y Edge; en el resto, la del sistema), la pieza activa de pestañas y segmentos se desliza de una opción a otra (`src/panel-motion.js`) y el cambio de página es una transición suave. Vive en `src/panel.css`, que se carga la última solo en esas páginas y traduce a esos valores los tokens que ya usan sus estilos: la web pública y la página que abre el cliente no cambian. La letra es One UI Sans si está instalada en el equipo; si no, Inter.
+Todo el panel (`/admin/`, `/admin/negocio/`, `/apps/` y `/apps/tienda/`) lleva el sistema de diseño de la app CeroFiao: los tokens de `core-designsystem` (fondo gris claro o negro puro, superficies blancas o `#17171A` con borde de 1 px, el cian `#00B8D4`/`#00E5FF`), botones en píldora, chips y segmentos con la opción activa en negro (blanco en oscuro), Anton en las cifras, campos rellenos como en el kit de HeroUI de CeroFiao y la navegación en una cápsula de cristal. Las barras de desplazamiento son una píldora fina, los desplegables abren una lista con ese mismo estilo (en Chrome y Edge; en el resto, la del sistema), la pieza activa de pestañas y segmentos se desliza de una opción a otra (`src/panel-motion.js`) y el cambio de página es una transición suave. Vive en `src/panel.css`, que se carga la última solo en esas páginas y traduce a esos valores los tokens que ya usan sus estilos: la web pública y la página que abre el cliente no cambian. La letra es One UI Sans si está instalada en el equipo; si no, Inter.
 
 ### Ponerle contraseña (una sola vez)
 
@@ -98,7 +104,7 @@ La contraseña no está en el repositorio. Se define en Cloudflare:
 2. Añade un **secreto** llamado `ADMIN_PASSWORD`, de al menos 10 caracteres.
 3. Guarda. A los pocos segundos `/admin/` deja entrar con ella.
 
-Mientras no exista, el panel muestra estas mismas instrucciones y nadie puede entrar.
+Mientras no exista, `/apps/` muestra estas mismas instrucciones y nadie puede entrar.
 
 ### El modelo en línea de CeroFiao
 
@@ -114,7 +120,7 @@ Sin la clave, el punto contesta 503 y la app dice que el modelo en línea no est
 
 ### Gráficos para Google Play
 
-En `/admin/tienda/` se componen las imágenes de la ficha con las capturas de la app y se descargan en la medida que pide Play Console:
+En `/apps/tienda/` se componen las imágenes de la ficha con las capturas de la app y se descargan en la medida que pide Play Console:
 
 - **Capturas de teléfono**: 1080 × 1920 px (9:16). Play admite de 2 a 8.
 - **Gráfico de funciones**: 1024 × 500 px.
@@ -146,6 +152,9 @@ En `/admin/negocio/` se llevan los clientes y se emiten facturas, cotizaciones y
 - **Horas**: el temporizador del riel (uno a la vez; vive en los datos, así que sobrevive a recargar) o el registro a mano. La tarifa sale de la entrada, la tarea, el proyecto o Ajustes, en ese orden. «Facturar horas» crea una factura con lo pendiente, agrupado por tarea, por día o por entrada, y lo marca como facturado; si esa factura se borra o se anula, las horas vuelven a quedar pendientes.
 
 Ajustes también tiene «Descargar copia», que baja todo en un JSON.
+
+- **Buscador (Ctrl+K o ⌘K, o la lupa del riel)**: lleva a cualquier sección, crea lo mismo que el «+» y abre clientes, proyectos, tareas (por título o por clave), documentos (por número), páginas y leads. Se maneja con el teclado y recuerda lo último abierto.
+- **Movimiento** (`src/negocio-fx.js` y `src/negocio-fx.css`): las cifras de los KPI cuentan al abrir cada página, filas y tarjetas entran escalonadas, una pieza se desliza por el riel hasta la sección activa, los botones se hunden al pulsar y las ventanas se van con suavidad. En el teléfono el riel deja el «+» fijo, centra la sección activa y desvanece los bordes cuando hay más. El análisis completo está en `docs/negocio-ui-analisis.md`.
 
 - `src/negocio.js`: entrada, rutas y riel.
 - `src/negocio-core.js`: datos, fila de guardado, cálculos y piezas de interfaz.
@@ -242,7 +251,86 @@ Cada publicación lleva título, marca, fecha y hora, formato, categoría, rol e
 
 ### Dónde se guardan los datos
 
-En un espacio KV de Cloudflare enlazado como `SITE` (lo crea `wrangler deploy` la primera vez). Guarda la lista de novedades, el botón de descarga de CeroFiao, las reseñas y los datos del negocio (cada colección en una clave `crm:*`, también las páginas, los leads y las campañas; cada archivo subido —recibos, fotos de líneas, portadas e imágenes— en `crm:file:*`, cada enlace público en `crm:share:*`, lo que pasa en él en `crm:pub:*` y `crm:sig:*`, y el último número de cada serie de documentos en `crm:seq`). Las reseñas llevan el nombre que escribió la persona, su calificación, el texto y la fecha; no se guarda correo ni dirección IP.
+En un espacio KV de Cloudflare enlazado como `SITE` (salvo el portal de clientes, que vive en Supabase: ver arriba) (lo crea `wrangler deploy` la primera vez). Guarda la lista de novedades, el botón de descarga de CeroFiao, las reseñas y los datos del negocio (cada colección en una clave `crm:*`, también las páginas, los leads y las campañas; cada archivo subido —recibos, fotos de líneas, portadas e imágenes— en `crm:file:*`, cada enlace público en `crm:share:*`, lo que pasa en él en `crm:pub:*` y `crm:sig:*`, y el último número de cada serie de documentos en `crm:seq`). Las reseñas llevan el nombre que escribió la persona, su calificación, el texto y la fecha; no se guarda correo ni dirección IP.
+
+## Portal de clientes
+
+`/cliente/` es una app que se instala en el teléfono (o se usa en el ordenador), la misma para el cliente y para el estudio:
+
+- **El cliente** ve su proyecto. Entra con el correo y la contraseña que le da el estudio, toca «Instalar» y queda como una app más, con su icono, sin barra del navegador y con avisos push.
+- **El estudio** entra con su cuenta (marcada como estudio en Supabase) y ve el portal de cada cliente con todo editable, lo que le envían y sus herramientas: es el panel del portal, pensado para el teléfono.
+
+### Lo que ve el cliente
+
+- **Inicio**: saludo, «Hoy en tu proyecto» (lo que el estudio hizo hoy y lo que está haciendo ahora, con un anillo de progreso), el tablón, lo que tiene que aprobar, lo que le pedimos, el resumen de resultados del mes, lo próximo del calendario y lo último que pasó.
+- **Cronología**: todo, por días: el **reporte diario** del estudio (cada tarea hecha, en curso o planificada, con su tiempo), anuncios, avances, hitos, entregas, peticiones, contenido, resultados y lo que el propio cliente envió o comentó. Lo nuevo desde su última visita sale marcado.
+- **Marketing**:
+  - **Calendario** por mes (con el equilibrio del mes entre atracción, autoridad, conversión y comunidad), en lista o como la cuadrícula del perfil de Instagram. Se cambia de mes deslizando.
+  - **La ficha de cada publicación**: imágenes y vídeos, red, formato, embudo, pilar y campaña, fecha y duración, las etapas (idea → producción → revisión → aprobado → programado → publicado), objetivo, llamada a la acción, texto y hashtags (con botón de copiar), guion por tiempos, notas, referencias y la conversación. El cliente la **aprueba** o **pide cambios**.
+  - **Rendimiento** del mes: alcance (con la variación frente al mes anterior y los últimos 6 meses), seguidores, interacciones y su tasa, leads y coste por lead, ventas y retorno, clics, impresiones, publicaciones, inversión y el desglose por red.
+  - **Leads**: los del mes, los ganados y la conversión, el valor del embudo, el embudo por etapas, las fuentes y la lista.
+- **Recursos**: guías, manuales, fotos, vídeos y enlaces, con buscador y categorías.
+- **Peticiones**: lo que le pedimos (con prioridad, fecha y qué se espera). La marca como enviada o manda lo pedido desde ahí; cada petición tiene su conversación.
+- **Enviar** (el botón flotante): mensajes, enlaces, archivos y vídeos de hasta 50 MB.
+- **Perfil**: su foto, nombre, cargo y teléfono; los datos de su negocio (sector, descripción, web, redes, teléfono, correo, dirección y horario); qué avisos quiere recibir; vibración, sonidos y tema; instalar la app, cambiar la contraseña y salir.
+
+### Lo que hace el estudio
+
+Todo lo anterior, editable (mantener pulsado un recurso, una petición o una publicación también lo abre para editar), y además:
+
+- **Inicio del estudio**: lo que pide atención (envíos sin ver, peticiones enviadas, cambios pedidos y comentarios sin responder), ocho atajos para crear y el trabajo de hoy, que se marca como hecho, en curso o planificado con un toque.
+- **El botón «Crear»**: reporte de hoy (varias líneas de golpe), trabajo, anuncio o avance, petición, publicación del calendario (la ficha completa, con imágenes y vídeos), recurso, lead y resultados del mes (en total o por red).
+- **Clientes**: el logo de arriba a la izquierda cambia de cliente (con lo pendiente de cada uno) y crea portales.
+- **Accesos** (en el perfil o en los atajos): dar acceso con un correo (la contraseña se ve una sola vez, con el mensaje listo para mandar por WhatsApp), crear una contraseña nueva, copiar un enlace de acceso de un solo uso o quitar el acceso. No se envía ningún correo.
+- **Desde Negocio**: en Negocio › Portal de clientes está el QR para instalar la app, y «Mandar al portal» lleva lo que terminaste hoy (tareas hechas y horas) al reporte diario de cada cliente, sin repetirlo si ya está.
+
+### Tacto, sonido y movimiento
+
+- Cada toque responde: vibración en Android y, en el iPhone (iOS 18 o posterior), el golpe háptico del interruptor nativo. Patrones distintos para tocar, cambiar de pestaña, confirmar, avisar y equivocarse (`src/portal/feel.js`).
+- Sonidos cortos generados al momento (sin archivos) para abrir y cerrar hojas, enviar, aprobar, activar y errores. En el iPhone respetan el modo silencio. Las dos cosas se apagan en el perfil.
+- Barra de arriba al estilo iOS: el título grande de cada pantalla se recoge en uno pequeño centrado sobre un cristal al bajar, y crece un poco al tirar hacia abajo.
+- Hojas que suben con muelle y se cierran deslizando hacia abajo, menús de acciones como los de iOS, controles segmentados y fichas que rebotan, números que cuentan, barras y anillos que crecen, confeti al aprobar o enviar, botones que se hunden al pulsar. Con «reducir movimiento» todo queda quieto.
+
+### Avisos al teléfono
+
+Los manda la propia base: cada cambio que importa llama (con `pg_net`) a la función `portal` de Supabase, que decide a quién avisar y firma y cifra el aviso (Web Push con VAPID y aes128gcm, sin librerías):
+
+- **Al cliente**: anuncios y recursos nuevos, el reporte del día (un solo aviso que se actualiza: «Reporte de hoy: 4 tareas hechas»), lo que el estudio empieza a hacer, peticiones nuevas y revisadas, contenido para revisar o publicado, resultados del mes y las respuestas del estudio. Cada categoría se puede silenciar en el perfil.
+- **Al estudio**: lo que envía cada cliente, las peticiones que marca como enviadas, lo que aprueba o pide cambiar y sus comentarios.
+- **Recordatorios**: cada mañana a las 9:00 (Venezuela), `pg_cron` recuerda a cada cliente lo que vence hoy, mañana o ya venció.
+
+La app pide el permiso tras entrar, con una hoja que explica para qué sirve (en el iPhone, primero pide instalarla: los avisos solo llegan a la app instalada, con iOS 16.4 o posterior). En el perfil se ve el estado y hay un botón «Probar».
+
+### Dónde viven los datos
+
+Todo en **Supabase** (proyecto SchwarckDevWeb); Cloudflare solo sirve los archivos de la página. Así el portal no gasta la cuota gratuita de KV, y los archivos y vídeos van al almacén de Supabase (1 GB gratis).
+
+- `supabase/migrations/`: las tablas (portales, miembros, tablón, trabajo, contenido, recursos, peticiones, envíos, comentarios, rendimiento, leads y suscripciones a avisos), las reglas (RLS) y los avisos. El cliente solo ve sus portales; puede marcar peticiones como enviadas (no darlas por buenas), aprobar contenido, comentar, enviar archivos a su carpeta y editar su perfil y las columnas públicas de su negocio. El estudio (cuentas con `app_metadata.role = 'admin'`) lo puede todo.
+- `supabase/functions/portal/`: la función de accesos y avisos. Las claves VAPID las crea ella misma la primera vez y las guarda en Vault, igual que el secreto con el que la base la llama: no hay ningún secreto en el código ni en Cloudflare.
+- `src/portal/config.js`: la dirección y la clave publicable del proyecto (son públicas).
+
+### Ponerlo en marcha
+
+Ya está hecho: las migraciones aplicadas, la función desplegada y un portal «Cliente de prueba» con su cuenta (`demo@schwarckdev.com`; la contraseña está en el archivo local `.env.portal-prueba`).
+
+Falta, una sola vez:
+
+1. **Tu cuenta del estudio**: en Supabase › Authentication › Users › Add user › Create new user, con tu correo y tu contraseña (marca «Auto Confirm User»). Luego, en SQL Editor:
+
+```sql
+update auth.users set raw_app_meta_data = raw_app_meta_data || '{"role": "admin"}' where email = 'TU-CORREO';
+```
+
+2. En Authentication › Sign In / Providers, desactiva «Allow new users to sign up» (las cuentas las crea el estudio) y activa la protección de contraseñas filtradas. En URL Configuration, pon `https://schwarckdev.com/cliente/` como Site URL (lo usan los enlaces de acceso de un solo uso).
+
+`/cliente/?demo` enseña la app del cliente con datos de ejemplo, y `/cliente/?demo=estudio`, el modo estudio.
+
+### Archivos
+
+- `cliente/index.html`, `src/cliente.js` y `src/cliente.css`: la app (rutas, barra de arriba, pestañas y estilos).
+- `src/portal/`: `data.js` (Supabase y la demostración), `state.js` (la cronología y lo pendiente), `kit.js` (piezas, hojas y controles), `feel.js` (vibración y sonido), `screens.js` (Inicio, Cronología, Recursos y Peticiones), `marketing.js`, `profile.js`, `threads.js` (conversaciones) y `studio.js` (todo lo del estudio).
+- `public/cliente/`: el manifiesto, el service worker (sin conexión y avisos) y los iconos.
+- `src/negocio-portal.js`: la entrada desde Negocio.
 
 ## Cuando CeroFiao esté en Google Play
 

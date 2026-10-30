@@ -88,6 +88,12 @@
 .sb-links:hover .sb-glow { opacity: 1; }
 
 .sb-end { display: flex; align-items: center; gap: 4px; }
+/* El acceso al panel (solo en la portada): un icono, como el del tema */
+.sb .sb-admin { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: var(--sb-muted); transition: background 0.2s, color 0.2s; }
+.sb .sb-admin:hover { background: var(--sb-hover); color: var(--sb-ink); }
+.sb .sb-admin svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; transition: rotate 0.5s var(--sb-ease); }
+.sb .sb-admin:hover svg { rotate: 45deg; }
+@media (prefers-reduced-motion: reduce) { .sb .sb-admin svg { transition: none; } }
 .sb .theme-btn { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--sb-muted); cursor: pointer; transition: background 0.2s, color 0.2s; }
 .sb .theme-btn[hidden] { display: none; }
 .sb .theme-btn:hover { background: var(--sb-hover); color: var(--sb-ink); }

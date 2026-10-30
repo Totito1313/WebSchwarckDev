@@ -1,0 +1,34 @@
+/* Negocio › Portal de clientes (src/negocio-portal.js): la entrada a la app del portal. */
+
+.pt-launch { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 16px; align-items: start; }
+.pt-qr { display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: center; }
+.pt-qr h2 { margin-bottom: 8px; font-size: 20px; font-weight: 750; letter-spacing: -0.015em; }
+.pt-qr p { color: var(--body); font-size: 14px; line-height: 1.5; }
+.pt-qr-code { width: 148px; padding: 12px; border-radius: 22px; background: #fff; box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.5); animation: pt-pop 0.6s var(--ease) both; }
+.pt-qr-code svg { display: block; width: 100%; height: auto; }
+.pt-qr-code path { fill: #000; }
+.pt-url { display: inline-block; margin-top: 12px; padding: 4px 10px; border-radius: 10px; background: var(--cloud-deep); font-size: 13px; }
+.pt-today { display: grid; gap: 12px; }
+.pt-today-group { display: grid; gap: 10px; padding: 14px; border-radius: 20px; background: var(--paper); animation: cf-rise-in 0.45s var(--ease) both; }
+.pt-today-group header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.pt-today-group header b { font-size: 16px; }
+.pt-today-group header small { flex: 1; color: var(--body); }
+.pt-today-group ul { display: grid; gap: 6px; }
+.pt-today-group li { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.pt-today-group li .ic { color: var(--income); }
+.pt-today-group li span { flex: 1; }
+.pt-today-group li small { color: var(--body); }
+
+/* El número del riel */
+.pt-rail-badge { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--expense); color: #fff; font-size: 10px; font-style: normal; font-weight: 800; box-shadow: 0 0 0 2px var(--cf-surface, #fff); animation: pt-pop 0.4s var(--ease); }
+@keyframes pt-pop { from { scale: 0.6; opacity: 0; } }
+
+@media (max-width: 900px) {
+  .pt-launch { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .pt-qr { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-qr-code, .pt-today-group, .pt-rail-badge { animation: none; }
+}

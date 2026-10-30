@@ -1,0 +1,3 @@
+# Las herramientas de las apps salieron de /admin/ a /apps/ («Mis apps»).
+/admin/tienda/  /apps/tienda/  301
+/admin/tienda   /apps/tienda/  301

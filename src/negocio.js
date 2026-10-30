@@ -15,6 +15,9 @@ import { hoursPage, mountTimer, timeForm, guessProject } from './negocio-time.js
 import { pagesPage, createPage } from './negocio-paginas.js';
 import { leadsPage, createLead } from './negocio-leads.js';
 import { ensureKeys } from './negocio-work.js';
+import { portalPage, mountPortalBadge } from './negocio-portal.js';
+import { enterPage, mountRail } from './negocio-fx.js';
+import { mountCommand } from './negocio-cmdk.js';
 
 initTheme();
 
@@ -22,6 +25,7 @@ const views = Object.fromEntries([...document.querySelectorAll('[data-view]')].m
 const rail = document.querySelector('[data-rail]');
 const loadingNote = views.loading.querySelector('p');
 for (const slot of document.querySelectorAll('[data-icon]')) slot.append(icon(slot.dataset.icon));
+mountRail(rail);
 
 let opened = false;
 const show = (name) => {
@@ -67,7 +71,8 @@ document.querySelector('[data-logout]').addEventListener('click', async () => {
 
 // ── Crear desde el riel ──
 const newButton = document.querySelector('[data-new]');
-newButton.addEventListener('click', () => menu(newButton, [
+// Lo mismo sale en el buscador (Ctrl+K).
+const CREATE = [
   { label: 'Nueva factura', icon: 'file', run: () => createDoc('invoice') },
   { label: 'Nueva cotización', icon: 'quote', run: () => createDoc('quote') },
   { label: 'Nueva propuesta', icon: 'send', run: () => createDoc('proposal') },
@@ -83,10 +88,12 @@ newButton.addEventListener('click', () => menu(newButton, [
   { label: 'Nuevo servicio', icon: 'box', run: () => catalogForm(null, () => go('#/catalogo')) },
   '-',
   { label: 'Nueva publicación', icon: 'megaphone', run: () => postForm(newPost()) },
-], { side: matchMedia('(max-width: 760px)').matches ? 'below' : 'right' }));
+];
+newButton.addEventListener('click', () => menu(newButton, CREATE, { side: matchMedia('(max-width: 760px)').matches ? 'below' : 'right' }));
+mountCommand({ create: CREATE, trigger: document.querySelector('[data-cmdk]') });
 
 // ── Rutas ──
-const TITLES = { leads: 'Leads', paginas: 'Páginas', propuestas: 'Propuestas', marketing: 'Marketing', proyectos: 'Proyectos', tareas: 'Tareas', horas: 'Horas', inicio: 'Inicio', gastos: 'Gastos', facturas: 'Facturas', cotizaciones: 'Cotizaciones', clientes: 'Clientes', catalogo: 'Catálogo', ajustes: 'Ajustes' };
+const TITLES = { portal: 'Portal de clientes', leads: 'Leads', paginas: 'Páginas', propuestas: 'Propuestas', marketing: 'Marketing', proyectos: 'Proyectos', tareas: 'Tareas', horas: 'Horas', inicio: 'Inicio', gastos: 'Gastos', facturas: 'Facturas', cotizaciones: 'Cotizaciones', clientes: 'Clientes', catalogo: 'Catálogo', ajustes: 'Ajustes' };
 let current = null;
 let lastList = '#/facturas';
 
@@ -113,6 +120,7 @@ function resolve() {
     case 'clientes': return { nav: 'clientes', build: () => (id ? customerPage(id) : customersPage()) };
     case 'catalogo': return { nav: 'catalogo', build: catalogPage };
     case 'marketing': return { nav: 'marketing', build: () => marketingPage(id || 'calendario', sub) };
+    case 'portal': return { nav: 'portal', build: () => portalPage(id, sub) };
     case 'ajustes': return { nav: 'ajustes', build: settingsPage };
     case 'doc': {
       const doc = find('docs', id);
@@ -169,6 +177,7 @@ function draw() {
   }
   current.editor = route.editor;
   views.app.replaceChildren(current.node);
+  enterPage(current.node);
   document.body.classList.toggle('is-editor', Boolean(route.editor));
   for (const link of rail.querySelectorAll('[data-nav]')) {
     if (link.dataset.nav === route.nav) link.setAttribute('aria-current', 'page');
@@ -273,6 +282,7 @@ async function openApp() {
   lastSync = Date.now();
   ensureKeys();
   mountTimer(document.querySelector('[data-timer]'));
+  mountPortalBadge(document.querySelector('[data-nav="portal"]'));
   show('app');
   draw();
 }

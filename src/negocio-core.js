@@ -773,7 +773,13 @@ export function picker(anchor, { placeholder, items, label, sub, onPick, extra }
 export function dialog({ title, body, submit = 'Guardar', onSubmit, danger, wide }) {
   const form = el('form', { class: 'ng-dialog-form', method: 'dialog' });
   const dlg = el('dialog', { class: `ng-dialog${wide ? ' is-wide' : ''}` }, form);
-  const close = () => dlg.close();
+  // Se va hundiéndose un poco (la animación está en negocio-fx.css).
+  const close = () => {
+    if (!dlg.open || dlg.classList.contains('is-closing')) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return dlg.close();
+    dlg.classList.add('is-closing');
+    setTimeout(() => dlg.close(), 170);
+  };
   form.append(
     el('header', { class: 'ng-dialog-head' }, el('h2', { text: title }), iconButton('x', 'Cerrar', close)),
     el('div', { class: 'ng-dialog-body' }, body),
