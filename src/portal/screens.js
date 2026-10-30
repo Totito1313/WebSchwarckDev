@@ -7,7 +7,7 @@ import {
 } from './kit.js';
 import { react, onLongPress } from './feel.js';
 import {
-  app, redraw, isStudio, myName, feed, attention, pendingTasks, toReview, workToday, doingNow, upsertLocal, removeLocal, POST_KIND, RESOURCE_KIND, EXPECTS, PRIORITY, SENT_KIND, WORK_STATUS, commentsOf,
+  app, redraw, isStudio, myName, feed, attention, pendingTasks, toReview, workToday, doingNow, upsertLocal, removeLocal, can, canAct, POST_KIND, RESOURCE_KIND, EXPECTS, PRIORITY, SENT_KIND, WORK_STATUS, commentsOf,
 } from './state.js';
 import { thread, commentCount, openThread } from './threads.js';
 import * as studio from './studio.js';
@@ -36,16 +36,17 @@ function clientHome() {
   const node = el('div', { class: 'cl-stack' },
     el('section', { class: 'cl-hero' },
       el('div', { class: 'cl-hero-glow', 'aria-hidden': 'true' }),
+      el('p', { class: 'cl-hero-kicker', text: app.client.brand?.app_name || app.client.name }),
       app.client.welcome && el('p', { class: 'cl-hero-text', text: app.client.welcome }),
       el('div', { class: 'cl-stats' },
-        stat(pending.length, pending.length === 1 ? 'petición para ti' : 'peticiones para ti', '#/peticiones', pending.length ? 'var(--cf-orange)' : null),
-        stat(review.length, 'para revisar', '#/marketing', review.length ? 'var(--cf-primary)' : null),
-        stat(week, week === 1 ? 'publicación esta semana' : 'publicaciones esta semana', '#/marketing'),
+        can('peticiones') && stat(pending.length, pending.length === 1 ? 'petición para ti' : 'peticiones para ti', '#/peticiones', pending.length ? 'var(--cf-orange)' : null),
+        can('calendario') && stat(review.length, 'para revisar', '#/marketing', review.length ? 'var(--cf-primary)' : null),
+        can('calendario') && stat(week, week === 1 ? 'publicación esta semana' : 'publicaciones esta semana', '#/marketing'),
       ),
     ),
     notificationsCard(),
     installCard(),
-    todayCard(),
+    can('reporte') && todayCard(),
     board.length && el('section', { class: 'cl-sec' },
       sectionHead('Tablón', more('Todo', '#/cronologia?anuncios')),
       el('div', { class: 'cl-list' }, board.map(postCard)),
@@ -58,7 +59,7 @@ function clientHome() {
       sectionHead('Lo que necesitamos de ti', more('Peticiones', '#/peticiones')),
       el('div', { class: 'cl-list' }, pending.slice(0, 3).map((t) => taskCard(t, { compact: true }))),
     ),
-    resultsTeaser(),
+    can('rendimiento') && resultsTeaser(),
     soon.length && el('section', { class: 'cl-sec' },
       sectionHead('Próximo en el calendario', more('Ver mes', '#/marketing')),
       el('div', { class: 'cl-list' }, soon.map((c) => contentRow(c))),
@@ -197,7 +198,7 @@ function workLine(w, { editable } = {}) {
   return line;
 }
 
-const FEED_FILTERS = () => [['todo', 'Todo'], ['reportes', 'Reportes'], ['anuncios', 'Anuncios'], ['avances', 'Avances'], ['marketing', 'Marketing'], ['peticiones', 'Peticiones'], ['tuyo', isStudio() ? 'Del cliente' : 'Lo tuyo']];
+const FEED_FILTERS = () => [['todo', 'Todo'], can('reporte') && ['reportes', 'Reportes'], ['anuncios', 'Anuncios'], ['avances', 'Avances'], (can('calendario') || can('rendimiento')) && ['marketing', 'Marketing'], can('peticiones') && ['peticiones', 'Peticiones'], ['tuyo', isStudio() ? 'Del cliente' : 'Lo tuyo']].filter(Boolean);
 
 export function feedItem(x, { compact: small } = {}) {
   const seen = app.member?.last_seen_at ? new Date(app.member.last_seen_at) : new Date(0);
@@ -311,7 +312,7 @@ export function taskCard(t, { compact: small } = {}) {
   const [due, dueClass] = t.due_date ? dueText(t.due_date) : [null, ''];
   const [prio, prioColor] = PRIORITY[t.priority || 'normal'];
   const toggle = async (btn) => {
-    if (t.status === 'done' || isStudio()) return;
+    if (t.status === 'done' || isStudio() || !canAct()) return;
     const next = t.status === 'pending' ? 'submitted' : 'pending';
     btn.classList.add('is-busy');
     try {
@@ -334,7 +335,7 @@ export function taskCard(t, { compact: small } = {}) {
       class: 'cl-check',
       'aria-label': t.status === 'pending' ? 'Marcar como enviada' : t.status === 'submitted' ? 'Volver a pendiente' : 'Revisada',
       'aria-pressed': String(t.status !== 'pending'),
-      disabled: t.status === 'done' || isStudio(),
+      disabled: t.status === 'done' || isStudio() || !canAct(),
       onclick: (e) => toggle(e.currentTarget),
     }, icon('check')),
     el('button', { type: 'button', class: 'cl-task-main', onclick: () => taskSheet(t) },
@@ -349,7 +350,7 @@ export function taskCard(t, { compact: small } = {}) {
       ),
       !small && t.description && el('p', { class: 'cl-prose cl-clamp', text: t.description }),
     ),
-    !isStudio() && t.status === 'pending' && t.expects !== 'none' && el('button', { type: 'button', class: `cl-btn sm${small ? ' is-icon' : ''}`, 'aria-label': 'Enviar', onclick: () => sendSheet({ task: t }) }, icon('upload'), !small && 'Enviar'),
+    !isStudio() && canAct() && can('enviar') && t.status === 'pending' && t.expects !== 'none' && el('button', { type: 'button', class: `cl-btn sm${small ? ' is-icon' : ''}`, 'aria-label': 'Enviar', onclick: () => sendSheet({ task: t }) }, icon('upload'), !small && 'Enviar'),
     isStudio() && t.status === 'submitted' && el('button', { type: 'button', class: 'cl-btn sm', onclick: (e) => studio.approveTask(t, e.currentTarget) }, icon('check'), !small && 'Dar por buena'),
   );
   if (isStudio()) onLongPress(card, () => studio.editTask(t));
@@ -362,8 +363,8 @@ export function taskSheet(t) {
   let ui;
   const actions = isStudio()
     ? [el('button', { type: 'button', class: 'cl-btn ghost', onclick: () => { ui.close(); studio.editTask(t); } }, icon('edit'), 'Editar'), t.status !== 'done' && el('button', { type: 'button', class: 'cl-btn', onclick: (e) => { studio.approveTask(t, e.currentTarget); ui.close(); } }, icon('check'), 'Dar por buena')]
-    : t.status === 'pending'
-      ? [t.expects !== 'none' && el('button', { type: 'button', class: 'cl-btn ghost', onclick: () => { ui.close(); sendSheet({ task: t }); } }, icon('upload'), 'Enviar'), el('button', { type: 'button', class: 'cl-btn', onclick: async (e) => {
+    : t.status === 'pending' && canAct()
+      ? [t.expects !== 'none' && can('enviar') && el('button', { type: 'button', class: 'cl-btn ghost', onclick: () => { ui.close(); sendSheet({ task: t }); } }, icon('upload'), 'Enviar'), el('button', { type: 'button', class: 'cl-btn', onclick: async (e) => {
         try {
           upsertLocal('tasks', await app.backend.save('tasks', { id: t.id, status: 'submitted' }));
           burst(e.currentTarget);

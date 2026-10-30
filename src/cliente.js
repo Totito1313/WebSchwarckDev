@@ -13,7 +13,8 @@ import { initTheme } from './theme.js';
 import { createBackend } from './portal/data.js';
 import { el, fill, icon, toast, still, sheet, emptyBox, avatar, initials, plural } from './portal/kit.js';
 import { installTouchFeedback, react } from './portal/feel.js';
-import { app, setRedraw, unread, pendingTasks, collectPaths, signPaths, urlOf } from './portal/state.js';
+import { app, setRedraw, unread, pendingTasks, collectPaths, signPaths, urlOf, can, canAct } from './portal/state.js';
+import { applyBrand, brandOf } from './portal/brand.js';
 import { homePage, timelinePage, resourcesPage, requestsPage, sendSheet, feedItem } from './portal/screens.js';
 import { marketingPage } from './portal/marketing.js';
 import { profilePage, ensurePush, notificationOnboarding, notificationsCard } from './portal/profile.js';
@@ -68,9 +69,17 @@ function route() {
   }
 }
 
+// Qué pestaña enseña cada sección (si todas las de una pestaña están ocultas, la pestaña se va).
+const TAB_SECTIONS = { cronologia: ['cronologia'], marketing: ['calendario', 'rendimiento', 'leads'], recursos: ['recursos'], peticiones: ['peticiones'] };
+const tabVisible = (tab) => app.studio || !TAB_SECTIONS[tab] || TAB_SECTIONS[tab].some(can);
+
 function render({ keepScroll = false } = {}) {
   if (!app.data) return;
-  const r = route();
+  let r = route();
+  if (r.tab && !tabVisible(r.tab)) {
+    history.replaceState(null, '', '#/');
+    r = route();
+  }
   if (r.overlay) {
     // Las hojas (un hilo, enviar…) se abren sobre la pestaña en la que se estaba.
     history.replaceState(null, '', lastRoute || '#/');
@@ -102,7 +111,7 @@ function render({ keepScroll = false } = {}) {
     else a.removeAttribute('aria-current');
   }
   placeThumb(changed);
-  fab.hidden = r.tab === 'perfil';
+  fab.hidden = r.tab === 'perfil' || (!app.studio && (!canAct() || !can('enviar')));
   if (keepScroll) scrollTo(0, y);
   else if (changed) scrollTo({ top: 0 });
   onScroll();
@@ -166,8 +175,16 @@ addEventListener('scroll', onScroll, { passive: true });
 
 function syncChrome() {
   const c = app.client;
-  views.app.style.setProperty('--accent', c.accent || '#00b8d4');
+  // En el body: así también lo heredan las hojas, que viven fuera de la app.
+  applyBrand(document.body, c, urlOf(brandOf(c).cover));
   views.app.classList.toggle('is-studio', app.studio);
+  let shown = 0;
+  for (const a of tabsNav.querySelectorAll('[data-tab]')) {
+    a.hidden = !tabVisible(a.dataset.tab);
+    if (!a.hidden) shown++;
+  }
+  tabsNav.style.setProperty('--tabs-n', String(shown));
+  fab.hidden = lastTab === 'perfil' || (!app.studio && (!canAct() || !can('enviar')));
   const logo = document.querySelector('[data-logo]');
   const src = urlOf(c.logo_url);
   fill(logo, src ? el('img', { src, alt: '' }) : initials(c.name));
@@ -387,6 +404,24 @@ loginForm.querySelector('[data-reveal]')?.addEventListener('click', (e) => {
   input.type = input.type === 'password' ? 'text' : 'password';
   fill(e.currentTarget, icon(input.type === 'password' ? 'eye' : 'lock'));
 });
+
+// Vista previa desde Negocio (Identidad): la demostración pinta la identidad que se está editando.
+if (new URLSearchParams(location.search).has('preview')) {
+  document.body.classList.add('is-preview');
+  addEventListener('message', (e) => {
+    if (e.origin !== location.origin || e.data?.type !== 'portal:preview' || !app.client) return;
+    const { client, logoSrc, coverSrc } = e.data;
+    Object.assign(app.client, client);
+    if (logoSrc && client.logo_url) app.urls[client.logo_url] = logoSrc;
+    if (coverSrc && client.brand?.cover) app.urls[client.brand.cover] = coverSrc;
+    if (!client.logo_url) app.client.logo_url = null;
+    syncChrome();
+    render({ keepScroll: true });
+  });
+  // Avisa a Negocio de que ya puede mandar la identidad.
+  const ready = () => (app.data ? parent.postMessage({ type: 'portal:preview-ready' }, location.origin) : setTimeout(ready, 200));
+  ready();
+}
 
 // Instalada y avisos
 addEventListener('appinstalled', () => {

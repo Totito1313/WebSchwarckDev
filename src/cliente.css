@@ -241,8 +241,8 @@ input[type='date'].cl-input, input[type='time'].cl-input, input[type='month'].cl
   padding: 20px;
   overflow: hidden;
   isolation: isolate;
-  border-radius: 28px;
-  background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 94%, #000) 0%, color-mix(in srgb, var(--accent) 66%, #1b66b8) 100%);
+  border-radius: calc(var(--r-card) + 4px);
+  background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 94%, #000) 0%, var(--accent-2, color-mix(in srgb, var(--accent) 66%, #1b66b8)) 100%);
   color: #fff;
   box-shadow: 0 22px 44px -26px color-mix(in srgb, var(--accent) 85%, transparent);
   animation: cl-rise 0.6s var(--spring) both;
@@ -250,6 +250,18 @@ input[type='date'].cl-input, input[type='time'].cl-input, input[type='month'].cl
 .cl-hero-glow { position: absolute; inset: -40%; z-index: -1; background: radial-gradient(circle at 80% 10%, rgba(255, 255, 255, 0.42), transparent 35%), radial-gradient(circle at 10% 100%, color-mix(in srgb, var(--accent) 50%, #00d8ff), transparent 40%); animation: cl-drift 12s ease-in-out infinite alternate; }
 @keyframes cl-drift { to { transform: translate(-6%, 5%) rotate(8deg); } }
 .cl-hero-text { max-width: 54ch; color: rgba(255, 255, 255, 0.92); font-size: 15px; }
+.cl-hero-kicker { color: #fff; font-family: var(--brand-font, inherit); font-size: 19px; font-weight: 800; letter-spacing: -0.015em; }
+body[data-hero='liso'] .cl-hero { background: var(--accent); }
+body[data-hero='liso'] .cl-hero-glow { opacity: 0.35; }
+body[data-hero='imagen'] .cl-hero { min-height: 230px; align-content: end; background: linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.62) 100%), var(--hero-image) center / cover; }
+body[data-hero='imagen'] .cl-hero-glow { display: none; }
+body[data-hero='imagen'] .cl-stat { background: rgba(0, 0, 0, 0.32); }
+.cl-stats:not(.is-flat) { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.cl-stats:empty { display: none; }
+/* La tipografía del cliente, en los títulos */
+.cl-large h1, .cl-sec-head h2, .cl-post h3, .cl-sheet-head h2, .cl-me-name, .cl-gate-card h1, .cl-nav-title, .cl-cal-title-text, .cl-task-title { font-family: var(--brand-font, inherit); }
+/* En la vista previa de Negocio no salen los avisos de instalar ni de notificaciones */
+body.is-preview .cl-promo, body.is-preview.is-demo .cl-nav-bar::after { display: none; }
 .cl-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .cl-stat { display: grid; align-content: start; gap: 4px; min-height: 84px; padding: 12px; border-radius: 18px; background: rgba(255, 255, 255, 0.16); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); color: #fff; text-decoration: none; }
 .cl-stat b { font-family: var(--cf-font-title); font-size: 32px; font-weight: 400; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -402,7 +414,7 @@ a.cl-tl:hover { background: color-mix(in srgb, var(--cf-surface) 70%, transparen
 /* Lista agrupada al estilo de Ajustes de iOS */
 .cl-group { display: grid; gap: 8px; }
 .cl-group-title { padding: 0 6px; color: var(--cf-fg-muted); font-size: 13px; font-weight: 650; }
-.cl-group-box { overflow: hidden; border-radius: 20px; background: var(--cf-surface); box-shadow: inset 0 0 0 1px var(--cf-border); }
+.cl-group-box { overflow: hidden; border-radius: calc(var(--r-cell) + 4px); background: var(--cf-surface); box-shadow: inset 0 0 0 1px var(--cf-border); }
 .cl-group-empty { padding: 16px; color: var(--cf-fg-muted); font-size: 14px; }
 .cl-row-set { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px; border: 0; background: none; color: var(--cf-fg); text-align: left; text-decoration: none; cursor: pointer; }
 .cl-row-set + .cl-row-set::before, .cl-group-box > * + .cl-row-set::before { content: ''; position: absolute; top: 0; left: 58px; right: 0; height: 1px; background: var(--cf-border); }
@@ -495,7 +507,7 @@ a.cl-tl:hover { background: color-mix(in srgb, var(--cf-surface) 70%, transparen
 .cl-empty .cl-btn { margin-top: 6px; }
 
 /* Filas */
-.cl-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 68px; padding: 10px 12px; border: 0; border-radius: 20px; background: var(--cf-surface); box-shadow: inset 0 0 0 1px var(--cf-border); color: var(--cf-fg); text-align: left; text-decoration: none; cursor: pointer; }
+.cl-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 68px; padding: 10px 12px; border: 0; border-radius: calc(var(--r-cell) + 4px); background: var(--cf-surface); box-shadow: inset 0 0 0 1px var(--cf-border); color: var(--cf-fg); text-align: left; text-decoration: none; cursor: pointer; }
 @media (hover: hover) { .cl-row:hover { box-shadow: inset 0 0 0 1px var(--cf-border-strong), var(--cf-shadow-lift); } }
 .cl-row .cl-set-main b { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.25; }
 .cl-row .cl-set-main small { display: flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -619,7 +631,7 @@ a.cl-tl:hover { background: color-mix(in srgb, var(--cf-surface) 70%, transparen
 .cl-bar.is-on small { color: var(--cf-fg); }
 @keyframes cl-grow-y { from { transform: scaleY(0); } }
 .cl-kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.cl-kpi { display: grid; align-content: start; gap: 6px; padding: 14px; border-radius: 20px; background: var(--cf-surface); box-shadow: inset 0 0 0 1px var(--cf-border); animation: cl-fade-up 0.5s var(--spring) both; }
+.cl-kpi { display: grid; align-content: start; gap: 6px; padding: 14px; border-radius: calc(var(--r-cell) + 4px); background: var(--cf-surface); box-shadow: inset 0 0 0 1px var(--cf-border); animation: cl-fade-up 0.5s var(--spring) both; }
 .cl-kpi:nth-child(2) { animation-delay: 40ms; }
 .cl-kpi:nth-child(3) { animation-delay: 80ms; }
 .cl-kpi:nth-child(4) { animation-delay: 120ms; }
@@ -860,8 +872,8 @@ a.cl-tl:hover { background: color-mix(in srgb, var(--cf-surface) 70%, transparen
   bottom: calc(var(--safe-b) + 12px);
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  width: min(calc(100% - 24px), 520px);
+  grid-template-columns: repeat(var(--tabs-n, 5), minmax(0, 1fr));
+  width: min(calc(100% - 24px), calc(var(--tabs-n, 5) * 104px));
   height: var(--tabs-h);
   padding: 6px;
   border-radius: 34px;

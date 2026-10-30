@@ -23,10 +23,14 @@
   X-Robots-Tag: noindex
 
 # La app del cliente: no se indexa. El service worker se revisa en cada visita
-# para que una versión nueva llegue enseguida a los teléfonos.
+# para que una versión nueva llegue enseguida a los teléfonos. Solo este mismo sitio
+# la puede meter en un marco: Negocio la enseña así en la vista previa de Identidad.
 /cliente/*
   X-Robots-Tag: noindex
   Referrer-Policy: no-referrer
+  ! X-Frame-Options
+  X-Frame-Options: SAMEORIGIN
+  Content-Security-Policy: frame-ancestors 'self'
 
 /cliente/sw.js
   Cache-Control: no-cache

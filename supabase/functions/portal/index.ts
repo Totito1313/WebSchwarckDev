@@ -3,7 +3,10 @@
 //   GET  ?action=vapid                 la clave pública para suscribirse a los avisos
 //   POST { action: 'event' }           lo manda la base en cada cambio que importa (cabecera x-portal-hook)
 //   POST { action: 'reminders' }       cada mañana (pg_cron): las peticiones que vencen
-//   POST { action: 'invite' | 'password' | 'link' }   solo el estudio (app_metadata.role = 'admin')
+//   POST { action: 'claim' }           crea o recupera la cuenta del estudio con un pase de un solo uso
+//                                      que da el panel de schwarckdev.com (prueba que tiene la sesión abierta)
+//   POST { action: 'invite' | 'password' | 'link' | 'users' | 'create_user' | 'set_studio' | 'delete_user' }
+//                                      solo el estudio (app_metadata.role = 'admin')
 //   POST { action: 'test' }            cualquiera con sesión: un aviso de prueba a sus dispositivos
 //
 // Las claves VAPID se crean aquí la primera vez y se guardan en Vault (portal_store_setting);
@@ -120,14 +123,19 @@ async function deliver(subs: Sub[], message: Message) {
   return { sent, failed, removed: gone.length };
 }
 
-/** A los teléfonos del cliente, salvo a quien silenció esa categoría en su perfil. */
-async function toClient(clientId: string, category: string, message: Message) {
-  const [subs, members] = await Promise.all([
+/**
+ * A los teléfonos del cliente, salvo a quien silenció esa categoría en su perfil o no puede
+ * ver esa sección (oculta en su portal o solo para esa persona).
+ */
+async function toClient(clientId: string, category: string, message: Message, section?: string) {
+  const [subs, members, [client]] = await Promise.all([
     rest('portal_push', `?client_id=eq.${clientId}&is_admin=is.false&select=id,endpoint,p256dh,auth,user_id`),
-    rest('portal_members', `?client_id=eq.${clientId}&select=user_id,prefs`),
+    rest('portal_members', `?client_id=eq.${clientId}&select=user_id,prefs,hidden`),
+    rest('portal_clients', `?id=eq.${clientId}&select=hidden`),
   ]);
-  const muted = new Set(members.filter((m: { prefs?: { push?: boolean; mute?: string[] } }) => m.prefs?.push === false || m.prefs?.mute?.includes(category)).map((m: { user_id: string }) => m.user_id));
-  return deliver(subs.filter((s: Sub) => !muted.has(s.user_id ?? '')), message);
+  if (section && client?.hidden?.includes(section)) return { sent: 0, failed: 0 };
+  const skip = new Set(members.filter((m: Row) => m.prefs?.push === false || m.prefs?.mute?.includes(category) || (section && m.hidden?.includes(section))).map((m: Row) => m.user_id));
+  return deliver(subs.filter((s: Sub) => !skip.has(s.user_id ?? '')), message);
 }
 const toStudio = async (message: Message) => deliver(await rest('portal_push', '?is_admin=is.true&select=id,endpoint,p256dh,auth,user_id'), message);
 
@@ -155,20 +163,20 @@ async function onEvent({ table, op, record: r, old, actor }: { table: string; op
 
     case 'portal_resources':
       if (!r.notify) return null;
-      return toClient(cid, 'avisos', { title: 'Recurso nuevo', body: clip(r.title), url: appUrl(cid, 'recursos'), tag: `res-${r.id}` });
+      return toClient(cid, 'avisos', { title: 'Recurso nuevo', body: clip(r.title), url: appUrl(cid, 'recursos'), tag: `res-${r.id}` }, 'recursos');
 
     case 'portal_tasks':
       if (op === 'INSERT') {
         if (!r.notify) return null;
         const due = r.due_date ? ` · para el ${new Date(`${r.due_date}T12:00:00`).toLocaleDateString('es', { weekday: 'long', day: 'numeric' })}` : '';
-        return toClient(cid, 'peticiones', { title: r.priority === 'high' ? 'Petición urgente' : 'Te necesitamos', body: `${clip(r.title, 100)}${due}`, url: appUrl(cid, 'peticiones'), tag: `task-${r.id}` });
+        return toClient(cid, 'peticiones', { title: r.priority === 'high' ? 'Petición urgente' : 'Te necesitamos', body: `${clip(r.title, 100)}${due}`, url: appUrl(cid, 'peticiones'), tag: `task-${r.id}` }, 'peticiones');
       }
       if (!changed('status')) return null;
       if (byClient) {
         const name = await clientName(cid);
         return toStudio({ title: `${name} ${r.status === 'submitted' ? 'envió una petición' : 'reabrió una petición'}`, body: clip(r.client_note ? `«${r.title}» · ${r.client_note}` : r.title), url: appUrl(cid, 'peticiones/enviadas'), tag: `task-${r.id}` });
       }
-      if (r.status === 'done' && r.notify) return toClient(cid, 'peticiones', { title: 'Recibido, ¡gracias!', body: `Revisamos «${clip(r.title, 100)}».`, url: appUrl(cid, 'peticiones/hechas'), tag: `task-${r.id}` });
+      if (r.status === 'done' && r.notify) return toClient(cid, 'peticiones', { title: 'Recibido, ¡gracias!', body: `Revisamos «${clip(r.title, 100)}».`, url: appUrl(cid, 'peticiones/hechas'), tag: `task-${r.id}` }, 'peticiones');
       return null;
 
     case 'portal_content':
@@ -178,10 +186,10 @@ async function onEvent({ table, op, record: r, old, actor }: { table: string; op
       }
       if (byClient || !r.notify) return null;
       if ((op === 'INSERT' && r.status === 'review') || (changed('status') && r.status === 'review')) {
-        return toClient(cid, 'marketing', { title: 'Para revisar', body: `«${clip(r.title, 90)}» espera tu aprobación.`, url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` });
+        return toClient(cid, 'marketing', { title: 'Para revisar', body: `«${clip(r.title, 90)}» espera tu aprobación.`, url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` }, 'calendario');
       }
-      if (changed('status') && r.status === 'published') return toClient(cid, 'marketing', { title: 'Publicado', body: clip(r.title), url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` });
-      if (op === 'INSERT') return toClient(cid, 'marketing', { title: 'Nuevo en tu calendario', body: clip(r.title), url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` });
+      if (changed('status') && r.status === 'published') return toClient(cid, 'marketing', { title: 'Publicado', body: clip(r.title), url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` }, 'calendario');
+      if (op === 'INSERT') return toClient(cid, 'marketing', { title: 'Nuevo en tu calendario', body: clip(r.title), url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` }, 'calendario');
       return null;
 
     case 'portal_work': {
@@ -189,11 +197,11 @@ async function onEvent({ table, op, record: r, old, actor }: { table: string; op
       const nowDone = r.status === 'done' && (op === 'INSERT' || changed('status'));
       const nowDoing = r.status === 'doing' && (op === 'INSERT' || changed('status'));
       if (!nowDone && !nowDoing) return null;
-      if (nowDoing) return toClient(cid, 'trabajo', { title: 'Estamos trabajando en…', body: clip(r.title), url: appUrl(cid, 'cronologia/reportes'), tag: `work-${cid}-${r.day}` });
+      if (nowDoing) return toClient(cid, 'trabajo', { title: 'Estamos trabajando en…', body: clip(r.title), url: appUrl(cid, 'cronologia/reportes'), tag: `work-${cid}-${r.day}` }, 'reporte');
       // Un solo aviso por día que se va actualizando: «Reporte de hoy: 4 tareas hechas».
       const done = await rest('portal_work', `?client_id=eq.${cid}&day=eq.${r.day}&status=eq.done&select=id`);
       const n = done.length;
-      return toClient(cid, 'trabajo', { title: r.day === day() ? `Reporte de hoy: ${n} ${n === 1 ? 'tarea hecha' : 'tareas hechas'}` : `Reporte del ${r.day}`, body: `Lo último: ${clip(r.title, 100)}`, url: appUrl(cid, 'cronologia/reportes'), tag: `work-${cid}-${r.day}` });
+      return toClient(cid, 'trabajo', { title: r.day === day() ? `Reporte de hoy: ${n} ${n === 1 ? 'tarea hecha' : 'tareas hechas'}` : `Reporte del ${r.day}`, body: `Lo último: ${clip(r.title, 100)}`, url: appUrl(cid, 'cronologia/reportes'), tag: `work-${cid}-${r.day}` }, 'reporte');
     }
 
     case 'portal_submissions': {
@@ -208,7 +216,7 @@ async function onEvent({ table, op, record: r, old, actor }: { table: string; op
 
     case 'portal_metrics':
       if (byClient || r.channel !== 'total') return null;
-      return toClient(cid, 'marketing', { title: `Resultados de ${MONTH(r.month)}`, body: 'Ya puedes ver cómo le fue a tu marca este mes.', url: appUrl(cid, 'marketing/rendimiento'), tag: `metrics-${cid}-${r.month}` });
+      return toClient(cid, 'marketing', { title: `Resultados de ${MONTH(r.month)}`, body: 'Ya puedes ver cómo le fue a tu marca este mes.', url: appUrl(cid, 'marketing/rendimiento'), tag: `metrics-${cid}-${r.month}` }, 'rendimiento');
   }
   return null;
 }
@@ -229,7 +237,7 @@ async function reminders() {
       body: `«${clip(first.title, 80)}» ${when}.`,
       url: appUrl(cid, 'peticiones'),
       tag: `reminder-${cid}`,
-    });
+    }, 'peticiones');
     sent += r.sent;
   }
   return { clients: byClient.size, sent };
@@ -272,10 +280,75 @@ async function invite(body: Row) {
   }
   const [member] = await rest('portal_members', '?on_conflict=client_id,user_id', {
     method: 'POST',
-    body: { client_id: clientId, user_id: user.id, email, name },
+    body: { client_id: clientId, user_id: user.id, email, name, ...memberAccess(body) },
     headers: { prefer: 'resolution=merge-duplicates,return=representation' },
   });
   return { member, password: pass, existed: !pass };
+}
+
+const ROLES = ['owner', 'member', 'viewer'];
+const SECTIONS = ['cronologia', 'reporte', 'calendario', 'rendimiento', 'leads', 'recursos', 'peticiones', 'enviar'];
+function memberAccess(body: Row) {
+  const out: Row = {};
+  if (ROLES.includes(body.role)) out.role = body.role;
+  if (Array.isArray(body.hidden)) out.hidden = body.hidden.filter((x: unknown) => SECTIONS.includes(String(x)));
+  return out;
+}
+const isStudio = (u: Row) => u?.app_metadata?.role === 'admin';
+
+/** Todas las cuentas, con su rol (los portales de cada una los lee la app en portal_members). */
+async function listUsers() {
+  const all: Row[] = [];
+  for (let page = 1; page <= 20; page++) {
+    const data = await sb(`/auth/v1/admin/users?page=${page}&per_page=200`);
+    const users = data?.users ?? [];
+    all.push(...users);
+    if (users.length < 200) break;
+  }
+  return all.map((u) => ({ id: u.id, email: u.email, name: u.user_metadata?.name ?? null, studio: isStudio(u), created_at: u.created_at, last_sign_in_at: u.last_sign_in_at ?? null }));
+}
+
+/** Crea una cuenta (o usa la que ya existe con ese correo), con su rol y sus portales. */
+async function createUser(body: Row) {
+  const email = String(body.email ?? '').trim().toLowerCase();
+  const name = String(body.name ?? '').trim().slice(0, 120) || null;
+  if (!EMAIL.test(email)) throw new Fail(400, 'Ese correo no parece válido.');
+  const chosen = typeof body.password === 'string' && body.password.length ? body.password : null;
+  if (chosen && chosen.length < 8) throw new Fail(400, 'La contraseña tiene que tener al menos 8 caracteres.');
+  const studio = Boolean(body.studio);
+  let user = await findUser(email);
+  let pass: string | null = null;
+  const app_metadata = studio ? { ...(user?.app_metadata ?? {}), role: 'admin' } : undefined;
+  if (!user) {
+    pass = chosen ?? password();
+    user = await sb('/auth/v1/admin/users', { method: 'POST', body: { email, password: pass, email_confirm: true, user_metadata: { name }, ...(app_metadata ? { app_metadata } : {}) } });
+  } else {
+    const patch: Row = {};
+    if (chosen || body.reset) patch.password = pass = chosen ?? password();
+    if (app_metadata) patch.app_metadata = app_metadata;
+    if (name) patch.user_metadata = { ...(user.user_metadata ?? {}), name };
+    if (Object.keys(patch).length) user = await sb(`/auth/v1/admin/users/${user.id}`, { method: 'PUT', body: patch });
+  }
+  const portals = Array.isArray(body.portals) ? body.portals.filter((p: Row) => UUID.test(String(p.client_id))) : [];
+  const members = portals.length
+    ? await rest('portal_members', '?on_conflict=client_id,user_id', {
+      method: 'POST',
+      body: portals.map((p: Row) => ({ client_id: p.client_id, user_id: user.id, email, name, ...memberAccess(p) })),
+      headers: { prefer: 'resolution=merge-duplicates,return=representation' },
+    })
+    : [];
+  return { user: { id: user.id, email, name, studio: isStudio(user) }, members, password: pass };
+}
+
+/** Canjea el pase del panel (lo comprueba el Worker de schwarckdev.com) y deja lista la cuenta del estudio. */
+async function claim(body: Row) {
+  const ticket = String(body.ticket ?? '');
+  if (!/^[A-Za-z0-9_-]{40,60}$/.test(ticket)) throw new Fail(400, 'Pase no válido.');
+  if (typeof body.password !== 'string' || body.password.length < 8) throw new Fail(400, 'La contraseña tiene que tener al menos 8 caracteres.');
+  const check = await fetch('https://schwarckdev.com/api/portal-ticket', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ticket }) });
+  if (!check.ok) throw new Fail(401, 'El pase no vale: vuelve a intentarlo desde el panel.');
+  const r = await createUser({ email: body.email, name: body.name || 'Schwarck', password: body.password, studio: true });
+  return { ok: true, email: r.user.email };
 }
 
 // ── Entrada ──
@@ -298,6 +371,8 @@ Deno.serve(async (req) => {
       return json(action === 'event' ? (await onEvent(body)) ?? { skipped: true } : await reminders());
     }
 
+    if (action === 'claim') return json(await claim(body));
+
     const who = await caller(req);
     if (action === 'test') {
       const subs = await rest('portal_push', `?user_id=eq.${who.id}&select=id,endpoint,p256dh,auth,user_id`);
@@ -305,6 +380,24 @@ Deno.serve(async (req) => {
     }
     if (!who.admin) throw new Fail(403, 'Solo el estudio puede hacer esto.');
     if (action === 'invite') return json(await invite(body));
+    if (action === 'users') return json({ users: await listUsers() });
+    if (action === 'create_user') return json(await createUser(body));
+    if (action === 'set_studio') {
+      if (!UUID.test(String(body.user_id))) throw new Fail(400, 'Usuario no válido.');
+      if (body.user_id === who.id && !body.studio) throw new Fail(400, 'No puedes quitarte a ti mismo el acceso del estudio.');
+      const data = await sb(`/auth/v1/admin/users/${body.user_id}`);
+      const meta = { ...(data?.app_metadata ?? {}) };
+      if (body.studio) meta.role = 'admin';
+      else delete meta.role;
+      await sb(`/auth/v1/admin/users/${body.user_id}`, { method: 'PUT', body: { app_metadata: meta } });
+      return json({ ok: true });
+    }
+    if (action === 'delete_user') {
+      if (!UUID.test(String(body.user_id))) throw new Fail(400, 'Usuario no válido.');
+      if (body.user_id === who.id) throw new Fail(400, 'No puedes borrar tu propia cuenta desde aquí.');
+      await sb(`/auth/v1/admin/users/${body.user_id}`, { method: 'DELETE' });
+      return json({ ok: true });
+    }
     if (action === 'password') {
       if (!UUID.test(String(body.user_id))) throw new Fail(400, 'Usuario no válido.');
       const pass = password();

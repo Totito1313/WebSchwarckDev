@@ -3,7 +3,7 @@
 
 import { el, fill, icon, toast, sheet, ago, textarea, avatar } from './kit.js';
 import { react } from './feel.js';
-import { app, myName, commentsOf, upsertLocal, targetTitle, memberOf, urlOf, redraw } from './state.js';
+import { app, myName, commentsOf, upsertLocal, targetTitle, memberOf, urlOf, redraw, canAct } from './state.js';
 
 export function thread(target, id, { compact = false } = {}) {
   const list = el('div', { class: 'cl-thread-list', role: 'log', 'aria-live': 'polite' });
@@ -67,7 +67,7 @@ export function thread(target, id, { compact = false } = {}) {
   const node = el('section', { class: `cl-thread${compact ? ' is-compact' : ''}` },
     el('h3', { class: 'cl-thread-title' }, icon('chat'), 'Conversación', el('small', { text: commentsOf(target, id).length ? String(commentsOf(target, id).length) : '' })),
     list,
-    el('div', { class: 'cl-thread-compose' }, area, send),
+    canAct() ? el('div', { class: 'cl-thread-compose' }, area, send) : el('p', { class: 'cl-thread-empty', text: 'Tu acceso es de solo lectura: puedes leer la conversación, pero no escribir.' }),
   );
   node.refresh = () => draw();
   return node;

@@ -6,7 +6,7 @@ import {
 } from './kit.js';
 import { react, onLongPress } from './feel.js';
 import {
-  app, redraw, isStudio, upsertLocal, CONTENT_STATUS, STATUS_ORDER, CHANNEL, FORMAT, FUNNEL, LEAD_STAGE, LEAD_SOURCE, urlOf,
+  app, redraw, isStudio, upsertLocal, can, canAct, CONTENT_STATUS, STATUS_ORDER, CHANNEL, FORMAT, FUNNEL, LEAD_STAGE, LEAD_SOURCE, urlOf,
 } from './state.js';
 import { thread, commentCount } from './threads.js';
 import * as studio from './studio.js';
@@ -22,13 +22,13 @@ const remember = (key, value) => {
 };
 
 export function marketingPage(sub = 'calendario', a, b) {
-  const tabs = [['calendario', 'Calendario'], ['rendimiento', 'Rendimiento'], ['leads', 'Leads']];
+  const tabs = [['calendario', 'Calendario'], ['rendimiento', 'Rendimiento'], ['leads', 'Leads']].filter(([k]) => can(k));
   if (sub === 'pieza') {
     setTimeout(() => openPiece(a), 60);
     sub = 'calendario';
     a = undefined;
   }
-  if (!tabs.some(([k]) => k === sub)) sub = 'calendario';
+  if (!tabs.some(([k]) => k === sub)) sub = tabs[0]?.[0] || 'calendario';
   const body = el('div');
   const draw = () => {
     const view = sub === 'rendimiento' ? performance() : sub === 'leads' ? leads() : calendar(a, b);
@@ -44,6 +44,7 @@ export function marketingPage(sub = 'calendario', a, b) {
     body.classList.add('cl-swap');
     draw();
   }, { label: 'Secciones de marketing' });
+  if (tabs.length < 2) switcher.hidden = true;
   draw();
   return { node: el('div', { class: 'cl-stack' }, switcher, body), title: 'Marketing', large: 'Marketing', sub: isStudio() ? 'Contenido, resultados y leads del cliente' : 'Tu contenido, tus resultados y tus clientes nuevos' };
 }
@@ -223,7 +224,7 @@ export function openPiece(id) {
   if (!media.length && c.image_url) media.push({ path: c.image_url, kind: 'image' });
   const statusIndex = STATUS_ORDER.indexOf(c.status);
   const note = textarea({ placeholder: 'Qué cambiarías (obligatorio para pedir cambios)', maxLength: 2000, rows: 2, value: c.client_note || '' });
-  const canAnswer = !isStudio() && c.status !== 'published';
+  const canAnswer = !isStudio() && canAct() && c.status !== 'published';
   let ui;
   const answer = async (verdict, btn) => {
     const text = (note.querySelector?.('textarea') || note).value.trim();

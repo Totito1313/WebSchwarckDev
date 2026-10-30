@@ -23,6 +23,17 @@ export const setRedraw = (fn) => {
 export const redraw = () => redrawFn();
 
 export const isStudio = () => app.studio;
+
+/** Secciones ocultas para quien entra: las del portal y las suyas (al estudio, ninguna). */
+export function hiddenSet() {
+  if (app.studio) return new Set();
+  return new Set([...(app.client?.hidden || []), ...(app.member?.hidden || [])]);
+}
+export const can = (section) => !hiddenSet().has(section);
+/** Solo lectura no aprueba, no comenta, no marca ni envía. */
+export const canAct = () => app.studio || app.member?.role !== 'viewer';
+/** El dueño (y el estudio) edita los datos del negocio. */
+export const isOwner = () => app.studio || app.member?.role === 'owner';
 export const myName = () => (app.studio ? 'Schwarck' : app.member?.name || app.user?.email || 'Cliente');
 
 // ── Textos ──
@@ -96,6 +107,7 @@ export function collectPaths(data) {
   }
   for (const m of data.members) if (m.avatar_path) paths.push(m.avatar_path);
   if (data.client?.logo_url) paths.push(data.client.logo_url);
+  if (data.client?.brand?.cover) paths.push(data.client.brand.cover);
   return paths;
 }
 
@@ -107,11 +119,12 @@ export function feed() {
   if (!d) return [];
   const out = [];
   const studio = app.studio;
+  const see = (s) => studio || can(s);
   for (const p of d.posts) out.push({ id: `p${p.id}`, at: p.occurred_at, group: p.kind === 'announcement' ? 'anuncios' : 'avances', kind: p.kind, label: POST_KIND[p.kind]?.[0], ico: POST_KIND[p.kind]?.[1], color: POST_KIND[p.kind]?.[2], title: p.title, body: p.body, link: p.link, pinned: p.pinned, mine: studio, ref: { type: 'post', row: p } });
 
   // El trabajo de cada día se agrupa en un reporte.
   const days = new Map();
-  for (const w of d.work) {
+  for (const w of see('reporte') ? d.work : []) {
     if (w.status === 'planned') continue;
     if (!days.has(w.day)) days.set(w.day, []);
     days.get(w.day).push(w);
@@ -124,18 +137,18 @@ export function feed() {
     out.push({ id: `r${day}`, at: day === todayKey() ? (last > nowIso ? nowIso : last) : `${day}T23:00:00`, group: 'reportes', label: day === todayKey() ? 'Reporte de hoy' : 'Reporte del día', ico: 'tasks', color: 'var(--cf-income)', title: done.length ? `${done.length} ${done.length === 1 ? 'tarea hecha' : 'tareas hechas'}` : 'Trabajando en ello', report: { day, items, done, minutes }, mine: studio });
   }
 
-  for (const t of d.tasks) {
+  for (const t of see('peticiones') ? d.tasks : []) {
     out.push({ id: `tn${t.id}`, at: t.created_at, group: 'peticiones', label: 'Te pedimos', ico: 'inbox', color: 'var(--cf-orange)', title: t.title, body: t.description, go: '#/peticiones', mine: studio });
     if (t.status === 'done' && t.done_at) out.push({ id: `td${t.id}`, at: t.done_at, group: 'peticiones', label: 'Revisado', ico: 'checkCircle', color: 'var(--cf-income)', title: t.title, go: '#/peticiones/hechas', mine: studio });
     if (t.status === 'submitted' && t.submitted_at) out.push({ id: `ts${t.id}`, at: t.submitted_at, group: 'tuyo', label: studio ? 'El cliente lo envió' : 'Marcaste como enviada', ico: 'send', color: studio ? 'var(--cf-primary)' : 'var(--cf-fg-muted)', title: t.title, go: '#/peticiones/enviadas', mine: !studio });
   }
-  for (const c of d.content) {
+  for (const c of see('calendario') ? d.content : []) {
     if (c.created_at) out.push({ id: `cn${c.id}`, at: c.created_at, group: 'marketing', label: 'Al calendario', ico: 'calendar', color: CHANNEL[c.channel]?.[1], title: c.title, body: `${FORMAT[c.format] || ''} · ${cap(fDay.format(dayDate(c.date)))}`, go: `#/marketing/pieza/${c.id}`, mine: studio });
     if (c.status === 'published' && c.date <= todayKey()) out.push({ id: `cp${c.id}`, at: `${c.date}T${(c.time || '12:00').slice(0, 5)}:00`, group: 'marketing', label: 'Publicado', ico: 'megaphone', color: 'var(--cf-purple)', title: c.title, go: `#/marketing/pieza/${c.id}`, mine: studio });
     if (c.client_verdict && c.client_verdict_at) out.push({ id: `cv${c.id}`, at: c.client_verdict_at, group: 'tuyo', label: c.client_verdict === 'approved' ? (studio ? 'El cliente aprobó' : 'Aprobaste') : studio ? 'El cliente pide cambios' : 'Pediste cambios', ico: c.client_verdict === 'approved' ? 'check' : 'edit', color: studio ? (c.client_verdict === 'approved' ? 'var(--cf-income)' : 'var(--cf-orange)') : 'var(--cf-fg-muted)', title: c.title, body: c.client_note, go: `#/marketing/pieza/${c.id}`, mine: !studio });
   }
-  for (const r of d.resources) out.push({ id: `res${r.id}`, at: r.created_at, group: 'avances', label: 'Recurso nuevo', ico: RESOURCE_KIND[r.kind]?.[1] || 'folder', color: 'var(--cf-blue)', title: r.title, body: r.description, go: '#/recursos', mine: studio });
-  for (const m of d.metrics) if (m.channel === 'total') out.push({ id: `m${m.id}`, at: m.updated_at || m.created_at || `${m.month}T12:00:00`, group: 'marketing', label: 'Resultados', ico: 'chart', color: 'var(--cf-blue)', title: cap(fMonth.format(dayDate(m.month))), body: `${(m.reach || 0).toLocaleString('es')} de alcance · ${m.leads || 0} leads`, go: '#/marketing/rendimiento', mine: studio });
+  for (const r of see('recursos') ? d.resources : []) out.push({ id: `res${r.id}`, at: r.created_at, group: 'avances', label: 'Recurso nuevo', ico: RESOURCE_KIND[r.kind]?.[1] || 'folder', color: 'var(--cf-blue)', title: r.title, body: r.description, go: '#/recursos', mine: studio });
+  for (const m of see('rendimiento') ? d.metrics : []) if (m.channel === 'total') out.push({ id: `m${m.id}`, at: m.updated_at || m.created_at || `${m.month}T12:00:00`, group: 'marketing', label: 'Resultados', ico: 'chart', color: 'var(--cf-blue)', title: cap(fMonth.format(dayDate(m.month))), body: `${(m.reach || 0).toLocaleString('es')} de alcance · ${m.leads || 0} leads`, go: '#/marketing/rendimiento', mine: studio });
   for (const s of d.submissions) out.push({ id: `s${s.id}`, at: s.created_at, group: 'tuyo', label: studio ? `${s.author || 'El cliente'} envió ${SENT_KIND[s.kind]?.[0].toLowerCase() || 'algo'}` : `Enviaste: ${SENT_KIND[s.kind]?.[0].toLowerCase() || 'algo'}`, ico: SENT_KIND[s.kind]?.[1] || 'send', color: studio ? 'var(--cf-primary)' : 'var(--cf-fg-muted)', title: s.file_name || s.url || (s.body || '').slice(0, 90), body: s.file_name || s.url ? s.body : null, mine: !studio, ref: { type: 'submission', row: s } });
   for (const c of d.comments) {
     if (c.from_studio === studio) continue;

@@ -16,6 +16,7 @@
 //   crm:sig:<docId>      la firma dibujada, como imagen PNG en texto
 //   crm:file:<id>        un archivo subido (recibo, imagen de una línea o de una tarea…)
 //   crm:seq              el último número usado por serie (FAC-2026…): nunca baja
+//   portal:ticket:<t>    pase de un solo uso (2 min) para crear la cuenta del estudio del portal
 //   crm:<colección>      clientes, catálogo, formas de cobro, documentos, proyectos,
 //                        tareas, horas, páginas, leads, campañas…, cada colección en una sola clave
 //                        (ver CRM más abajo)
@@ -81,7 +82,22 @@ async function route(request, env, url) {
   if (pathname.startsWith('/api/public/doc/')) return publicDoc(request, env, url);
   if (pathname.startsWith('/api/admin/')) return admin(request, env, url);
   if (pathname === '/api/cerofiao/ai' && method === 'POST') return cerofiaoAi(request, env);
+  if (pathname === '/api/portal-ticket' && method === 'POST') return redeemPortalTicket(request, env);
   return fail(404, 'No existe.');
+}
+
+// ── Portal de clientes ──
+
+/** La función `portal` de Supabase canjea aquí el pase: vale una vez y caduca en dos minutos. */
+async function redeemPortalTicket(request, env) {
+  if (!env.SITE) throw new HttpError(503, 'Falta el almacén de datos.');
+  if (!(await burstOk(env.LOGIN_LIMIT, `ticket:${await caller(request, env)}`))) throw new HttpError(429, 'Demasiados intentos.');
+  const { ticket } = await readJson(request, 200);
+  if (typeof ticket !== 'string' || !/^[A-Za-z0-9_-]{40,60}$/.test(ticket)) throw new HttpError(400, 'Pase no válido.');
+  const key = `portal:ticket:${ticket}`;
+  if (!(await env.SITE.get(key))) throw new HttpError(404, 'El pase no existe o ya se usó.');
+  await env.SITE.delete(key);
+  return json({ ok: true });
 }
 
 // ── Utilidades ──
@@ -788,6 +804,13 @@ async function admin(request, env, url) {
     return json(download);
   }
 
+  // Pase de un solo uso para el portal de clientes: prueba ante la función de Supabase
+  // que quien pide crear la cuenta del estudio tiene abierta la sesión del panel.
+  if (path === '/portal-ticket' && method === 'POST') {
+    const ticket = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    await env.SITE.put(`portal:ticket:${ticket}`, '1', { expirationTtl: 120 });
+    return json({ ticket });
+  }
   if (path === '/crm' && method === 'GET') return json({ ...(await readCrm(env)), pub: await readPubSafe(env) });
   if (path === '/crm/pub' && method === 'GET') return json({ pub: await readPubSafe(env) });
   if (path === '/crm/share' && method === 'POST') return json(await createShare(env, await readJson(request, 2000)), 201);

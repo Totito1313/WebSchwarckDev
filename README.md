@@ -251,7 +251,7 @@ Cada publicación lleva título, marca, fecha y hora, formato, categoría, rol e
 
 ### Dónde se guardan los datos
 
-En un espacio KV de Cloudflare enlazado como `SITE` (salvo el portal de clientes, que vive en Supabase: ver arriba) (lo crea `wrangler deploy` la primera vez). Guarda la lista de novedades, el botón de descarga de CeroFiao, las reseñas y los datos del negocio (cada colección en una clave `crm:*`, también las páginas, los leads y las campañas; cada archivo subido —recibos, fotos de líneas, portadas e imágenes— en `crm:file:*`, cada enlace público en `crm:share:*`, lo que pasa en él en `crm:pub:*` y `crm:sig:*`, y el último número de cada serie de documentos en `crm:seq`). Las reseñas llevan el nombre que escribió la persona, su calificación, el texto y la fecha; no se guarda correo ni dirección IP.
+En un espacio KV de Cloudflare enlazado como `SITE` (salvo el portal de clientes, que vive en Supabase: ver arriba) (lo crea `wrangler deploy` la primera vez). Guarda la lista de novedades, el botón de descarga de CeroFiao, las reseñas y los datos del negocio (cada colección en una clave `crm:*`, también las páginas, los leads y las campañas; cada archivo subido —recibos, fotos de líneas, portadas e imágenes— en `crm:file:*`, cada enlace público en `crm:share:*`, lo que pasa en él en `crm:pub:*` y `crm:sig:*`, el último número de cada serie de documentos en `crm:seq` y, durante dos minutos, el pase de un solo uso con el que Negocio crea la cuenta del estudio del portal en `portal:ticket:*`). Las reseñas llevan el nombre que escribió la persona, su calificación, el texto y la fecha; no se guarda correo ni dirección IP.
 
 ## Portal de clientes
 
@@ -282,7 +282,24 @@ Todo lo anterior, editable (mantener pulsado un recurso, una petición o una pub
 - **El botón «Crear»**: reporte de hoy (varias líneas de golpe), trabajo, anuncio o avance, petición, publicación del calendario (la ficha completa, con imágenes y vídeos), recurso, lead y resultados del mes (en total o por red).
 - **Clientes**: el logo de arriba a la izquierda cambia de cliente (con lo pendiente de cada uno) y crea portales.
 - **Accesos** (en el perfil o en los atajos): dar acceso con un correo (la contraseña se ve una sola vez, con el mensaje listo para mandar por WhatsApp), crear una contraseña nueva, copiar un enlace de acceso de un solo uso o quitar el acceso. No se envía ningún correo.
-- **Desde Negocio**: en Negocio › Portal de clientes está el QR para instalar la app, y «Mandar al portal» lleva lo que terminaste hoy (tareas hechas y horas) al reporte diario de cada cliente, sin repetirlo si ya está.
+
+### Desde Negocio › Portal de clientes
+
+La administración de los portales, con la misma cuenta del estudio que la app (la sesión se comparte: es el mismo sitio). Cuatro pestañas:
+
+- **Resumen**: portales, personas con acceso, lo que te enviaron sin ver y las peticiones por revisar; el QR para instalar la app; y «Mandar al portal», que lleva lo que terminaste hoy en Negocio (tareas hechas y horas) al reporte diario de cada cliente, sin repetirlo si ya está.
+- **Clientes**: cada portal con su logo, su color, su gente y las secciones que tiene ocultas. Crear uno (enlazado a un cliente de Negocio), elegir qué secciones ve todo el portal, archivarlo (su gente deja de verlo) o borrarlo con todo lo suyo.
+- **Accesos**: todas las cuentas, con buscador y filtro por portal. «Nueva cuenta» crea la de un cliente (portal, rol y secciones) o la de alguien del estudio, con una contraseña generada o elegida; se ve una sola vez, con el mensaje listo para mandar. En cada cuenta: hacerla del estudio o no, cambiar su rol o lo que ve en cada portal, añadirla a otro portal o quitarla, crear una contraseña nueva, copiar un enlace de acceso de un solo uso o borrarla.
+- **Identidad**: la marca de cada cliente en su app, con la app de verdad al lado (en un teléfono, al ancho real) que cambia mientras editas: nombre del cliente y nombre de la app, logo, color principal y secundario, bienvenida, tipografía de los títulos (nueve), esquinas (rectas, suaves o redondas), inicio (degradado, color liso o imagen de portada) y tema por defecto (si la persona elige otro en su perfil, manda el suyo).
+
+### Roles y secciones
+
+- **Estudio** (`app_metadata.role = 'admin'`): entra en todos los portales y lo puede todo, también en Negocio.
+- **Dueño**: ve y hace todo en su portal y es el único que edita los datos del negocio. La primera persona de cada portal lo es.
+- **Equipo**: ve, aprueba, comenta y envía.
+- **Solo lectura**: solo mira; no aprueba, no comenta ni envía (la app esconde esos botones y la base los rechaza).
+
+Las secciones (cronología, reporte diario, calendario, rendimiento, leads, recursos, peticiones y enviar) se ocultan a todo un portal o a una persona en concreto. No es solo la interfaz: las reglas de la base (`private.can_see`, `can_act` e `is_owner`) dejan de dar esos datos, y no llegan avisos de lo que no se ve.
 
 ### Tacto, sonido y movimiento
 
@@ -315,11 +332,7 @@ Ya está hecho: las migraciones aplicadas, la función desplegada y un portal «
 
 Falta, una sola vez:
 
-1. **Tu cuenta del estudio**: en Supabase › Authentication › Users › Add user › Create new user, con tu correo y tu contraseña (marca «Auto Confirm User»). Luego, en SQL Editor:
-
-```sql
-update auth.users set raw_app_meta_data = raw_app_meta_data || '{"role": "admin"}' where email = 'TU-CORREO';
-```
+1. **Tu cuenta del estudio**: en `schwarckdev.com`, Negocio › Portal de clientes › «Crear mi cuenta del estudio» (o «Ya tengo cuenta» si ya la tienes). Como ya tienes abierta la sesión del panel, el Worker da un pase de un solo uso (dos minutos) y la función `portal` crea la cuenta o convierte la tuya en cuenta del estudio. Solo funciona en el sitio publicado: la función comprueba el pase contra `schwarckdev.com`.
 
 2. En Authentication › Sign In / Providers, desactiva «Allow new users to sign up» (las cuentas las crea el estudio) y activa la protección de contraseñas filtradas. En URL Configuration, pon `https://schwarckdev.com/cliente/` como Site URL (lo usan los enlaces de acceso de un solo uso).
 
@@ -330,7 +343,8 @@ update auth.users set raw_app_meta_data = raw_app_meta_data || '{"role": "admin"
 - `cliente/index.html`, `src/cliente.js` y `src/cliente.css`: la app (rutas, barra de arriba, pestañas y estilos).
 - `src/portal/`: `data.js` (Supabase y la demostración), `state.js` (la cronología y lo pendiente), `kit.js` (piezas, hojas y controles), `feel.js` (vibración y sonido), `screens.js` (Inicio, Cronología, Recursos y Peticiones), `marketing.js`, `profile.js`, `threads.js` (conversaciones) y `studio.js` (todo lo del estudio).
 - `public/cliente/`: el manifiesto, el service worker (sin conexión y avisos) y los iconos.
-- `src/negocio-portal.js`: la entrada desde Negocio.
+- `src/portal/brand.js`: la identidad de cada cliente (tipografías, esquinas, inicio, tema y colores), los roles y las secciones.
+- `src/negocio-portal.js` y `src/negocio-portal.css`: la administración desde Negocio (clientes, accesos e identidad).
 
 ## Cuando CeroFiao esté en Google Play
 

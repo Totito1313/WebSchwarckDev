@@ -7,7 +7,7 @@ import {
 } from './kit.js';
 import { react, feel } from './feel.js';
 import { safeName } from './data.js';
-import { app, redraw, isStudio, urlOf, signPaths } from './state.js';
+import { app, redraw, isStudio, urlOf, signPaths, isOwner } from './state.js';
 import * as studio from './studio.js';
 import { setTheme } from '../theme.js';
 
@@ -286,6 +286,7 @@ export function profilePage() {
   function businessRow(label, key, ico, tone, opts) {
     const value = app.client[key];
     const shown = key === 'website' && value ? value.replace(/^https?:\/\/(www\.)?/, '') : value;
+    if (!isOwner()) return rowLink(label, { ico, tone, value: shown ? String(shown).slice(0, 28) + (String(shown).length > 28 ? '…' : '') : '—', onClick: () => toast('Solo el dueño del portal puede cambiar los datos del negocio.') });
     return rowLink(label, { ico, tone, value: shown ? String(shown).slice(0, 28) + (String(shown).length > 28 ? '…' : '') : 'Añadir', onClick: () => editField(label, value, async (v) => {
       if (key === 'website' && v && !safeUrl(v)) throw new Error('La web tiene que empezar por https://');
       Object.assign(app.client, await app.backend.updateClient(app.client.id, { [key]: v || null }));
