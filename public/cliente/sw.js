@@ -5,7 +5,7 @@
 // · /assets/* (con huella en el nombre) y los iconos: de la caché, para siempre.
 // · Supabase y /api/: nunca se guardan; los datos los pide la app.
 
-const VERSION = 'cliente-v2';
+const VERSION = 'cliente-v3';
 const SHELL = ['/cliente/', '/cliente/manifest.webmanifest', '/cliente/icon-192.png', '/favicon.svg'];
 
 self.addEventListener('install', (event) => {

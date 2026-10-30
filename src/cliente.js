@@ -15,6 +15,7 @@ import { el, fill, icon, toast, still, sheet, emptyBox, avatar, initials, plural
 import { installTouchFeedback, react } from './portal/feel.js';
 import { app, setRedraw, unread, pendingTasks, collectPaths, signPaths, urlOf, can, canAct } from './portal/state.js';
 import { applyBrand, brandOf } from './portal/brand.js';
+import { tabIcon } from './portal/tab-icons.js';
 import { homePage, timelinePage, resourcesPage, requestsPage, sendSheet, feedItem } from './portal/screens.js';
 import { marketingPage } from './portal/marketing.js';
 import { profilePage, ensurePush, notificationOnboarding, notificationsCard } from './portal/profile.js';
@@ -24,6 +25,7 @@ import * as studio from './portal/studio.js';
 initTheme();
 installTouchFeedback();
 for (const slot of document.querySelectorAll('[data-icon]')) slot.append(icon(slot.dataset.icon));
+for (const slot of document.querySelectorAll('[data-tab-icon]')) slot.replaceWith(tabIcon(slot.closest('[data-tab]').dataset.tab));
 
 const views = Object.fromEntries([...document.querySelectorAll('[data-view]')].map((v) => [v.dataset.view, v]));
 const main = document.querySelector('[data-main]');

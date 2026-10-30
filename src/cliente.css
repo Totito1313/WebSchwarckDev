@@ -6,7 +6,10 @@
    El movimiento usa muelles (linear()) y todo lo pulsable se hunde un poco al tocarlo. */
 
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+/* El hueco de la barra de desplazamiento queda siempre reservado (donde la hay, en el
+   ordenador): sin él, al pasar de una pantalla corta a una larga o al abrir una hoja, todo
+   se corría unos píxeles de lado, también la barra de pestañas. */
+html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; scrollbar-gutter: stable; }
 :root {
   --spring: linear(0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%, 0.849 31.5%, 0.937 38.1%, 0.968 41.8%, 0.991 45.7%, 1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001);
   --pop: linear(0, 0.087 2.9%, 0.315 6.4%, 0.938 15.6%, 1.11 20.3%, 1.157 23.3%, 1.161 25.9%, 1.135 29.3%, 1.017 39%, 0.982 44.7%, 0.976 49.6%, 0.989 59.6%, 1.003 72.4%, 1);
@@ -178,7 +181,15 @@ input[type='date'].cl-input, input[type='time'].cl-input, input[type='month'].cl
 .cl-area-wrap .cl-input { padding-bottom: 26px; }
 
 /* ── La app ── */
-.cl-app { min-height: 100dvh; padding-bottom: calc(var(--tabs-h) + var(--safe-b) + 40px); }
+/* Nada puede ensanchar la página: al cambiar de pantalla la nueva entra deslizándose de
+   lado, y sin este recorte la página sería un momento más ancha que el teléfono (salía la
+   barra de desplazamiento de abajo, se podía arrastrar de lado y luego se reencuadraba).
+   `clip` y no `hidden`, que convertiría la app en otra caja con scroll y la barra de
+   arriba dejaría de quedarse fija. */
+.cl-app { min-height: 100dvh; padding-bottom: calc(var(--tabs-h) + var(--safe-b) + 40px); overflow-x: clip; }
+@supports not (overflow-x: clip) {
+  body.cl { overflow-x: hidden; }
+}
 
 /* Barra de arriba al estilo iOS: cristal que aparece al bajar y título pequeño centrado */
 .cl-nav { position: sticky; top: 0; z-index: 20; --k: 0; }
@@ -215,12 +226,12 @@ input[type='date'].cl-input, input[type='time'].cl-input, input[type='month'].cl
 .is-studio .cl-large p::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: var(--cf-income); box-shadow: 0 0 0 0 color-mix(in srgb, var(--cf-income) 60%, transparent); animation: cl-live 2.2s infinite; vertical-align: 1px; }
 
 .cl-main { width: min(100%, 760px); margin-inline: auto; padding: 0 var(--gutter); }
-.cl-page { display: grid; gap: 18px; }
+.cl-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
 .cl-enter { animation: cl-in-l 0.5s var(--spring) both; }
 .cl-enter-r { animation: cl-in-r 0.5s var(--spring) both; }
 @keyframes cl-in-l { from { opacity: 0; translate: 22px 0; } }
 @keyframes cl-in-r { from { opacity: 0; translate: -22px 0; } }
-.cl-stack { display: grid; gap: 24px; min-width: 0; }
+.cl-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; min-width: 0; }
 .cl-stack.is-tight { gap: 14px; }
 .cl-swap { animation: cl-fade-up 0.42s var(--spring) both; }
 @keyframes cl-fade-up { from { opacity: 0; transform: translateY(8px); } }
@@ -454,7 +465,7 @@ a.cl-tl:hover { background: color-mix(in srgb, var(--cf-surface) 70%, transparen
 
 /* Fichas */
 .cl-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.cl-chips.is-scroll { flex-wrap: nowrap; margin-inline: calc(-1 * var(--gutter)); padding: 2px var(--gutter); overflow-x: auto; scroll-padding-inline: var(--gutter); scrollbar-width: none; }
+.cl-chips.is-scroll { contain: inline-size; flex-wrap: nowrap; margin-inline: calc(-1 * var(--gutter)); padding: 2px var(--gutter); overflow-x: auto; scroll-padding-inline: var(--gutter); scrollbar-width: none; }
 .cl-sheet .cl-chips.is-scroll { margin-inline: -22px; padding-inline: 22px; }
 .cl-chips.is-scroll::-webkit-scrollbar { display: none; }
 .cl-chips.is-wrap { flex-wrap: wrap; }
@@ -473,13 +484,17 @@ a.cl-tl:hover { background: color-mix(in srgb, var(--cf-surface) 70%, transparen
 
 /* Control segmentado con muelle */
 .cl-seg { position: relative; display: flex; width: 100%; padding: 4px; border-radius: 22px; background: var(--cf-chip); isolation: isolate; }
-.cl-seg button { position: relative; z-index: 1; display: inline-flex; flex: 1; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 10px; border: 0; border-radius: 18px; background: none; color: var(--cf-fg-muted); font-size: 14px; font-weight: 550; white-space: nowrap; cursor: pointer; transition: color 0.3s; }
+.cl-seg button { position: relative; z-index: 1; display: inline-flex; flex: 1; min-width: 0; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 10px; border: 0; border-radius: 18px; background: none; color: var(--cf-fg-muted); font-size: 14px; font-weight: 550; white-space: nowrap; cursor: pointer; transition: color 0.3s; }
 .cl-seg button[aria-selected='true'] { color: var(--cf-on-ink); font-weight: 700; }
 .cl-seg-thumb { position: absolute; top: 4px; bottom: 4px; left: 0; z-index: 0; width: var(--tw, 0); border-radius: 18px; background: var(--cf-fg); opacity: 0; transform: translateX(var(--tx, 0)); transition: transform 0.55s var(--spring), width 0.45s var(--spring); }
 .cl-seg.is-live .cl-seg-thumb { opacity: 1; }
 .cl-seg:not(.is-live) button[aria-selected='true'] { background: var(--cf-fg); }
-.cl-seg-badge { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: color-mix(in srgb, currentColor 18%, transparent); font-size: 11px; font-style: normal; font-weight: 800; }
-.cl-seg.is-small { width: auto; }
+/* Nunca se sale de su caja: si no cabe, el texto se acorta con «…». Con cifras, cada opción
+   ocupa lo que necesita (las de cifra son más anchas) en vez de partes iguales. */
+.cl-seg button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cl-seg:has(.cl-seg-badge) button, .cl-seg.is-small button { flex: 1 1 auto; }
+.cl-seg-badge { flex: none; display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: color-mix(in srgb, currentColor 18%, transparent); font-size: 11px; font-style: normal; font-weight: 800; }
+.cl-seg.is-small { flex: none; width: auto; }
 .cl-seg.is-small button { min-height: 32px; padding: 0 12px; font-size: 13px; }
 
 /* Número con − y + */
@@ -498,7 +513,8 @@ a.cl-tl:hover { background: color-mix(in srgb, var(--cf-surface) 70%, transparen
 .cl-swatch[aria-pressed='true'] { box-shadow: 0 0 0 3px var(--cf-surface), 0 0 0 5px var(--c); animation: cl-chip-on 0.45s var(--pop); }
 
 /* Vacío */
-.cl-empty { display: grid; justify-items: center; gap: 8px; padding: 36px 20px; border-radius: var(--r-card); background: var(--cf-surface); box-shadow: inset 0 0 0 1px var(--cf-border); text-align: center; animation: cl-fade-up 0.5s var(--spring) both; }
+/* Ocupa la fila entera aunque esté dentro de una cuadrícula (los recursos van de dos en dos). */
+.cl-empty { grid-column: 1 / -1; display: grid; justify-items: center; gap: 8px; padding: 36px 20px; border-radius: var(--r-card); background: var(--cf-surface); box-shadow: inset 0 0 0 1px var(--cf-border); text-align: center; animation: cl-fade-up 0.5s var(--spring) both; }
 .cl-empty-ico { display: grid; place-items: center; width: 60px; height: 60px; margin-bottom: 4px; border-radius: 20px; background: var(--cf-chip); color: var(--cf-fg-muted); animation: cl-float 3.6s ease-in-out infinite; }
 .cl-empty-ico .ic { width: 28px; height: 28px; }
 @keyframes cl-float { 50% { transform: translateY(-5px); } }
@@ -609,7 +625,7 @@ a.cl-tl:hover { background: color-mix(in srgb, var(--cf-surface) 70%, transparen
 .cl-note-box { display: flex; gap: 10px; padding: 12px 14px; border-radius: var(--r-cell); background: var(--cf-bg); color: var(--cf-fg-2); }
 .cl-note-box .ic { width: 18px; height: 18px; color: var(--cf-fg-muted); }
 .cl-carousel-wrap { display: grid; gap: 10px; }
-.cl-carousel { display: grid; grid-auto-columns: 100%; grid-auto-flow: column; overflow-x: auto; border-radius: 20px; background: var(--cf-chip); scroll-snap-type: x mandatory; scrollbar-width: none; }
+.cl-carousel { contain: inline-size; display: grid; grid-auto-columns: 100%; grid-auto-flow: column; overflow-x: auto; border-radius: 20px; background: var(--cf-chip); scroll-snap-type: x mandatory; scrollbar-width: none; }
 .cl-carousel::-webkit-scrollbar { display: none; }
 .cl-carousel > * { width: 100%; max-height: 420px; object-fit: cover; scroll-snap-align: center; }
 .cl-carousel-ph { display: grid; place-items: center; aspect-ratio: 4 / 5; max-height: 320px; color: var(--cf-fg-faint); }
@@ -890,7 +906,13 @@ a.cl-tl:hover { background: color-mix(in srgb, var(--cf-surface) 70%, transparen
 .cl-tabs a .ic { width: 23px; height: 23px; transition: transform 0.45s var(--pop); }
 .cl-tabs a[aria-current] { color: var(--cf-fg); font-weight: 750; }
 .cl-tabs a[aria-current] .ic { transform: translateY(-1px) scale(1.08); }
-.cl-tabs a[aria-current] .ic svg { stroke-width: 2.1; }
+/* Los iconos de la carpeta SamsungIcons traen su propio relleno y trazo: de contorno en
+   las pestañas cerradas y rellenos en la abierta, que cambian con un pequeño rebote. */
+.cl-tab-ic { position: relative; }
+.cl-tab-ic svg { position: absolute; inset: 0; fill: none; stroke: none; transition: opacity 0.25s, transform 0.45s var(--pop); }
+.cl-tab-ic .is-on { opacity: 0; transform: scale(0.6); }
+.cl-tabs a[aria-current] .cl-tab-ic .is-on { opacity: 1; transform: none; }
+.cl-tabs a[aria-current] .cl-tab-ic .is-off { opacity: 0; transform: scale(1.2); }
 .cl-tabs a.is-pressed { transform: scale(0.9); }
 .cl-tabs-thumb { position: absolute; top: 6px; bottom: 6px; left: 0; z-index: 0; width: 0; border-radius: 28px; background: var(--cf-active-item); opacity: 0; transition: transform 0.55s var(--spring), width 0.45s var(--spring), opacity 0.2s; }
 .cl-count { position: absolute; top: 4px; left: calc(50% + 6px); display: grid; place-items: center; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--cf-orange); color: #000; font-size: 10px; font-style: normal; font-weight: 800; animation: cl-pop 0.5s var(--pop); }
@@ -1017,6 +1039,18 @@ body.is-demo .cl-nav-bar::after { content: 'Demostración'; position: absolute; 
   .cl-hero { padding: 26px; }
   .cl-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .cl-stats.is-flat { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  .cl-seg button { gap: 4px; padding: 0 8px; font-size: 13px; }
+  .cl-seg-badge { min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }
+}
+@media (max-width: 380px) {
+  .cl-seg button { flex: 1 1 auto; }
+}
+/* En los teléfonos más estrechos (o la pantalla de fuera de un plegable) las cifras de los
+   segmentos se quitan para que quepan las palabras; esas cuentas ya salen en la pantalla. */
+@media (max-width: 340px) {
+  .cl-seg-badge { display: none; }
 }
 @media (max-width: 380px) {
   .cl-quick { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
