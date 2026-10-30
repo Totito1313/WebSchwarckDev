@@ -62,6 +62,7 @@ async function signedUrl(path) {
   return data?.signedUrl || null;
 }
 const safeName = (name) => String(name || 'archivo').normalize('NFKD').replace(/[^\w.-]+/g, '-').replace(/-+/g, '-').slice(-60) || 'archivo';
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
 const ago = (iso) => {
   if (!iso) return 'nunca';
@@ -80,9 +81,23 @@ async function copy(text, done = 'Copiado.') {
   }
 }
 
+/** Para acciones de menú: si algo falla, se dice en vez de quedarse callado. */
+const safely = (task) => async () => {
+  try {
+    await task();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+};
 /** Ventanas que solo informan: sin «Cancelar», basta con el botón principal o la ×. */
 const plain = (dlg) => {
   dlg.querySelector('.ng-dialog-foot > .pill.ghost:not(.danger)')?.remove();
+  return dlg;
+};
+/** Las ventanas de esta sección llevan su clase, para que sus ajustes no toquen las del resto de Negocio. */
+const ptDialog = (options) => {
+  const dlg = dialog(options);
+  dlg.classList.add('pt-dialog');
   return dlg;
 };
 /** Como `field`, pero sin <label>: para grupos de botones (tocar el título no debe elegir el primero). */
@@ -138,30 +153,48 @@ export function portalPage(sub = '', id = '') {
 
 function connectCard(s, done) {
   let mode = 'create';
-  const name = input({ placeholder: 'Schwarck', value: 'Schwarck', maxLength: 120 });
-  const email = input({ type: 'email', placeholder: 'tu@correo.com', autocomplete: 'username', value: s?.user?.email || '' });
+  // Si el navegador tiene abierto el portal con una cuenta de cliente, no se rellena con ese correo.
+  const client = s && !s.admin ? s.user?.email : null;
+  const name = input({ placeholder: 'Schwarck', value: 'Schwarck', maxLength: 120, autocomplete: 'name' });
+  const email = input({ type: 'email', placeholder: 'tu@correo.com', autocomplete: 'username' });
   const pass = input({ type: 'password', placeholder: 'Mínimo 8 caracteres', autocomplete: 'new-password' });
-  const msg = el('p', { class: 'pt-msg' });
+  const msg = el('p', { class: 'pt-msg', role: 'status' });
+  const hint = el('p', { class: 'pt-hint' });
   const fields = el('div', { class: 'ng-form' });
   const btn = el('button', { type: 'submit', class: 'pill' });
   const draw = () => {
+    const create = mode === 'create';
+    hint.textContent = create
+      ? 'Como ya tienes abierta la sesión del panel, la cuenta se crea al momento. Si ese correo ya tenía cuenta, pasa a ser del estudio con esta contraseña.'
+      : 'Entra con el correo y la contraseña de tu cuenta del estudio.';
     fields.replaceChildren(
-      mode === 'create' && field('Tu nombre', name),
-      field('Correo', email),
-      field('Contraseña', pass, mode === 'create' ? 'La usarás también para entrar en la app desde tu teléfono.' : null),
+      create ? el('div', { class: 'ng-grid2' }, field('Tu nombre', name), field('Correo', email)) : field('Correo', email),
+      field('Contraseña', pass, create ? 'La usarás también para entrar en la app desde tu teléfono.' : null),
     );
-    pass.autocomplete = mode === 'create' ? 'new-password' : 'current-password';
-    btn.replaceChildren(icon(mode === 'create' ? 'shield' : 'key'), mode === 'create' ? 'Crear mi cuenta del estudio' : 'Entrar');
+    pass.autocomplete = create ? 'new-password' : 'current-password';
+    btn.replaceChildren(icon(create ? 'shield' : 'key'), create ? 'Crear mi cuenta del estudio' : 'Entrar');
   };
   draw();
+  const perk = (ico, title, text) => el('li', {}, el('span', { class: 'pt-perk-ico' }, icon(ico)), el('div', {}, el('b', { text: title }), el('small', { text })));
   const form = el('form', { class: 'ng-card pt-connect' },
-    el('div', { class: 'pt-connect-head' },
+    el('div', { class: 'pt-connect-intro' },
       el('span', { class: 'pt-connect-ico' }, icon('shield')),
-      el('div', {}, el('h2', { text: s && !s.admin ? 'Esa cuenta no es del estudio' : 'Conecta tu cuenta del estudio' }), el('p', { text: 'Con ella administras los portales desde aquí y entras en la app de tu teléfono en modo estudio. Como ya tienes abierta la sesión del panel, la cuenta se crea al momento.' })),
+      el('h2', { text: client ? 'Esa cuenta no es del estudio' : 'Conecta tu cuenta del estudio' }),
+      el('p', { text: client
+        ? `Este navegador tiene abierto el portal con ${client}, una cuenta de cliente. Entra con la del estudio o créala aquí.`
+        : 'Es la cuenta con la que administras los portales desde aquí y entras en la app de tu teléfono en modo estudio.' }),
+      el('ul', { class: 'pt-perks' },
+        perk('users', 'Clientes, accesos e identidad', 'Crea portales y cuentas, decide qué ve cada persona y cómo se ve su app.'),
+        perk('smartphone', 'La app en modo estudio', 'El reporte del día, las peticiones, el calendario y los resultados desde el teléfono.'),
+        perk('inbox', 'Avisos de lo que te envían', 'Archivos, mensajes, aprobaciones y comentarios de cada cliente.'),
+      ),
     ),
-    seg([['create', 'Crear cuenta'], ['login', 'Ya tengo cuenta']], mode, (v) => { mode = v; msg.textContent = ''; draw(); }, 'Cómo conectar'),
-    fields,
-    el('div', { class: 'pt-connect-foot' }, btn, msg),
+    el('div', { class: 'pt-connect-form' },
+      seg([['create', 'Crear cuenta'], ['login', 'Ya tengo cuenta']], mode, (v) => { mode = v; msg.textContent = ''; draw(); }, 'Cómo conectar'),
+      hint,
+      fields,
+      el('div', { class: 'pt-connect-foot' }, btn, msg),
+    ),
   );
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -252,7 +285,7 @@ async function summary(connected = false) {
       c.from('portal_tasks').select('id', { count: 'exact', head: true }).eq('status', 'submitted'),
     ]);
     stats = el('div', { class: 'ng-kpis' },
-      kpi({ label: 'Portales', value: String(clients.filter((x) => !x.archived).length), ico: 'smartphone', sub: `${clients.filter((x) => x.archived).length} archivados` }),
+      kpi({ label: 'Portales', value: String(clients.filter((x) => !x.archived).length), ico: 'smartphone', sub: plural(clients.filter((x) => x.archived).length, 'archivado', 'archivados') }),
       kpi({ label: 'Personas', value: String(new Set(members.map((m) => m.user_id)).size), ico: 'users', sub: 'Con acceso a algún portal' }),
       kpi({ label: 'Te enviaron', value: String(unseen.count || 0), ico: 'inbox', sub: 'Sin ver todavía' }),
       kpi({ label: 'Peticiones enviadas', value: String(sent.count || 0), ico: 'tasks', sub: 'Esperan tu revisión' }),
@@ -310,14 +343,14 @@ async function clientsView(reload) {
           iconButton('more', 'Opciones', (e) => menu(e.currentTarget, [
             { label: 'Abrir su app', icon: 'external', run: () => window.open(`/cliente/?p=${p.id}`, '_blank') },
             { label: 'Secciones que ve', icon: 'eye', run: () => sectionsDialog(p.name, p.hidden, async (hidden) => { must(await (await sb()).from('portal_clients').update({ hidden }).eq('id', p.id)); toast('Guardado.'); reload(); }) },
-            { label: p.archived ? 'Reactivar' : 'Archivar', icon: 'box', run: async () => { must(await (await sb()).from('portal_clients').update({ archived: !p.archived }).eq('id', p.id)); toast(p.archived ? 'Activo otra vez.' : 'Archivado: su gente ya no lo ve.'); reload(); } },
+            { label: p.archived ? 'Reactivar' : 'Archivar', icon: 'box', run: safely(async () => { must(await (await sb()).from('portal_clients').update({ archived: !p.archived }).eq('id', p.id)); toast(p.archived ? 'Activo otra vez.' : 'Archivado: su gente ya no lo ve.'); reload(); }) },
             '-',
-            { label: 'Borrar portal', icon: 'trash', danger: true, run: async () => {
+            { label: 'Borrar portal', icon: 'trash', danger: true, run: safely(async () => {
               if (!(await confirmBox(`¿Borrar el portal de ${p.name} con todo lo publicado, lo recibido y sus accesos? No se puede deshacer.`, 'Borrar todo'))) return;
               must(await (await sb()).from('portal_clients').delete().eq('id', p.id));
               toast('Portal borrado.');
               reload();
-            } },
+            }) },
           ], { align: 'end' }))),
         el('b', { class: 'pt-card-name', text: p.name }),
         el('small', { text: [p.archived && 'Archivado', customer ? `Cliente: ${customer.name}` : p.industry || 'Sin ficha en Negocio'].filter(Boolean).join(' · ') }),
@@ -346,7 +379,7 @@ function newPortalDialog(reload) {
     if (c && !name.value.trim()) name.value = c.company || c.name;
   });
   const welcome = el('textarea', { rows: 3, maxLength: 2000, placeholder: 'Aquí verás cada avance de tu proyecto… (sale arriba en su inicio)' });
-  dialog({
+  ptDialog({
     title: 'Nuevo portal',
     body: el('div', { class: 'ng-form' },
       field('Cliente de Negocio', crm, 'Enlazarlo deja mandar su trabajo de hoy desde Negocio.'),
@@ -385,7 +418,7 @@ function swatches(value, onChange) {
 /** Qué secciones se ocultan (a un portal entero o a una persona). */
 function sectionsDialog(title, hidden = [], onSave) {
   const off = new Set(hidden || []);
-  dialog({
+  ptDialog({
     title: `Qué ve: ${title}`,
     body: el('div', { class: 'ng-form' },
       el('p', { class: 'pt-hint', text: 'Lo que apagues desaparece de su app y la base deja de darle esos datos. Inicio y el tablón siempre se ven.' }),
@@ -485,7 +518,7 @@ function newUserDialog({ clients, session, reload, presetClient }) {
   drawPass();
   drawClient();
   drawSections();
-  dialog({
+  ptDialog({
     title: 'Nueva cuenta',
     wide: true,
     body: el('div', { class: 'ng-form' },
@@ -544,9 +577,8 @@ function userDialog(u, { clients, members, logos, session, reload }) {
       roleSel.addEventListener('change', async () => {
         try {
           must(await (await sb()).from('portal_members').update({ role: roleSel.value }).eq('client_id', m.client_id).eq('user_id', u.id));
-          m.role = roleSel.value;
-          toast(`Ahora es ${ROLES[m.role][0].toLowerCase()} en ${p.name}.`);
-          reload();
+          toast(`Ahora es ${ROLES[roleSel.value][0].toLowerCase()} en ${p.name}.`);
+          refresh();
         } catch (err) {
           toast(err.message, 'error');
         }
@@ -557,18 +589,18 @@ function userDialog(u, { clients, members, logos, session, reload }) {
         roleSel,
         iconButton('eye', 'Qué ve', () => sectionsDialog(`${u.name || u.email} en ${p.name}`, m.hidden, async (hidden) => {
           must(await (await sb()).from('portal_members').update({ hidden }).eq('client_id', m.client_id).eq('user_id', u.id));
-          m.hidden = hidden;
           toast('Guardado.');
-          draw();
-          reload();
+          refresh();
         })),
         iconButton('trash', 'Quitar de este portal', async () => {
           if (!(await confirmBox(`¿Quitar a ${u.email} de ${p.name}?`, 'Quitar'))) return;
           try {
             must(await (await sb()).from('portal_members').delete().eq('client_id', m.client_id).eq('user_id', u.id));
-            members.splice(members.indexOf(m), 1);
+            // Por portal y cuenta, no por objeto: tras recargar, la lista trae objetos nuevos.
+            const i = members.findIndex((x) => x.client_id === m.client_id && x.user_id === u.id);
+            if (i >= 0) members.splice(i, 1);
             draw();
-            reload();
+            refresh();
           } catch (err) {
             toast(err.message, 'error');
           }
@@ -589,25 +621,27 @@ function userDialog(u, { clients, members, logos, session, reload }) {
         members.push(row);
         toast('Añadido al portal.');
         draw();
-        reload();
+        refresh();
       } catch (err) {
         toast(err.message, 'error');
       }
     } }, icon('plus'), 'Añadir'),
   );
   draw();
+  // Recarga la lista de detrás y vuelve a pintar esta ventana con los datos nuevos.
+  const refresh = () => reload().then(draw, () => {});
   const studioToggle = toggle('Cuenta del estudio (entra en todo)', u.studio, async (on) => {
     try {
       await fn('set_studio', { user_id: u.id, studio: on });
       u.studio = on;
       toast(on ? 'Ahora es del estudio.' : 'Ya no es del estudio.');
-      reload();
+      refresh();
     } catch (err) {
       toast(err.message, 'error');
     }
   });
   if (self) studioToggle.querySelector('input').disabled = true;
-  plain(dialog({
+  plain(ptDialog({
     title: u.name || u.email,
     wide: true,
     body: el('div', { class: 'ng-form' },
@@ -653,7 +687,7 @@ function userDialog(u, { clients, members, logos, session, reload }) {
 function credentialsDialog(u, password, portalName) {
   const url = `${location.origin}/cliente/`;
   const text = `Hola${u.name ? ` ${u.name.split(' ')[0]}` : ''}: ya tienes tu acceso${portalName ? ` al proyecto ${portalName}` : ''} con Schwarck.\n\n${url}\nCorreo: ${u.email}\nContraseña: ${password}\n\nÁbrelo en el teléfono, toca «Instalar» y activa las notificaciones.`;
-  plain(dialog({
+  plain(ptDialog({
     title: 'Datos de acceso',
     body: el('div', { class: 'ng-form' },
       el('p', { class: 'pt-hint', text: 'La contraseña solo se ve ahora. Mándala por WhatsApp o como prefieras; luego se puede cambiar desde el perfil de la app.' }),
@@ -788,6 +822,7 @@ async function identityView(id) {
     }
   } }, icon('check'), 'Guardar');
 
+  const phone = el('aside', { class: 'pt-phone' }, el('div', { class: 'pt-phone-shell' }, screen), el('small', { text: 'Puedes tocarla: es la app de verdad.' }));
   const controls = el('div', { class: 'pt-identity-controls' },
     el('section', { class: 'ng-card' },
       el('header', { class: 'ng-card-head' }, el('h2', { text: 'Marca' })),
@@ -809,14 +844,18 @@ async function identityView(id) {
         group('Tema por defecto', seg(Object.entries(THEMES), draft.brand.theme, (v) => { draft.brand.theme = v; changed(); }, 'Tema'), 'Si la persona elige otro en su perfil, manda el suyo.'),
       ),
     ),
-    el('div', { class: 'pt-save-bar' }, el('span', { text: 'La vista previa usa contenido de ejemplo con la identidad de este cliente.' }), saveBtn),
+    el('div', { class: 'pt-save-bar' },
+      el('span', { text: 'La vista previa usa contenido de ejemplo con la identidad de este cliente.' }),
+      el('button', { type: 'button', class: 'pill ghost pt-jump', onclick: () => phone.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' }), 'aria-label': 'Ver la vista previa' }, icon('smartphone'), el('span', { text: 'Vista previa' })),
+      saveBtn,
+    ),
   );
 
   const view = el('div', { class: 'pt-stack' },
     el('div', { class: 'pt-actions' }, el('span', { class: 'pt-label', text: 'Portal' }), picker, el('span', { class: 'ng-grow' }), el('a', { class: 'pill sm ghost', href: `/cliente/?p=${p.id}`, target: '_blank' }, icon('external'), 'Abrir su app')),
     el('div', { class: 'pt-identity' },
       controls,
-      el('aside', { class: 'pt-phone' }, el('div', { class: 'pt-phone-shell' }, screen), el('small', { text: 'Puedes tocarla: es la app de verdad.' })),
+      phone,
     ),
   );
   // Al salir de la página, deja de escuchar a la vista previa.

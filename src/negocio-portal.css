@@ -1,13 +1,12 @@
 /* Negocio › Portal de clientes (src/negocio-portal.js): resumen, clientes, accesos e identidad. */
 
-.pt { display: grid; gap: 20px; }
-.pt-stack { display: grid; gap: 16px; }
+.pt-body, .pt-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
 .pt-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .pt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .pt-label { color: var(--body); font-size: 14px; font-weight: 500; }
 .pt-hint { color: var(--body); font-size: 14px; line-height: 1.5; text-wrap: pretty; }
 .pt-hint.is-strong { padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, var(--cyan) 12%, var(--paper)); color: var(--ink); }
-.pt .ng-field > .seg, .ng-dialog .ng-field > .seg { justify-self: start; max-width: 100%; }
+.pt .ng-field > .seg, .pt-dialog .ng-field > .seg { justify-self: start; max-width: 100%; }
 .pt-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .pt-inline > span { color: var(--body); font-size: 13px; font-weight: 500; }
 
@@ -22,20 +21,27 @@
 .pt-skel i { height: 140px; border-radius: 28px; background: linear-gradient(100deg, var(--cloud) 30%, var(--cloud-deep) 50%, var(--cloud) 70%) 0 0 / 300% 100%; animation: pt-shine 1.3s linear infinite; }
 @keyframes pt-shine { to { background-position: -150% 0; } }
 
-/* Conectar la cuenta del estudio */
-.pt-connect { display: grid; gap: 18px; max-width: 640px; }
-.pt-connect-head { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start; }
-.pt-connect-head h2 { margin-bottom: 6px; font-size: 20px; font-weight: 650; letter-spacing: -0.02em; }
-.pt-connect-head p { color: var(--body); font-size: 14px; line-height: 1.5; }
-.pt-connect-ico { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 16px; background: linear-gradient(135deg, var(--cyan), var(--blue)); color: #fff; animation: pt-pop 0.5s var(--ease) both; }
-.pt-connect-ico .ic svg { width: 24px; height: 24px; }
-.pt-connect .seg { justify-self: start; }
+/* Conectar la cuenta del estudio: qué da a la izquierda, el formulario a la derecha */
+.pt-connect { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 28px 56px; align-items: start; padding: 32px; }
+.pt-connect-intro { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; }
+.pt-connect-intro h2 { margin-top: 6px; font-size: 24px; font-weight: 650; line-height: 1.15; letter-spacing: -0.025em; text-wrap: balance; }
+.pt-connect-intro > p { max-width: 48ch; color: var(--body); font-size: 15px; line-height: 1.5; text-wrap: pretty; }
+.pt-connect-ico { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 17px; background: linear-gradient(135deg, var(--cyan), var(--blue)); color: #fff; box-shadow: 0 12px 26px -14px var(--cyan); animation: pt-pop 0.5s var(--ease) both; }
+.pt-connect-ico .ic svg { width: 26px; height: 26px; }
+.pt-perks { display: grid; gap: 14px; margin-top: 10px; }
+.pt-perks li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; }
+.pt-perks b { display: block; font-size: 15px; font-weight: 600; }
+.pt-perks small { display: block; margin-top: 2px; color: var(--body); font-size: 13px; line-height: 1.45; }
+.pt-perk-ico { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 12px; background: var(--paper); color: var(--ink); }
+.pt-perk-ico .ic svg { width: 17px; height: 17px; }
+.pt-connect-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-content: start; min-width: 0; padding: 24px; border-radius: 24px; background: var(--paper); --field-bg: var(--cloud); }
+.pt-connect-form .seg { justify-self: start; }
 .pt-connect-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .pt-msg { color: var(--body); font-size: 14px; }
 .pt-msg[data-kind='error'] { color: var(--expense); }
 
 /* Resumen: el QR y el trabajo de hoy */
-.pt-launch { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 16px; align-items: start; }
+.pt-launch { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 16px; align-items: stretch; }
 .pt-qr { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: center; }
 .pt-qr h2 { margin-bottom: 8px; font-size: 20px; font-weight: 750; letter-spacing: -0.015em; }
 .pt-qr p { color: var(--body); font-size: 14px; line-height: 1.5; }
@@ -63,9 +69,9 @@
 .pt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
 .pt-card {
   position: relative;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
-  align-content: start;
   padding: 18px;
   overflow: hidden;
   border-radius: 28px;
@@ -88,9 +94,9 @@
 .pt-people .ng-avatar { width: 30px; height: 30px; margin-right: -7px; border-radius: 50%; background: color-mix(in srgb, var(--c) 32%, var(--paper)); font-size: 11px; box-shadow: 0 0 0 2px var(--cloud); }
 .pt-people > small { color: var(--body); font-size: 13px; }
 .pt-more { margin-left: 12px; color: var(--body); font-size: 12px; font-weight: 600; }
-.pt-card .pt-hidden-note { display: inline-flex; align-items: center; gap: 6px; }
+.pt-card .pt-hidden-note { display: flex; align-items: center; gap: 6px; }
 .pt-hidden-note .ic svg { width: 14px; height: 14px; }
-.pt-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.pt-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; }
 
 /* Colores */
 .pt-swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -112,7 +118,7 @@
 .pt-section-row > small { color: var(--body); font-size: 13px; }
 
 /* Accesos */
-.pt-search { min-width: 220px; padding: 10px 14px; border: 1px solid transparent; border-radius: 14px; background: var(--cloud); color: var(--ink); font: inherit; font-size: 14px; }
+.pt-search { min-width: 270px; padding: 10px 14px; border: 1px solid transparent; border-radius: 14px; background: var(--cloud); color: var(--ink); font: inherit; font-size: 14px; }
 .pt-search:focus-visible { outline: none; border-color: var(--blue); }
 .pt-users { display: grid; gap: 8px; }
 .pt-user.ng-row { grid-template-columns: 40px minmax(0, 1fr) minmax(0, auto) 18px; animation: fx-rise 0.4s var(--ease) both; animation-delay: calc(var(--i, 0) * 28ms); }
@@ -144,7 +150,7 @@
 
 /* Identidad */
 .pt-identity { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 30vw, 360px); gap: 20px; align-items: start; }
-.pt-identity-controls { display: grid; gap: 16px; min-width: 0; }
+.pt-identity-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
 .pt-image-field { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
 .pt-image-preview { display: grid; flex: none; place-items: center; overflow: hidden; background: var(--paper); color: var(--body); }
 .pt-image-preview img { width: 100%; height: 100%; object-fit: cover; }
@@ -153,12 +159,13 @@
 .pt-image-preview .ic svg { width: 26px; height: 26px; }
 .pt-image-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pt-image-actions small { flex-basis: 100%; color: var(--body); font-size: 13px; }
-.pt-fonts { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
-.pt-font { display: grid; gap: 2px; justify-items: start; padding: 12px 14px; border: 2px solid transparent; border-radius: 18px; background: var(--paper); color: var(--ink); text-align: left; cursor: pointer; transition: border-color 0.2s, transform 0.25s var(--ease); }
-.pt-font b { font-size: 24px; font-weight: 700; line-height: 1.1; }
-.pt-font small { color: var(--body); font-family: 'Inter', system-ui, sans-serif; font-size: 12px; }
+.pt-fonts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pt-font { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 14px; border: 2px solid transparent; border-radius: 18px; background: var(--paper); color: var(--ink); text-align: left; cursor: pointer; transition: border-color 0.2s, transform 0.25s var(--ease); }
+.pt-font b { flex: none; font-size: 26px; font-weight: 700; line-height: 1.1; }
+.pt-font small { min-width: 0; color: var(--body); font-family: 'Inter', system-ui, sans-serif; font-size: 13px; line-height: 1.3; }
 .pt-font[aria-pressed='true'] { border-color: var(--ink); }
 .pt-font:active { transform: scale(0.96); }
+.pt-jump { display: none; margin-left: auto; }
 .pt-save-bar { position: sticky; bottom: 12px; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 10px 10px 18px; border-radius: 22px; background: color-mix(in srgb, var(--paper) 82%, transparent); color: var(--body); font-size: 13px; box-shadow: var(--glass-shadow); backdrop-filter: blur(16px) saturate(1.4); }
 
 /* El teléfono con la app de verdad */
@@ -176,13 +183,20 @@
 }
 @media (max-width: 960px) {
   .pt-identity { grid-template-columns: 1fr; }
+  .pt-jump { display: inline-flex; }
   .pt-phone { position: static; }
   .pt-phone-shell { max-width: 320px; }
 }
 @media (max-width: 900px) {
   .pt-launch { grid-template-columns: 1fr; }
+  .pt-connect { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 24px; }
   .pt-skel { grid-template-columns: 1fr; }
   .pt-skel i:nth-child(n + 2) { display: none; }
+}
+@media (max-width: 760px) {
+  .pt-save-bar { bottom: 84px; }
+  .pt-connect { padding: 18px; }
+  .pt-connect-form { padding: 18px; border-radius: 20px; }
 }
 @media (max-width: 640px) {
   .pt-user.ng-row { grid-template-columns: 40px minmax(0, 1fr) 18px; }
@@ -195,7 +209,17 @@
   .pt-save-bar { justify-content: flex-end; }
 }
 @media (max-width: 520px) {
+  .pt-font { flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; }
+  .pt-font b { font-size: 22px; }
+  .pt-font small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pt-qr { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .pt-role { white-space: normal; }
+}
+/* En los teléfonos más estrechos, los segmentos de tres opciones caben sin salirse. */
+@media (max-width: 420px) {
+  .pt-jump > span:not(.ic) { display: none; }
+  .pt-jump { padding-inline: 12px; }
+  .pt .seg button, .pt-dialog .seg button { padding: 8px 10px; font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pt-qr-code, .pt-today-group, .pt-rail-badge, .pt-card, .pt-user.ng-row, .pt-membership, .pt-phone-shell, .pt-connect-ico { animation: none; }
