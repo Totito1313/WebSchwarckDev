@@ -13,11 +13,12 @@ import { initTheme } from './theme.js';
 import { createBackend } from './portal/data.js';
 import { el, fill, icon, toast, still, sheet, emptyBox, avatar, initials, plural } from './portal/kit.js';
 import { installTouchFeedback, react } from './portal/feel.js';
-import { app, setRedraw, unread, pendingTasks, collectPaths, signPaths, urlOf, can, canAct } from './portal/state.js';
+import { app, setRedraw, unread, pendingTasks, collectPaths, signPaths, urlOf, can } from './portal/state.js';
+import { isNexusReport, parseNexusReport } from './portal/importers.js';
 import { applyBrand, brandOf } from './portal/brand.js';
 import { tabIcon } from './portal/tab-icons.js';
 import { homePage, timelinePage, resourcesPage, requestsPage, sendSheet, feedItem } from './portal/screens.js';
-import { marketingPage } from './portal/marketing.js';
+import { marketingPage, openPiece } from './portal/marketing.js';
 import { profilePage, ensurePush, notificationOnboarding, notificationsCard } from './portal/profile.js';
 import { openThread } from './portal/threads.js';
 import * as studio from './portal/studio.js';
@@ -58,7 +59,7 @@ function route() {
   const [section = '', a, b, c] = path.split('/');
   switch (section) {
     case 'cronologia': return { tab: 'cronologia', build: () => timelinePage(a === 'reportes' ? 'reportes' : query || 'todo') };
-    case 'marketing': return { tab: 'marketing', build: () => marketingPage(a, b, c) };
+    case 'marketing': return a === 'pieza' ? { overlay: () => openPiece(b), base: '#/marketing' } : { tab: 'marketing', build: () => marketingPage(a, b, c) };
     case 'calendario': return { tab: 'marketing', build: () => marketingPage('calendario', a, b) };
     case 'recursos': return { tab: 'recursos', build: resourcesPage };
     case 'peticiones':
@@ -83,9 +84,10 @@ function render({ keepScroll = false } = {}) {
     r = route();
   }
   if (r.overlay) {
-    // Las hojas (un hilo, enviar…) se abren sobre la pestaña en la que se estaba.
-    history.replaceState(null, '', lastRoute || '#/');
-    if (!main.querySelector('[data-large]')) render();
+    // Las hojas (un hilo, enviar…) se abren sobre la pestaña en la que se estaba; una
+    // publicación, sobre el calendario. La dirección no se queda con la hoja: redibujar no la reabre.
+    history.replaceState(null, '', r.base || lastRoute || '#/');
+    if (r.base || !main.querySelector('[data-large]')) render();
     setTimeout(r.overlay, 30);
     return;
   }
@@ -113,7 +115,7 @@ function render({ keepScroll = false } = {}) {
     else a.removeAttribute('aria-current');
   }
   placeThumb(changed);
-  fab.hidden = r.tab === 'perfil' || (!app.studio && (!canAct() || !can('enviar')));
+  fab.hidden = r.tab === 'perfil' || (!app.studio && !can('send'));
   if (keepScroll) scrollTo(0, y);
   else if (changed) scrollTo({ top: 0 });
   onScroll();
@@ -186,7 +188,7 @@ function syncChrome() {
     if (!a.hidden) shown++;
   }
   tabsNav.style.setProperty('--tabs-n', String(shown));
-  fab.hidden = lastTab === 'perfil' || (!app.studio && (!canAct() || !can('enviar')));
+  fab.hidden = lastTab === 'perfil' || (!app.studio && !can('send'));
   const logo = document.querySelector('[data-logo]');
   const src = urlOf(c.logo_url);
   fill(logo, src ? el('img', { src, alt: '' }) : initials(c.name));
@@ -216,6 +218,52 @@ document.querySelector('[data-bell]').addEventListener('click', () => (app.studi
 fab.addEventListener('click', () => (app.studio ? studio.createMenu() : sendSheet()));
 document.querySelector('[data-switch]').addEventListener('click', () => (app.studio || app.portals.length > 1 ? switchPortal() : (location.hash = '#/perfil')));
 document.addEventListener('portal:switch', () => switchPortal());
+// Abrir otro portal en una pantalla concreta (desde «Hoy en todos»).
+document.addEventListener('portal:open', async (e) => {
+  const { id, route } = e.detail || {};
+  const p = app.portals.find((x) => x.client.id === id);
+  if (!p) return;
+  if (p.client.id !== app.client?.id) {
+    remember('portal:client', p.client.id);
+    await openPortal(p);
+  }
+  if (route) location.hash = route;
+});
+
+// ── El reporte de Nexus copiado ──
+// Al volver a la app con el reporte diario en el portapapeles, se ofrece publicarlo. Solo si el
+// navegador ya dio permiso para leerlo (la primera vez se pide al tocar «Pegar de Nexus»).
+let clipChecked = 0;
+async function offerNexus() {
+  if (!app.studio || !app.data || document.hidden || Date.now() - clipChecked < 4000) return;
+  clipChecked = Date.now();
+  try {
+    const perm = await navigator.permissions?.query({ name: 'clipboard-read' });
+    if (perm?.state !== 'granted') return;
+    const text = await navigator.clipboard.readText();
+    if (!isNexusReport(text)) return;
+    const mark = String(text.length) + text.slice(0, 60);
+    if (remember('portal:nexus-last') === mark) return;
+    remember('portal:nexus-last', mark);
+    const r = parseNexusReport(text);
+    const n = r.done.length + r.doing.length;
+    if (!n) return;
+    const banner = el('div', { class: 'cl-clip-banner', role: 'status' },
+      icon('copy'),
+      el('span', {}, el('b', { text: 'Reporte de Nexus copiado' }), el('small', { text: `${n} ${n === 1 ? 'tarea' : 'tareas'}${r.day ? ` del ${r.day.slice(8)}/${r.day.slice(5, 7)}` : ''} · para ${app.client.name}` })),
+      el('button', { type: 'button', class: 'cl-btn sm', onclick: () => { banner.remove(); studio.pasteReport(text); } }, 'Publicar'),
+      el('button', { type: 'button', class: 'cl-glass xs', 'aria-label': 'Ahora no', onclick: () => banner.remove() }, icon('x')),
+    );
+    document.querySelector('.cl-clip-banner')?.remove();
+    document.body.append(banner);
+    react('notify');
+    setTimeout(() => banner.remove(), 15000);
+  } catch {
+    // sin permiso o sin portapapeles: se usa el botón
+  }
+}
+addEventListener('focus', offerNexus);
+document.addEventListener('visibilitychange', offerNexus);
 
 function switchPortal() {
   studio.portalSwitcher((p) => {

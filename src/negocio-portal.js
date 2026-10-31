@@ -2,10 +2,10 @@
 //
 // · Resumen: el código QR para instalar la app y el trabajo de hoy de Negocio, listo
 //   para mandarlo al reporte diario de cada cliente.
-// · Clientes: crear portales (desde un cliente de Negocio), qué secciones ve cada uno,
-//   archivarlos o borrarlos.
+// · Clientes: crear portales (desde un cliente de Negocio), qué puede ver y hacer su gente
+//   (permisos), el conector de Claude para su calendario, archivarlos o borrarlos.
 // · Accesos: todas las cuentas, con su rol (estudio, dueño, equipo o solo lectura), a qué
-//   portales entran y qué secciones ven; crearlas, cambiar contraseñas, quitarlas.
+//   portales entran y sus excepciones; crearlas, cambiar contraseñas, quitarlas.
 // · Identidad: logo, portada, colores, tipografía, esquinas, inicio, tema y nombre de la
 //   app de cada cliente, con la app de verdad al lado mientras se edita.
 //
@@ -16,7 +16,8 @@
 import { state, el, icon, addIcons, empty, toast, qr, todayISO, find, dialog, confirmBox, field, input, select, seg, toggle, menu, avatar, chip, kpi, api, iconButton } from './negocio-core.js';
 import { head, go } from './negocio-views.js';
 import { SUPABASE_URL, SUPABASE_KEY, FUNCTION_URL, BUCKET } from './portal/config.js';
-import { SECTIONS, ROLES, FONTS, RADII, HEROES, THEMES, COLORS, brandOf, loadFont } from './portal/brand.js';
+import { PERMS, ROLES, SECTION_PERM, FONTS, RADII, HEROES, THEMES, COLORS, brandOf, loadFont, memberCan, portalAllows, permDefault, roleAllows } from './portal/brand.js';
+import { claudeInstructions } from './portal/importers.js';
 
 addIcons({
   smartphone: '<rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M10.5 18.5h3"/>',
@@ -342,7 +343,8 @@ async function clientsView(reload) {
         el('div', { class: 'pt-card-top' }, logoOf(p, logos),
           iconButton('more', 'Opciones', (e) => menu(e.currentTarget, [
             { label: 'Abrir su app', icon: 'external', run: () => window.open(`/cliente/?p=${p.id}`, '_blank') },
-            { label: 'Secciones que ve', icon: 'eye', run: () => sectionsDialog(p.name, p.hidden, async (hidden) => { must(await (await sb()).from('portal_clients').update({ hidden }).eq('id', p.id)); toast('Guardado.'); reload(); }) },
+            { label: 'Permisos', icon: 'key', note: 'Qué puede ver y hacer su gente', run: () => permsDialog({ title: `Permisos de ${p.name}`, portal: p, onSave: async (perms) => { must(await (await sb()).from('portal_clients').update({ perms, hidden: [] }).eq('id', p.id)); toast('Permisos guardados.'); reload(); } }) },
+            { label: 'Conectar Claude', icon: 'link', note: 'Que cargue su calendario', run: () => claudeDialog(p) },
             { label: p.archived ? 'Reactivar' : 'Archivar', icon: 'box', run: safely(async () => { must(await (await sb()).from('portal_clients').update({ archived: !p.archived }).eq('id', p.id)); toast(p.archived ? 'Activo otra vez.' : 'Archivado: su gente ya no lo ve.'); reload(); }) },
             '-',
             { label: 'Borrar portal', icon: 'trash', danger: true, run: safely(async () => {
@@ -355,7 +357,7 @@ async function clientsView(reload) {
         el('b', { class: 'pt-card-name', text: p.name }),
         el('small', { text: [p.archived && 'Archivado', customer ? `Cliente: ${customer.name}` : p.industry || 'Sin ficha en Negocio'].filter(Boolean).join(' · ') }),
         el('div', { class: 'pt-people' }, people.slice(0, 5).map((m) => avatar(m.name || m.email, 'is-sm')), people.length > 5 && el('span', { class: 'pt-more', text: `+${people.length - 5}` }), !people.length && el('small', { text: 'Nadie con acceso' })),
-        p.hidden?.length ? el('small', { class: 'pt-hidden-note' }, icon('eyeOff'), `${p.hidden.length} ${p.hidden.length === 1 ? 'sección oculta' : 'secciones ocultas'}`) : null,
+        changedPerms(p) ? el('button', { type: 'button', class: 'pt-hidden-note', onclick: () => permsDialog({ title: `Permisos de ${p.name}`, portal: p, onSave: async (perms) => { must(await (await sb()).from('portal_clients').update({ perms, hidden: [] }).eq('id', p.id)); toast('Permisos guardados.'); reload(); } }) }, icon('key'), `${changedPerms(p)} ${changedPerms(p) === 1 ? 'permiso cambiado' : 'permisos cambiados'}`) : null,
         el('div', { class: 'pt-card-actions' },
           el('a', { class: 'pill sm ghost', href: `#/portal/identidad/${p.id}` }, icon('palette'), 'Identidad'),
           el('button', { type: 'button', class: 'pill sm ghost', onclick: () => { accessFilter = p.id; go('#/portal/accesos'); } }, icon('users'), `Personas · ${people.length}`),
@@ -415,20 +417,114 @@ function swatches(value, onChange) {
   return box;
 }
 
-/** Qué secciones se ocultan (a un portal entero o a una persona). */
-function sectionsDialog(title, hidden = [], onSave) {
-  const off = new Set(hidden || []);
+// ── Permisos ──
+
+/** Las secciones ocultas de antes, como permisos (para no perderlas al guardar). */
+const hiddenAsPerms = (hidden = []) => Object.fromEntries(Object.entries(SECTION_PERM).filter(([s]) => (hidden || []).includes(s)).map(([, k]) => [k, false]));
+/** Cuántos permisos de un portal no están como vienen. */
+const changedPerms = (p) => {
+  const all = { ...hiddenAsPerms(p.hidden), ...(p.perms || {}) };
+  return Object.entries(all).filter(([k, v]) => v !== permDefault(k)).length;
+};
+
+/**
+ * Qué puede ver y hacer la gente de un portal (`portal`) o una persona en concreto (`member`,
+ * con su rol). Lo de una persona son excepciones: lo que no toques sigue a su rol y a su portal.
+ */
+function permsDialog({ title, portal, member = null, onSave }) {
+  let role = member?.role || 'member';
+  const draft = { ...hiddenAsPerms(member ? member.hidden : portal.hidden), ...((member ? member.perms : portal.perms) || {}) };
+  const box = el('div', { class: 'pt-perms' });
+  const value = (k) => (member ? memberCan({ role, perms: draft }, portal, k) : portalAllows({ perms: draft }, k));
+  // replaceChildren escribiría «null» o «false»: solo lo que existe.
+  const draw = () => box.replaceChildren(...[
+    member && group('Rol', seg(Object.entries(ROLES).map(([k, [l]]) => [k, l]), role, (v) => { role = v; draw(); }, 'Rol'), ROLES[role]?.[1]),
+    el('p', { class: 'pt-hint', text: member
+      ? 'Lo marcado como «excepción» es solo para esta persona; lo demás sigue a su rol y a lo que permite su portal.'
+      : 'Lo que su gente puede ver y hacer. «Solo lectura» nunca hace más que ver; a cada persona le puedes poner excepciones en Accesos. La base lo aplica: no es solo esconderlo en la app.' }),
+    el('div', { class: 'pt-perm-groups' }, PERMS.map(([groupTitle, list]) => el('section', { class: 'pt-perm-group' },
+      el('h3', { text: groupTitle }),
+      list.map(([k, label, sub]) => {
+        const own = member && k in draft;
+        const why = member && !own && (!roleAllows(role, k) ? `${ROLES[role]?.[0] || 'Su rol'}: no lo incluye` : !portalAllows(portal, k) ? 'Su portal no lo permite' : null);
+        return el('div', { class: `pt-perm-row${own ? ' is-own' : ''}` },
+          toggle(label, value(k), (on) => { draft[k] = on; draw(); }),
+          el('small', { text: own ? 'Excepción para esta persona' : why || sub }),
+        );
+      }),
+    ))),
+    Object.keys(draft).length > 0 && el('button', { type: 'button', class: 'pill sm ghost', onclick: () => { for (const k of Object.keys(draft)) delete draft[k]; draw(); } }, icon('undo'), member ? 'Quitar sus excepciones' : 'Volver a lo de siempre'),
+  ].filter(Boolean));
+  draw();
   ptDialog({
-    title: `Qué ve: ${title}`,
-    body: el('div', { class: 'ng-form' },
-      el('p', { class: 'pt-hint', text: 'Lo que apagues desaparece de su app y la base deja de darle esos datos. Inicio y el tablón siempre se ven.' }),
-      el('div', { class: 'pt-sections' }, SECTIONS.map(([key, label, sub]) => el('div', { class: 'pt-section-row' }, toggle(label, !off.has(key), (on) => { if (on) off.delete(key); else off.add(key); }), el('small', { text: sub })))),
-    ),
+    title,
+    wide: true,
+    body: box,
     submit: 'Guardar',
     onSubmit: () => {
-      onSave([...off]).catch?.((err) => toast(err.message, 'error'));
+      Promise.resolve(onSave({ ...draft }, role)).catch((err) => toast(err.message, 'error'));
     },
   });
+}
+
+// ── El conector de Claude ──
+
+/** La dirección secreta con la que Claude (desde el proyecto de este cliente) carga su calendario. */
+async function claudeDialog(p) {
+  const box = el('div', { class: 'ng-form pt-claude' }, el('p', { class: 'pt-hint', text: 'Comprobando…' }));
+  plain(ptDialog({ title: `Claude y el calendario de ${p.name}`, wide: true, body: box, submit: 'Listo', onSubmit: () => {} }));
+  const steps = el('ol', { class: 'pt-steps' },
+    el('li', {}, el('b', { text: 'En Claude: ' }), 'Ajustes › Conectores › Añadir conector personalizado, y pega la dirección.'),
+    el('li', {}, el('b', { text: 'En el proyecto del cliente: ' }), 'activa el conector en la conversación.'),
+    el('li', {}, el('b', { text: 'Pídeselo: ' }), `«Carga en el calendario de ${p.name} lo que planificamos para noviembre en Instagram y TikTok».`),
+  );
+  const fallback = el('section', { class: 'pt-box' },
+    el('h3', { text: 'Sin conector' }),
+    el('p', { class: 'pt-hint', text: 'Pega estas instrucciones en Claude: te dará un bloque que pegas en la app (Crear › Importar calendario de Claude).' }),
+    el('button', { type: 'button', class: 'pill sm ghost', onclick: () => copy(claudeInstructions(p.name), 'Instrucciones copiadas.') }, icon('copy'), 'Copiar instrucciones'),
+  );
+  const draw = (status, url = null) => box.replaceChildren(...[
+    el('p', { class: 'pt-hint', text: 'Con el conector, Claude ve el calendario de este cliente y carga de una vez lo que ideaste: cada publicación con sus redes, su formato, el copy, el guion o el diseño. Entra como «Idea» y el cliente no lo ve ni recibe aviso hasta que la pasas a producción o a revisión.' }),
+    url && el('section', { class: 'pt-box is-new' },
+      el('h3', { text: 'Tu dirección' }),
+      el('code', { class: 'pt-url pt-mcp-url', text: url }),
+      el('div', { class: 'pt-actions' }, el('button', { type: 'button', class: 'pill sm', onclick: () => copy(url, 'Dirección copiada.') }, icon('copy'), 'Copiar'), el('small', { class: 'pt-hint', text: 'Solo se ve ahora: guárdala en Claude. Si la pierdes, crea otra.' })),
+    ),
+    status
+      ? el('section', { class: 'pt-box' },
+        el('div', { class: 'pt-who' }, el('span', { class: 'pt-who-dot' }), el('span', { text: `Conectado desde ${ago(status.created_at)}${status.last_used_at ? ` · Claude la usó ${ago(status.last_used_at)}` : ' · aún sin usar'}` })),
+        el('div', { class: 'pt-actions' },
+          el('button', { type: 'button', class: 'pill sm ghost', onclick: () => issue(true) }, icon('undo'), 'Cambiar la dirección'),
+          el('button', { type: 'button', class: 'pill sm ghost danger', onclick: revoke }, icon('x'), 'Desconectar'),
+        ))
+      : !url && el('section', { class: 'pt-box' }, el('button', { type: 'button', class: 'pill', onclick: () => issue(false) }, icon('link'), 'Crear la dirección')),
+    el('section', { class: 'pt-box' }, el('h3', { text: 'Cómo se usa' }), steps),
+    fallback,
+  ].filter(Boolean));
+  async function issue(replace) {
+    if (replace && !(await confirmBox('¿Cambiar la dirección? La anterior deja de valer al momento y tendrás que poner la nueva en Claude.', 'Cambiar'))) return;
+    try {
+      const { url } = await fn('mcp_key', { client_id: p.id });
+      draw((await fn('mcp_status', { client_id: p.id })).status, url);
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+  async function revoke() {
+    if (!(await confirmBox(`¿Desconectar a Claude del calendario de ${p.name}? La dirección deja de valer.`, 'Desconectar'))) return;
+    try {
+      await fn('mcp_revoke', { client_id: p.id });
+      toast('Desconectado.');
+      draw(null);
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+  try {
+    draw((await fn('mcp_status', { client_id: p.id })).status);
+  } catch (err) {
+    box.replaceChildren(el('p', { class: 'pt-hint', text: err.message }));
+  }
 }
 
 // ── Accesos ──
@@ -464,12 +560,12 @@ async function accessView(session) {
       const mine = members.filter((m) => m.user_id === u.id);
       return el('button', { type: 'button', class: 'ng-row pt-user', style: { '--i': Math.min(i, 10) }, onclick: () => userDialog(u, { clients, members, logos, session, reload }) },
         avatar(u.name || u.email),
-        el('span', { class: 'ng-row-main' }, el('b', { text: u.name || u.email }), el('small', { text: `${u.email} · entró ${ago(u.last_sign_in_at)}` })),
+        el('span', { class: 'ng-row-main' }, el('b', { text: u.name || u.email }), el('small', { text: `${u.email} · ${u.last_sign_in_at ? `entró ${ago(u.last_sign_in_at)}` : 'aún no ha entrado'}` })),
         el('span', { class: 'pt-user-roles' },
           u.studio && chip('Estudio · todo', 'var(--cyan)'),
           mine.map((m) => {
             const p = clients.find((x) => x.id === m.client_id);
-            return p && el('span', { class: 'pt-role', style: { '--accent': p.accent } }, el('i'), `${p.name} · ${ROLES[m.role]?.[0] || m.role}`, m.hidden?.length ? icon('eyeOff') : null);
+            return p && el('span', { class: 'pt-role', style: { '--accent': p.accent }, title: Object.keys(m.perms || {}).length ? 'Con excepciones' : null }, el('i'), `${p.name} · ${ROLES[m.role]?.[0] || m.role}`, Object.keys(m.perms || {}).length || m.hidden?.length ? icon('key') : null);
           }),
           !u.studio && !mine.length && chip('Sin portal', 'var(--body)'),
         ),
@@ -500,7 +596,7 @@ function newUserDialog({ clients, session, reload, presetClient }) {
   let kind = 'client';
   let passMode = 'auto';
   let role = 'owner';
-  let hidden = [];
+  let perms = {};
   const name = input({ maxLength: 120, placeholder: 'Laura Méndez' });
   const email = input({ type: 'email', placeholder: 'correo@cliente.com', autocomplete: 'off' });
   const pass = input({ type: 'text', placeholder: 'Mínimo 8 caracteres', autocomplete: 'off', maxLength: 72 });
@@ -509,11 +605,15 @@ function newUserDialog({ clients, session, reload, presetClient }) {
   const clientBox = el('div', { class: 'ng-form' });
   const drawPass = () => passBox.replaceChildren(passMode === 'own' ? field('Contraseña', pass, 'Se la mandas tú; luego la puede cambiar desde su perfil.') : el('p', { class: 'pt-hint', text: 'Se crea una contraseña segura y la ves una sola vez, con el mensaje listo para mandar.' }));
   const sectionsLabel = el('span');
-  const drawSections = () => { sectionsLabel.textContent = hidden.length ? `${hidden.length} ocultas` : 'Ve todo'; };
+  const drawSections = () => { sectionsLabel.textContent = Object.keys(perms).length ? plural(Object.keys(perms).length, 'excepción', 'excepciones') : 'Como su rol'; };
   const drawClient = () => clientBox.replaceChildren(...(kind === 'client' ? [
     field('Portal', portal),
     group('Rol', seg(Object.entries(ROLES).map(([k, [l]]) => [k, l]), role, (v) => { role = v; }, 'Rol')),
-    el('div', { class: 'pt-inline' }, el('span', { text: 'Secciones' }), el('button', { type: 'button', class: 'pill sm ghost', onclick: () => sectionsDialog(name.value || email.value || 'nueva cuenta', hidden, async (h) => { hidden = h; drawSections(); }) }, icon('eye'), sectionsLabel)),
+    el('div', { class: 'pt-inline' }, el('span', { text: 'Permisos' }), el('button', { type: 'button', class: 'pill sm ghost', onclick: () => {
+      const p = clients.find((x) => x.id === portal.value);
+      if (!p) return toast('Elige primero el portal.', 'error');
+      permsDialog({ title: `${name.value || email.value || 'Nueva cuenta'} en ${p.name}`, portal: p, member: { role, perms }, onSave: (next, nextRole) => { perms = next; role = nextRole; drawSections(); drawClient(); } });
+    } }, icon('key'), sectionsLabel)),
   ] : [el('p', { class: 'pt-hint is-strong', text: 'Una cuenta del estudio entra en todos los portales y lo puede todo (también esta sección). Dásela solo a tu equipo.' })]));
   drawPass();
   drawClient();
@@ -549,7 +649,7 @@ function newUserDialog({ clients, session, reload, presetClient }) {
             name: name.value.trim(),
             password: passMode === 'own' ? pass.value : undefined,
             studio: kind === 'studio',
-            portals: kind === 'client' ? [{ client_id: portal.value, role, hidden }] : [],
+            portals: kind === 'client' ? [{ client_id: portal.value, role, perms }] : [],
           });
           await reload();
           const p = clients.find((x) => x.id === portal.value);
@@ -585,13 +685,13 @@ function userDialog(u, { clients, members, logos, session, reload }) {
       });
       return el('div', { class: 'pt-membership' },
         logoOf(p, logos, 'sm'),
-        el('span', { class: 'ng-row-main' }, el('b', { text: p.name }), el('small', { text: m.hidden?.length ? `${m.hidden.length} secciones ocultas` : 'Ve todo lo de su portal' })),
+        el('span', { class: 'ng-row-main' }, el('b', { text: p.name }), el('small', { text: Object.keys({ ...hiddenAsPerms(m.hidden), ...(m.perms || {}) }).length ? plural(Object.keys({ ...hiddenAsPerms(m.hidden), ...(m.perms || {}) }).length, 'excepción', 'excepciones') : 'Como su rol y su portal' })),
         roleSel,
-        iconButton('eye', 'Qué ve', () => sectionsDialog(`${u.name || u.email} en ${p.name}`, m.hidden, async (hidden) => {
-          must(await (await sb()).from('portal_members').update({ hidden }).eq('client_id', m.client_id).eq('user_id', u.id));
-          toast('Guardado.');
+        iconButton('key', 'Permisos', () => permsDialog({ title: `${u.name || u.email} en ${p.name}`, portal: p, member: m, onSave: async (perms, nextRole) => {
+          must(await (await sb()).from('portal_members').update({ perms, role: nextRole, hidden: [] }).eq('client_id', m.client_id).eq('user_id', u.id));
+          toast('Permisos guardados.');
           refresh();
-        })),
+        } })),
         iconButton('trash', 'Quitar de este portal', async () => {
           if (!(await confirmBox(`¿Quitar a ${u.email} de ${p.name}?`, 'Quitar'))) return;
           try {
@@ -645,7 +745,7 @@ function userDialog(u, { clients, members, logos, session, reload }) {
     title: u.name || u.email,
     wide: true,
     body: el('div', { class: 'ng-form' },
-      el('p', { class: 'pt-hint', text: `${u.email} · creada ${ago(u.created_at)} · entró ${ago(u.last_sign_in_at)}${self ? ' · eres tú' : ''}` }),
+      el('p', { class: 'pt-hint', text: `${u.email} · creada ${ago(u.created_at)} · ${u.last_sign_in_at ? `entró ${ago(u.last_sign_in_at)}` : 'aún no ha entrado'}${self ? ' · eres tú' : ''}` }),
       el('section', { class: 'pt-box' }, studioToggle),
       el('section', { class: 'pt-box' }, el('h3', { text: 'Portales' }), list, addRow),
       el('section', { class: 'pt-box pt-user-actions' },
@@ -708,7 +808,7 @@ async function identityView(id) {
   const clients = must(await c.from('portal_clients').select('*').order('archived').order('name'));
   if (!clients.length) return empty({ ico: 'palette', title: 'Todavía no hay portales', text: 'Crea uno en Clientes y vuelve aquí para ponerle su identidad.', action: el('a', { class: 'pill', href: '#/portal/clientes', text: 'Ir a Clientes' }) });
   const p = clients.find((x) => x.id === id) || clients[0];
-  const draft = { name: p.name, accent: p.accent, welcome: p.welcome || '', logo_url: p.logo_url, hidden: p.hidden || [], brand: { ...brandOf(p) } };
+  const draft = { name: p.name, accent: p.accent, welcome: p.welcome || '', logo_url: p.logo_url, hidden: p.hidden || [], perms: p.perms || {}, brand: { ...brandOf(p) } };
   const srcs = { logo: await signedUrl(p.logo_url), cover: await signedUrl(draft.brand.cover) };
   for (const key of Object.keys(FONTS)) loadFont(key);
 

@@ -7,8 +7,9 @@ import {
 } from './kit.js';
 import { react, onLongPress } from './feel.js';
 import {
-  app, redraw, isStudio, myName, feed, attention, pendingTasks, toReview, workToday, doingNow, upsertLocal, removeLocal, can, canAct, POST_KIND, RESOURCE_KIND, EXPECTS, PRIORITY, SENT_KIND, WORK_STATUS, commentsOf,
+  app, redraw, isStudio, isMine, myName, feed, attention, pendingTasks, toReview, workToday, doingNow, visibleContent, upsertLocal, removeLocal, can, POST_KIND, RESOURCE_KIND, EXPECTS, PRIORITY, SENT_KIND, WORK_STATUS, commentsOf,
 } from './state.js';
+import { safeName } from './data.js';
 import { thread, commentCount, openThread } from './threads.js';
 import * as studio from './studio.js';
 import { contentRow } from './marketing.js';
@@ -28,9 +29,10 @@ function clientHome() {
   const greet = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
   const pending = pendingTasks();
   const review = toReview();
-  const week = app.data.content.filter((c) => c.date >= todayKey() && c.date < addDays(todayKey(), 7)).length;
+  const week = visibleContent().filter((c) => c.date >= todayKey() && c.date < addDays(todayKey(), 7)).length;
   const board = app.data.posts.filter((p) => p.kind === 'announcement' || p.pinned).sort((a, b) => Number(b.pinned) - Number(a.pinned) || new Date(b.occurred_at) - new Date(a.occurred_at)).slice(0, 3);
-  const soon = app.data.content.filter((c) => c.date >= todayKey() && c.status !== 'published').slice(0, 4);
+  const soon = visibleContent().filter((c) => c.date >= todayKey() && c.status !== 'published').slice(0, 4);
+  const canPost = can('posts.create');
   const latest = feed().filter((x) => x.group !== 'anuncios').slice(0, 5);
 
   const node = el('div', { class: 'cl-stack' },
@@ -47,9 +49,9 @@ function clientHome() {
     notificationsCard(),
     installCard(),
     can('reporte') && todayCard(),
-    board.length && el('section', { class: 'cl-sec' },
-      sectionHead('Tablón', more('Todo', '#/cronologia?anuncios')),
-      el('div', { class: 'cl-list' }, board.map(postCard)),
+    (board.length > 0 || canPost) && el('section', { class: 'cl-sec' },
+      sectionHead('Tablón', canPost ? el('button', { type: 'button', class: 'cl-more', onclick: announceSheet }, 'Publicar', icon('plus')) : more('Todo', '#/cronologia?anuncios')),
+      board.length ? el('div', { class: 'cl-list' }, board.map(postCard)) : el('p', { class: 'cl-none', text: 'Comparte un aviso con tu equipo y con el estudio.' }),
     ),
     review.length && el('section', { class: 'cl-sec' },
       sectionHead('Para revisar', more('Marketing', '#/marketing'), 'Apruébalas o pide cambios'),
@@ -127,8 +129,13 @@ function studioHome() {
   const node = el('div', { class: 'cl-stack' },
     el('button', { type: 'button', class: `cl-card cl-attention${att.length ? ' is-hot' : ''}`, onclick: studio.inboxSheet },
       el('span', { class: 'cl-attention-ico' }, icon(att.length ? 'inbox' : 'checkCircle')),
-      el('span', { class: 'cl-set-main' }, el('b', { text: att.length ? `${plural(att.length, 'cosa', 'cosas')} para revisar` : 'Todo revisado' }), el('small', { text: att.length ? att.slice(0, 2).map((a) => a.kind === 'submission' ? `${a.row.author || 'El cliente'} envió algo` : a.kind === 'task' ? `Petición enviada: ${a.row.title}` : a.kind === 'changes' ? `Pide cambios: ${a.row.title}` : `Comentario: ${a.row.body}`).join(' · ') : `Nada pendiente de ${app.client.name}.` })),
+      el('span', { class: 'cl-set-main' }, el('b', { text: att.length ? `${plural(att.length, 'cosa', 'cosas')} para revisar` : 'Todo revisado' }), el('small', { text: att.length ? att.slice(0, 2).map((a) => a.kind === 'submission' ? `${a.row.author || 'El cliente'} envió algo` : a.kind === 'task' ? `Petición enviada: ${a.row.title}` : a.kind === 'changes' ? `Pide cambios: ${a.row.title}` : a.kind === 'rejected' ? `Rechazó: ${a.row.title}` : a.kind === 'idea' ? `Propone: ${a.row.title}` : `Comentario: ${a.row.body}`).join(' · ') : `Nada pendiente de ${app.client.name}.` })),
       att.length ? el('i', { class: 'cl-badge', text: String(att.length) }) : null,
+      icon('right', 'cl-set-chev'),
+    ),
+    app.portals.length > 1 && el('button', { type: 'button', class: 'cl-card cl-row-set cl-overview-card', onclick: () => studio.overviewSheet() },
+      el('span', { class: 'cl-set-ico', style: { '--c': 'var(--cf-orange)' } }, icon('sun')),
+      el('span', { class: 'cl-set-main' }, el('b', { text: 'Hoy en todos tus clientes' }), el('small', { text: `${app.portals.length} portales: lo que sale hoy, lo que te respondieron y lo que espera` })),
       icon('right', 'cl-set-chev'),
     ),
     el('section', { class: 'cl-sec' },
@@ -136,7 +143,7 @@ function studioHome() {
       el('div', { class: 'cl-quick' }, quick.map(([label, ico, tone, run], i) => el('button', { type: 'button', class: 'cl-quick-tile', style: { '--c': tone, '--i': i }, onclick: run }, el('span', { class: 'cl-quick-ico' }, icon(ico)), el('span', { text: label })))),
     ),
     el('section', { class: 'cl-sec' },
-      sectionHead('Trabajo de hoy', el('button', { type: 'button', class: 'cl-more', onclick: () => studio.dailyReport() }, 'Reporte', icon('plus')), today.length ? `${today.filter((w) => w.status === 'done').length} de ${today.length} hechas · toca para cambiar` : 'Lo que hagas hoy forma su reporte diario'),
+      sectionHead('Trabajo de hoy', el('span', { class: 'cl-head-actions' }, el('button', { type: 'button', class: 'cl-more', onclick: () => studio.pasteReport() }, 'Nexus', icon('copy')), el('button', { type: 'button', class: 'cl-more', onclick: () => studio.dailyReport() }, 'Reporte', icon('plus'))), today.length ? `${today.filter((w) => w.status === 'done').length} de ${today.length} hechas · toca para cambiar` : 'Lo que hagas hoy forma su reporte diario'),
       today.length ? el('div', { class: 'cl-card cl-work-list' }, today.map((w) => workLine(w, { editable: true }))) : emptyBox('tasks', 'Sin trabajo hoy', 'Añade lo que vas haciendo: el cliente lo ve en su cronología.', el('button', { type: 'button', class: 'cl-btn sm', onclick: () => studio.dailyReport() }, icon('plus'), 'Reporte de hoy')),
     ),
     el('div', { class: 'cl-stats is-flat' },
@@ -153,13 +160,26 @@ function studioHome() {
 // ── Piezas comunes ──
 
 export function postCard(p) {
-  const [label, ico, color] = POST_KIND[p.kind] || POST_KIND.update;
+  const [kindLabel, ico, color] = POST_KIND[p.kind] || POST_KIND.update;
+  const fromClient = p.origin === 'client';
+  const label = fromClient ? `${isMine(p) ? 'Tú' : p.author || 'Tu equipo'}` : kindLabel;
   const link = safeUrl(p.link);
-  const card = el('article', { class: `cl-card cl-post${p.pinned ? ' is-pinned' : ''}`, style: { '--c': color } },
+  const card = el('article', { class: `cl-card cl-post${p.pinned ? ' is-pinned' : ''}${fromClient ? ' is-client' : ''}`, style: { '--c': fromClient ? 'var(--cf-purple)' : color } },
     el('header', {},
-      el('span', { class: 'cl-post-ico' }, icon(ico)),
+      el('span', { class: 'cl-post-ico' }, icon(fromClient ? 'user' : ico)),
       el('span', { class: 'cl-post-meta' }, el('b', { text: p.pinned ? `${label} · fijado` : label }), el('small', { text: ago(p.occurred_at) })),
       isStudio() && el('button', { type: 'button', class: 'cl-glass xs', 'aria-label': 'Editar', onclick: () => studio.editPost(p) }, icon('edit')),
+      !isStudio() && fromClient && isMine(p) && el('button', { type: 'button', class: 'cl-glass xs', 'aria-label': 'Quitar mi anuncio', onclick: async () => {
+        if (!(await confirmSheet('¿Quitar tu anuncio?', { yes: 'Quitar', danger: true }))) return;
+        try {
+          await app.backend.remove('posts', p.id);
+          removeLocal('posts', p.id);
+          react('off');
+          redraw();
+        } catch (err) {
+          toast(err.message, 'error');
+        }
+      } }, icon('trash')),
     ),
     el('h3', { text: p.title }),
     p.body && el('p', { class: 'cl-prose', text: p.body }),
@@ -169,6 +189,38 @@ export function postCard(p) {
     ),
   );
   return card;
+}
+
+/** El cliente publica un aviso en el tablón (si su portal se lo permite). */
+function announceSheet() {
+  const title = input({ maxLength: 200, placeholder: 'El sábado cerramos a las 15:00' });
+  const body = textarea({ maxLength: 20000, rows: 4, placeholder: 'Lo que quieras contar a tu equipo y al estudio' });
+  const link = input({ type: 'url', inputMode: 'url', placeholder: 'https://… (opcional)' });
+  const btn = el('button', { type: 'button', class: 'cl-btn' }, icon('send'), 'Publicar');
+  const ui = sheet('Publicar en el tablón', el('div', { class: 'cl-form' },
+    el('p', { class: 'cl-form-hint' }, icon('users'), 'Lo ve tu equipo y le llega al estudio.'),
+    field('Título', title),
+    field('Texto', body),
+    field('Enlace', link),
+  ), { actions: [btn] });
+  btn.addEventListener('click', async () => {
+    if (!title.value.trim()) return toast('Ponle un título.', 'error');
+    const url = link.value.trim();
+    if (url && !safeUrl(url)) return toast('El enlace tiene que empezar por https://', 'error');
+    btn.classList.add('is-busy');
+    try {
+      const row = await app.backend.save('posts', { client_id: app.client.id, kind: 'announcement', title: title.value.trim(), body: (body.querySelector?.('textarea') || body).value.trim() || null, link: safeUrl(url), occurred_at: new Date().toISOString(), origin: 'client', created_by: app.user?.id, author: myName(), notify: true });
+      upsertLocal('posts', row);
+      react('success');
+      burst(btn);
+      ui.close();
+      toast('Publicado en el tablón.', 'ok');
+      redraw();
+    } catch (err) {
+      btn.classList.remove('is-busy');
+      toast(err.message, 'error');
+    }
+  });
 }
 
 function workLine(w, { editable } = {}) {
@@ -220,15 +272,19 @@ export function feedItem(x, { compact: small } = {}) {
 }
 
 function reportCard(x, fresh) {
-  const { day, items, done, minutes } = x.report;
+  const { day, items, done, minutes, meta } = x.report;
   const total = items.length;
+  const who = [meta?.author, meta?.sent_at && `a las ${meta.sent_at.slice(0, 5)}`].filter(Boolean).join(' · ');
+  const note = (cls, ico, title, text) => text && el('div', { class: `cl-report-note ${cls}` }, icon(ico), el('div', {}, el('b', { text: title }), el('p', { class: 'cl-prose', text })));
   return el('article', { class: `cl-card cl-report${fresh ? ' is-fresh' : ''}` },
     el('header', { class: 'cl-report-head' },
       el('span', { class: 'cl-ring sm', style: { '--p': String(total ? done.length / total : 0) } }, el('b', { text: String(done.length) })),
-      el('div', {}, el('small', { class: 'cl-eyebrow', text: day === todayKey() ? 'Reporte de hoy' : `Reporte · ${dayLabel(day)}` }), el('b', { text: `${plural(done.length, 'tarea hecha', 'tareas hechas')}${minutes ? ` · ${minutesText(minutes)}` : ''}` })),
+      el('div', {}, el('small', { class: 'cl-eyebrow', text: day === todayKey() ? 'Reporte de hoy' : `Reporte · ${dayLabel(day)}` }), el('b', { text: `${plural(done.length, 'tarea hecha', 'tareas hechas')}${minutes ? ` · ${minutesText(minutes)}` : ''}` }), who && el('small', { class: 'cl-report-who', text: who })),
       fresh && el('i', { class: 'cl-new', text: 'nuevo' }),
     ),
     el('div', { class: 'cl-work-list' }, [...items].sort((a, b) => ['doing', 'done', 'planned'].indexOf(a.status) - ['doing', 'done', 'planned'].indexOf(b.status)).map((w) => workLine(w, { editable: isStudio() }))),
+    note('is-blocker', 'alert', 'Dificultades', meta?.blockers),
+    note('is-note', 'message', 'Observaciones', meta?.notes),
   );
 }
 
@@ -278,10 +334,56 @@ export function resourcesPage() {
     const shown = app.data.resources.filter((r) => (cat === 'todo' || r.category === cat) && (!q || `${r.title} ${r.description || ''} ${r.category || ''}`.toLowerCase().includes(q)));
     fill(grid, shown.length ? shown.map((r, i) => resourceCard(r, i)) : emptyBox('folder', q || cat !== 'todo' ? 'Nada coincide' : 'Todavía no hay recursos', q || cat !== 'todo' ? 'Prueba con otra búsqueda.' : 'Aquí dejaremos guías, archivos y enlaces para ti.', isStudio() && el('button', { type: 'button', class: 'cl-btn sm', onclick: () => studio.editResource() }, icon('plus'), 'Añadir recurso')));
   };
+  const upload = !isStudio() && can('resources.upload') && el('button', { type: 'button', class: 'cl-btn sm ghost cl-propose', onclick: uploadResource }, icon('upload'), 'Subir un recurso');
   if (cats.length) fill(catsBox, chips([['todo', 'Todo'], ...cats.map((c) => [c, c])], cat, (v) => { cat = v; draw(); }, { scroll: true }));
   const search = el('input', { type: 'search', class: 'cl-input', placeholder: 'Buscar recursos', 'aria-label': 'Buscar recursos', oninput: (e) => { q = e.target.value.trim().toLowerCase(); draw(); } });
   draw();
-  return { node: el('div', { class: 'cl-stack' }, el('label', { class: 'cl-search' }, icon('search'), search), catsBox, grid), title: 'Recursos', large: 'Recursos', sub: 'Archivos, guías y enlaces de tu proyecto' };
+  return { node: el('div', { class: 'cl-stack' }, el('label', { class: 'cl-search' }, icon('search'), search), upload, catsBox, grid), title: 'Recursos', large: 'Recursos', sub: 'Archivos, guías y enlaces de tu proyecto' };
+}
+
+/** El cliente comparte un archivo o un enlace en Recursos (en su carpeta). */
+function uploadResource() {
+  let mode = 'file';
+  const title = input({ maxLength: 200, placeholder: 'Fotos del local, logo, menú…' });
+  const url = input({ type: 'url', inputMode: 'url', placeholder: 'https://…' });
+  const picker = filePicker({ label: 'Elige el archivo', hint: 'Hasta 50 MB' });
+  const source = el('div');
+  const draw = () => fill(source, mode === 'file' ? picker.node : field('Enlace', url));
+  draw();
+  const btn = el('button', { type: 'button', class: 'cl-btn' }, icon('upload'), 'Subir');
+  const ui = sheet('Subir un recurso', el('div', { class: 'cl-form' },
+    seg([['file', 'Archivo'], ['link', 'Enlace']], mode, (v) => { mode = v; draw(); }),
+    source,
+    field('Título', title),
+  ), { actions: [btn] });
+  btn.addEventListener('click', async () => {
+    btn.classList.add('is-busy');
+    try {
+      const row = { client_id: app.client.id, title: title.value.trim(), category: 'Del cliente', origin: 'client', created_by: app.user?.id, notify: false };
+      if (mode === 'link') {
+        row.url = safeUrl(url.value.trim());
+        if (!row.url) throw new Error('Pega un enlace que empiece por https://');
+        row.kind = /youtu|vimeo|loom/.test(row.url) ? 'video' : 'link';
+        row.title ||= hostOf(row.url);
+      } else {
+        const f = picker.files()[0];
+        if (!f) throw new Error('Elige un archivo.');
+        const path = `${app.client.id}/recursos/${app.user.id}/${crypto.randomUUID().slice(0, 8)}-${safeName(f.name)}`;
+        await app.backend.upload(path, f, (p) => picker.progress(p));
+        picker.progress(null);
+        Object.assign(row, { storage_path: path, file_name: f.name, size: f.size, mime: f.type || null, kind: f.type.startsWith('video/') ? 'video' : f.type.startsWith('image/') ? 'image' : f.type === 'application/pdf' ? 'doc' : 'file' });
+        row.title ||= f.name.replace(/\.[^.]+$/, '');
+      }
+      upsertLocal('resources', await app.backend.save('resources', row));
+      react('success');
+      ui.close();
+      toast('Recurso compartido con el estudio.', 'ok');
+      redraw();
+    } catch (err) {
+      btn.classList.remove('is-busy');
+      toast(err.message, 'error');
+    }
+  });
 }
 
 function resourceCard(r, i) {
@@ -297,7 +399,22 @@ function resourceCard(r, i) {
 }
 
 async function openResource(r) {
-  if (isStudio()) {
+  if (!isStudio() && r.origin === 'client' && isMine(r)) {
+    const choice = await actionSheet(r.title, [{ label: r.storage_path ? 'Descargar' : 'Abrir', icon: r.storage_path ? 'download' : 'external' }, { label: 'Quitar', icon: 'trash', danger: true }]);
+    if (!choice) return;
+    if (choice.label === 'Quitar') {
+      try {
+        await app.backend.remove('resources', r.id);
+        if (r.storage_path) await app.backend.removeFiles([r.storage_path]);
+        removeLocal('resources', r.id);
+        react('off');
+        redraw();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+      return;
+    }
+  } else if (isStudio()) {
     const choice = await actionSheet(r.title, [{ label: r.storage_path ? 'Descargar' : 'Abrir', icon: r.storage_path ? 'download' : 'external' }, { label: 'Editar', icon: 'edit', run: () => studio.editResource(r) }]);
     if (choice?.label === 'Editar' || !choice) return;
   }
@@ -312,7 +429,7 @@ export function taskCard(t, { compact: small } = {}) {
   const [due, dueClass] = t.due_date ? dueText(t.due_date) : [null, ''];
   const [prio, prioColor] = PRIORITY[t.priority || 'normal'];
   const toggle = async (btn) => {
-    if (t.status === 'done' || isStudio() || !canAct()) return;
+    if (t.status === 'done' || isStudio() || !can('tasks.submit')) return;
     const next = t.status === 'pending' ? 'submitted' : 'pending';
     btn.classList.add('is-busy');
     try {
@@ -335,7 +452,7 @@ export function taskCard(t, { compact: small } = {}) {
       class: 'cl-check',
       'aria-label': t.status === 'pending' ? 'Marcar como enviada' : t.status === 'submitted' ? 'Volver a pendiente' : 'Revisada',
       'aria-pressed': String(t.status !== 'pending'),
-      disabled: t.status === 'done' || isStudio() || !canAct(),
+      disabled: t.status === 'done' || isStudio() || !can('tasks.submit'),
       onclick: (e) => toggle(e.currentTarget),
     }, icon('check')),
     el('button', { type: 'button', class: 'cl-task-main', onclick: () => taskSheet(t) },
@@ -350,7 +467,7 @@ export function taskCard(t, { compact: small } = {}) {
       ),
       !small && t.description && el('p', { class: 'cl-prose cl-clamp', text: t.description }),
     ),
-    !isStudio() && canAct() && can('enviar') && t.status === 'pending' && t.expects !== 'none' && el('button', { type: 'button', class: `cl-btn sm${small ? ' is-icon' : ''}`, 'aria-label': 'Enviar', onclick: () => sendSheet({ task: t }) }, icon('upload'), !small && 'Enviar'),
+    !isStudio() && can('tasks.submit') && t.status === 'pending' && t.expects !== 'none' && el('button', { type: 'button', class: `cl-btn sm${small ? ' is-icon' : ''}`, 'aria-label': 'Enviar', onclick: () => sendSheet({ task: t }) }, icon('upload'), !small && 'Enviar'),
     isStudio() && t.status === 'submitted' && el('button', { type: 'button', class: 'cl-btn sm', onclick: (e) => studio.approveTask(t, e.currentTarget) }, icon('check'), !small && 'Dar por buena'),
   );
   if (isStudio()) onLongPress(card, () => studio.editTask(t));
@@ -362,9 +479,9 @@ export function taskSheet(t) {
   const [due, dueClass] = t.due_date ? dueText(t.due_date) : [null, ''];
   let ui;
   const actions = isStudio()
-    ? [el('button', { type: 'button', class: 'cl-btn ghost', onclick: () => { ui.close(); studio.editTask(t); } }, icon('edit'), 'Editar'), t.status !== 'done' && el('button', { type: 'button', class: 'cl-btn', onclick: (e) => { studio.approveTask(t, e.currentTarget); ui.close(); } }, icon('check'), 'Dar por buena')]
-    : t.status === 'pending' && canAct()
-      ? [t.expects !== 'none' && can('enviar') && el('button', { type: 'button', class: 'cl-btn ghost', onclick: () => { ui.close(); sendSheet({ task: t }); } }, icon('upload'), 'Enviar'), el('button', { type: 'button', class: 'cl-btn', onclick: async (e) => {
+    ? [el('button', { type: 'button', class: 'cl-btn ghost is-icon', 'aria-label': 'Duplicar', onclick: () => { ui.close(); studio.editTask(null, { template: { ...t, title: `${t.title} (copia)`.slice(0, 200) } }); } }, icon('copy')), el('button', { type: 'button', class: 'cl-btn ghost', onclick: () => { ui.close(); studio.editTask(t); } }, icon('edit'), 'Editar'), t.status !== 'done' && el('button', { type: 'button', class: 'cl-btn', onclick: (e) => { studio.approveTask(t, e.currentTarget); ui.close(); } }, icon('check'), 'Dar por buena')]
+    : t.status === 'pending' && can('tasks.submit')
+      ? [t.expects !== 'none' && el('button', { type: 'button', class: 'cl-btn ghost', onclick: () => { ui.close(); sendSheet({ task: t }); } }, icon('upload'), 'Enviar'), el('button', { type: 'button', class: 'cl-btn', onclick: async (e) => {
         try {
           upsertLocal('tasks', await app.backend.save('tasks', { id: t.id, status: 'submitted' }));
           burst(e.currentTarget);

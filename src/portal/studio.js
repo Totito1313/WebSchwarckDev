@@ -3,20 +3,22 @@
 // los accesos de cada cliente y lo que llega de ellos.
 
 import {
-  el, fill, icon, toast, sheet, actionSheet, confirmSheet, field, input, textarea, seg, chips, switchRow, stepper, datePicker, colorSwatches, group, filePicker, copyText, burst, todayKey, addDays, ago, plural, safeUrl, hostOf, sizeText, avatar, initials, fMonth, dayDate,
+  el, fill, icon, toast, sheet, actionSheet, confirmSheet, field, input, textarea, seg, chips, switchRow, stepper, datePicker, colorSwatches, group, rowLink, filePicker, copyText, burst, todayKey, addDays, ago, plural, safeUrl, hostOf, sizeText, avatar, initials, fMonth, dayDate, dayLabel, cap, fDay,
 } from './kit.js';
 import { react } from './feel.js';
 import { safeName } from './data.js';
 import {
-  app, redraw, upsertLocal, removeLocal, POST_KIND, CONTENT_STATUS, STATUS_ORDER, CHANNEL, FORMAT, FUNNEL, RESOURCE_KIND, EXPECTS, PRIORITY, WORK_STATUS, LEAD_STAGE, LEAD_SOURCE, SENT_KIND, attention, urlOf, signPaths, targetTitle,
+  app, redraw, upsertLocal, removeLocal, POST_KIND, CONTENT_STATUS, STATUS_ORDER, CHANNEL, FORMAT, FUNNEL, RESOURCE_KIND, EXPECTS, PRIORITY, WORK_STATUS, LEAD_STAGE, LEAD_SOURCE, SENT_KIND, VERDICT, attention, urlOf, signPaths, targetTitle, channelsOf,
 } from './state.js';
+import { PERMS, ROLES, SECTION_PERM, memberCan, portalAllows, roleAllows } from './brand.js';
+import { isNexusReport, parseNexusReport, nexusSource, parseCalendar, claudeInstructions } from './importers.js';
 
 // ── Formulario en hoja: guardar con su estado y su respuesta ──
 
 function formSheet(title, body, onSave, { save = 'Guardar', danger, subtitle } = {}) {
   const btn = el('button', { type: 'button', class: 'cl-btn' }, icon('check'), save);
   const actions = [
-    danger && el('button', { type: 'button', class: 'cl-btn ghost is-danger', 'aria-label': danger.label, onclick: async () => {
+    danger && el('button', { type: 'button', class: 'cl-btn ghost is-danger is-icon', 'aria-label': danger.label, onclick: async () => {
       if (!(await confirmSheet(danger.confirm || '¿Borrar?', { yes: danger.label, danger: true }))) return;
       try {
         await danger.run();
@@ -79,6 +81,8 @@ async function uploadTo(folder, file, onProgress) {
 export function createMenu() {
   return actionSheet('Crear', [
     { label: 'Reporte de hoy', icon: 'tasks', note: 'Lo que hiciste hoy, en una lista', run: () => dailyReport() },
+    { label: 'Pegar reporte de Nexus', icon: 'copy', note: 'Se publica tarea por tarea', run: () => pasteReport() },
+    { label: 'Importar calendario de Claude', icon: 'sparkles', note: 'Varias publicaciones de una vez', run: () => importCalendar() },
     { label: 'Trabajo', icon: 'bolt', note: 'Una tarea del estudio', run: () => editWork() },
     { label: 'Anuncio o avance', icon: 'megaphone', run: () => editPost() },
     { label: 'Petición al cliente', icon: 'inbox', run: () => editTask() },
@@ -155,10 +159,10 @@ export function editWork(w = null) {
 }
 
 /** El reporte de hoy: varias líneas de golpe, cada una con su estado y su tiempo. */
-export function dailyReport(prefill = []) {
+export function dailyReport(prefill = [], meta = null) {
   const rows = [];
   const list = el('div', { class: 'cl-report-lines' });
-  const today = app.data.work.filter((w) => w.day === todayKey());
+  let day = meta?.day || todayKey();
   const addLine = (title = '', status = 'done', minutes = null, source = null) => {
     const line = { title: input({ value: title, maxLength: 200, placeholder: 'Qué hiciste' }), status, minutes, source };
     const toggle = el('button', { type: 'button', class: `cl-status-dot is-${status}`, 'aria-label': 'Cambiar estado' }, icon(WORK_STATUS[status][2]));
@@ -175,11 +179,16 @@ export function dailyReport(prefill = []) {
     list.append(row);
     if (!title) requestAnimationFrame(() => line.title.focus());
   };
-  for (const p of prefill) addLine(p.title, 'done', p.minutes || null, p.source || null);
+  for (const p of prefill) addLine(p.title, p.status || 'done', p.minutes || null, p.source || null);
   if (!prefill.length) addLine();
   let notify = true;
+  const prevMeta = (app.data.reports || []).find((r) => r.day === day);
+  const author = input({ value: meta?.author || prevMeta?.author || '', maxLength: 120, placeholder: 'Quién lo manda (opcional)' });
+  const blockers = textarea({ value: meta?.blockers || prevMeta?.blockers || '', maxLength: 4000, rows: 2, placeholder: 'Lo que frenó el trabajo (opcional)' });
+  const notes = textarea({ value: meta?.notes || prevMeta?.notes || '', maxLength: 4000, rows: 2, placeholder: 'Observaciones o sugerencias (opcional)' });
+  const today = app.data.work.filter((w) => w.day === day);
   const existing = today.length ? el('div', { class: 'cl-report-today' },
-    el('small', { class: 'cl-eyebrow', text: 'Ya en el reporte de hoy' }),
+    el('small', { class: 'cl-eyebrow', text: day === todayKey() ? 'Ya en el reporte de hoy' : `Ya en el reporte del ${dayLabel(day).toLowerCase()}` }),
     today.map((w) => el('button', { type: 'button', class: `cl-report-chip is-${w.status}`, onclick: async (e) => {
       const next = w.status === 'done' ? 'doing' : w.status === 'doing' ? 'planned' : 'done';
       try {
@@ -195,35 +204,96 @@ export function dailyReport(prefill = []) {
     } }, icon(WORK_STATUS[w.status][2]), w.title)),
   ) : null;
   const hasImport = Boolean(readImport()?.items?.length);
-  const ui = formSheet('Reporte de hoy', [
-    el('p', { class: 'cl-form-hint', text: 'Cada línea es algo que hiciste. Toca el círculo para marcarla como hecha, en curso o planificada.' }),
+  const ui = formSheet(meta ? 'Reporte de Nexus' : 'Reporte de hoy', [
+    meta
+      ? el('p', { class: 'cl-form-hint' }, icon('check'), `${plural(prefill.length, 'tarea leída', 'tareas leídas')} del reporte${meta.author ? ` de ${meta.author}` : ''}. Revisa y publica: cada una queda como una línea del reporte.`)
+      : el('p', { class: 'cl-form-hint', text: 'Cada línea es algo que hiciste. Toca el círculo para marcarla como hecha, en curso o planificada.' }),
+    field('Día', datePicker(day, (v) => { day = v || todayKey(); }, { allowEmpty: false, quick: [['Hoy', 0], ['Ayer', -1]] })),
     existing,
     list,
     el('div', { class: 'cl-row-actions' },
       el('button', { type: 'button', class: 'cl-btn sm ghost', onclick: () => addLine() }, icon('plus'), 'Otra línea'),
       hasImport && el('button', { type: 'button', class: 'cl-btn sm ghost', onclick: () => { ui?.close(); importFromNegocio(); } }, icon('download'), 'Traer de Negocio'),
+      !meta && el('button', { type: 'button', class: 'cl-btn sm ghost', onclick: () => { ui?.close(); pasteReport(); } }, icon('copy'), 'Pegar de Nexus'),
     ),
-    switchRow('Avisar a su teléfono', notify, (v) => { notify = v; }, { ico: 'bell', tone: 'var(--cf-expense)', sub: 'Le llega «Reporte de hoy: N tareas hechas»' }),
+    el('details', { class: 'cl-report-notes', open: Boolean(meta?.blockers || meta?.notes || meta?.author) },
+      el('summary', { text: 'Notas del día' }),
+      el('div', { class: 'cl-form' }, field('Quién lo manda', author), field('Dificultades o bloqueos', blockers), field('Observaciones o sugerencias', notes), el('p', { class: 'cl-form-hint', text: 'El cliente las ve debajo del reporte de ese día.' })),
+    ),
+    switchRow('Avisar a su teléfono', notify, (v) => { notify = v; }, { ico: 'bell', tone: 'var(--cf-expense)', sub: 'Un solo aviso con lo hecho ese día' }),
   ], async () => {
-    const items = rows.filter((r) => val(r.title));
-    if (!items.length) return need(rows[0]?.title || list, 'Escribe al menos una línea.');
-    const saved = await app.backend.saveMany('work', items.map((r) => ({ client_id: cid(), title: val(r.title), status: r.status, minutes: r.minutes || null, day: todayKey(), notify, source: r.source || null })));
-    for (const s of saved) upsertLocal('work', s);
-    return { message: `${plural(saved.length, 'línea', 'líneas')} en el reporte.`, burst: true };
+    const items = rows.filter((r) => val(r.title)).map((r) => ({ ...r, source: r.source || (meta ? nexusSource(day, val(r.title)) : null) }));
+    const fresh = items.filter((r) => !r.source || !app.data.work.some((w) => w.source === r.source));
+    const notesText = { author: val(author) || null, blockers: val(areaOf(blockers)) || null, notes: val(areaOf(notes)) || null };
+    const hasNotes = Object.values(notesText).some(Boolean);
+    if (!items.length && !hasNotes) return need(rows[0]?.title || list, 'Escribe al menos una línea.');
+    const saved = fresh.length ? await app.backend.saveMany('work', fresh.map((r) => ({ client_id: cid(), title: val(r.title), status: r.status, minutes: r.minutes || null, day, notify, source: r.source || null }))) : [];
+    for (const w of saved) upsertLocal('work', w);
+    if (hasNotes || meta) {
+      const report = await app.backend.saveReport({ client_id: cid(), day, ...notesText, sent_at: meta?.sentAt || prevMeta?.sent_at || new Date().toTimeString().slice(0, 5), source: meta ? 'nexus' : prevMeta?.source || 'app' });
+      app.data.reports = [report, ...(app.data.reports || []).filter((r) => r.day !== day)];
+    }
+    const repeated = items.length - fresh.length;
+    return { message: `${plural(saved.length, 'línea', 'líneas')} en el reporte${repeated ? ` (${plural(repeated, 'ya estaba', 'ya estaban')})` : ''}.`, burst: saved.length > 0 };
   }, { save: 'Publicar' });
+}
+
+/**
+ * Pegar el reporte diario que copia Nexus: lo lee del portapapeles (o de lo que se pegue a
+ * mano) y abre el reporte con cada tarea en su línea, listo para publicar.
+ */
+export async function pasteReport(text = null) {
+  let raw = text;
+  if (raw == null) {
+    try {
+      raw = await navigator.clipboard.readText();
+    } catch {
+      raw = '';
+    }
+  }
+  if (isNexusReport(raw)) return openNexus(raw);
+  const area = textarea({ rows: 10, maxLength: 20000, placeholder: '📋 REPORTE DIARIO DE ACTIVIDADES…' });
+  const ui = formSheet('Pegar reporte de Nexus', [
+    el('p', { class: 'cl-form-hint', text: 'Copia el reporte en Nexus y pégalo aquí. Cada tarea realizada queda como una línea hecha, los pendientes como «en curso» y las dificultades y observaciones como notas del día.' }),
+    area,
+  ], async () => {
+    const value = val(areaOf(area));
+    if (!isNexusReport(value)) return need(areaOf(area), 'No parece el reporte diario: tiene que traer «Tareas realizadas».');
+    setTimeout(() => openNexus(value), 320);
+    return true;
+  }, { save: 'Leer' });
+  return ui;
+}
+
+function openNexus(raw) {
+  const r = parseNexusReport(raw);
+  if (!r.done.length && !r.doing.length && !r.blockers && !r.notes) return toast('El reporte no trae tareas.', 'error');
+  try {
+    localStorage.setItem('portal:nexus-last', String(raw.length) + raw.slice(0, 60));
+  } catch {
+    // sin almacenamiento
+  }
+  const day = r.day || todayKey();
+  dailyReport([
+    ...r.done.map((title) => ({ title, status: 'done', source: nexusSource(day, title) })),
+    ...r.doing.map((title) => ({ title, status: 'doing', source: nexusSource(day, title) })),
+  ], { ...r, day });
 }
 
 // ── Peticiones al cliente ──
 
-export function editTask(t = null) {
+export function editTask(t = null, { template } = {}) {
+  const base = t || template || {};
   let due = t?.due_date || addDays(todayKey(), 3);
-  let expects = t?.expects || 'file';
-  let priority = t?.priority || 'normal';
+  let expects = base.expects || 'file';
+  let priority = base.priority || 'normal';
   let status = t?.status || 'pending';
   let notify = !t;
-  const title = input({ value: t?.title || '', maxLength: 200, placeholder: 'Mándanos el logo en vectorial' });
-  const description = textarea({ value: t?.description || '', maxLength: 5000, rows: 3, placeholder: 'Qué necesitas exactamente, formato, ejemplos…' });
-  formSheet(t ? 'Editar petición' : 'Pedirle algo al cliente', [
+  const title = input({ value: base.title || '', maxLength: 200, placeholder: 'Mándanos el logo en vectorial' });
+  const description = textarea({ value: base.description || '', maxLength: 5000, rows: 3, placeholder: 'Qué necesitas exactamente, formato, ejemplos…' });
+  const tpl = !t && !template ? templatePicker('task', (data) => { ui.close(); setTimeout(() => editTask(null, { template: data }), 320); }) : null;
+  const ui = formSheet(t ? 'Editar petición' : 'Pedirle algo al cliente', [
+    tpl,
     field('Qué necesitas', title),
     field('Detalles', description),
     field('Para cuándo', datePicker(due, (v) => { due = v; })),
@@ -231,6 +301,10 @@ export function editTask(t = null) {
     field('Prioridad', seg(Object.entries(PRIORITY).map(([k, [l]]) => [k, l]), priority, (v) => { priority = v; })),
     t && field('Estado', seg([['pending', 'Pendiente'], ['submitted', 'Enviada'], ['done', 'Revisada']], status, (v) => { status = v; })),
     switchRow('Avisar a su teléfono', notify, (v) => { notify = v; }, { ico: 'bell', tone: 'var(--cf-expense)', sub: 'Y un recordatorio la mañana en que vence' }),
+    el('div', { class: 'cl-row-actions' },
+      saveTemplateButton('task', () => ({ title: val(title), description: val(areaOf(description)) || null, expects, priority }), () => val(title)),
+      t && el('button', { type: 'button', class: 'cl-btn sm ghost', onclick: () => { ui.close(); setTimeout(() => editTask(null, { template: { ...t, title: `${t.title} (copia)`.slice(0, 200) } }), 320); } }, icon('copy'), 'Duplicar'),
+    ),
   ], async () => {
     if (!val(title)) return need(title, '¿Qué necesitas?');
     const row = { title: val(title), description: val(areaOf(description)) || null, due_date: due || null, expects, priority, notify };
@@ -238,6 +312,52 @@ export function editTask(t = null) {
     await persist('tasks', row, t);
     return { message: t ? 'Guardado.' : notify ? 'Pedido y avisado.' : 'Pedido.' };
   }, { save: t ? 'Guardar' : 'Pedir', danger: t && { label: 'Borrar', confirm: '¿Borrar esta petición?', run: async () => { await app.backend.remove('tasks', t.id); removeLocal('tasks', t.id); } } });
+}
+
+// ── Plantillas (publicaciones y peticiones, para todos los portales) ──
+
+/** Una tira «Desde plantilla» que se llena sola si hay plantillas de ese tipo. */
+function templatePicker(kind, onPick) {
+  const box = el('div');
+  app.backend.templates().then((all) => {
+    const list = all.filter((x) => x.kind === kind);
+    if (!list.length) return;
+    // Dos botones hermanos en una píldora: usarla y borrarla (un botón dentro de otro no vale).
+    fill(box, field('Desde plantilla', el('div', { class: 'cl-chips is-scroll' }, list.map((x) => {
+      const chip = el('span', { class: 'cl-fchip cl-tpl' },
+        el('button', { type: 'button', class: 'cl-tpl-use', onclick: () => { react('tick'); onPick(x.data); } }, icon('layers'), x.name),
+        el('button', { type: 'button', class: 'cl-tpl-x', 'aria-label': `Borrar la plantilla ${x.name}`, onclick: async () => {
+          if (!(await confirmSheet(`¿Borrar la plantilla «${x.name}»?`, { yes: 'Borrar', danger: true }))) return;
+          try {
+            await app.backend.removeTemplate(x.id);
+            chip.remove();
+          } catch (err) {
+            toast(err.message, 'error');
+          }
+        } }, icon('x')),
+      );
+      return chip;
+    }))));
+  }).catch(() => {});
+  return box;
+}
+
+function saveTemplateButton(kind, collect, nameOf) {
+  return el('button', { type: 'button', class: 'cl-btn sm ghost', onclick: async (e) => {
+    const name = (nameOf() || '').replace(/^(reel|post|carrusel|historia|v[ií]deo)\s*:\s*/i, '').trim();
+    if (!name) return toast('Ponle un título primero: será el nombre de la plantilla.', 'error');
+    const btn = e.currentTarget;
+    btn.classList.add('is-busy');
+    try {
+      await app.backend.saveTemplate({ kind, name: name.slice(0, 120), data: collect() });
+      react('success');
+      toast(`Plantilla «${name.slice(0, 40)}» guardada para todos los clientes.`, 'ok');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      btn.classList.remove('is-busy');
+    }
+  } }, icon('layers'), 'Guardar como plantilla');
 }
 
 export async function approveTask(t, from) {
@@ -254,27 +374,70 @@ export async function approveTask(t, from) {
 
 // ── Calendario de contenido (la ficha completa) ──
 
-export function editContent(c = null, { date: preDate } = {}) {
-  let channel = c?.channel || 'instagram';
-  let format = c?.format || 'reel';
+// Qué se prepara en cada formato: un estático no tiene guion ni duración.
+const PRODUCTION = {
+  post: ['design', 'Diseño', 'Arte final e inspiración'],
+  carrusel: ['slides', 'Diapositivas', 'Arte final e inspiración'],
+  historia: ['frames', 'Pantallas', 'Arte final e inspiración'],
+  reel: ['video', 'Grabación', 'Material y referencias'],
+  video: ['video', 'Grabación', 'Material y referencias'],
+  articulo: ['article', 'El texto', 'Imágenes y fuentes'],
+  otro: ['notes', 'Producción', 'Material y referencias'],
+};
+
+/** Una lista que crece: el texto de cada diapositiva o de cada pantalla. */
+function listEditor(items, label, placeholder) {
+  const box = el('div', { class: 'cl-list-edit' });
+  const draw = () => fill(box,
+    items.map((txt, i) => {
+      const area = textarea({ value: txt, maxLength: 1000, rows: 2, placeholder: `${placeholder} ${i + 1}` });
+      areaOf(area).addEventListener('input', (e) => { items[i] = e.target.value; });
+      return el('div', { class: 'cl-list-edit-row' },
+        el('span', { class: 'cl-list-edit-n', text: String(i + 1) }),
+        area,
+        el('button', { type: 'button', class: 'cl-glass xs', 'aria-label': `Quitar ${label.toLowerCase()} ${i + 1}`, onclick: () => { items.splice(i, 1); react('off'); draw(); } }, icon('x')),
+      );
+    }),
+    items.length < 20 && el('button', { type: 'button', class: 'cl-btn sm ghost', onclick: () => {
+      items.push('');
+      react('pop');
+      draw();
+      requestAnimationFrame(() => [...box.querySelectorAll('textarea')].at(-1)?.focus());
+    } }, icon('plus'), `Añadir ${label.toLowerCase()}`),
+  );
+  draw();
+  return box;
+}
+
+export function editContent(c = null, { date: preDate, template } = {}) {
+  const base = c || template || {};
+  let channels = c || template?.channels?.length || template?.channel ? [...channelsOf(base)] : ['instagram'];
+  let format = base.format || 'reel';
   let status = c?.status || 'review';
-  let funnel = c?.funnel || '';
+  let funnel = base.funnel || '';
   let notify = !c;
   let assets = [...(c?.assets || [])];
-  let refs = [...(c?.refs || [])];
-  const title = input({ value: c?.title || '', maxLength: 200, placeholder: 'Reel: así tostamos el café' });
+  let refs = [...(base.refs || [])];
+  const prod = { ...(base.production || {}) };
+  const slides = [...(prod.slides || [])];
+  const frames = [...(prod.frames || [])];
+  const title = input({ value: base.title || '', maxLength: 200, placeholder: 'Reel: así tostamos el café' });
   const date = el('input', { type: 'date', class: 'cl-input', value: c?.date || preDate || addDays(todayKey(), 1) });
-  const time = el('input', { type: 'time', class: 'cl-input', value: c?.time?.slice(0, 5) || '18:00' });
-  const pillar = input({ value: c?.pillar || '', maxLength: 80, placeholder: 'Proceso, Educación, Promociones…', list: 'cl-pillars' });
+  const time = el('input', { type: 'time', class: 'cl-input', value: c?.time?.slice(0, 5) || base.time?.slice?.(0, 5) || '18:00' });
+  const pillar = input({ value: base.pillar || '', maxLength: 80, placeholder: 'Proceso, Educación, Promociones…', list: 'cl-pillars' });
   const pillars = el('datalist', { id: 'cl-pillars' }, [...new Set(app.data.content.map((x) => x.pillar).filter(Boolean))].map((p) => el('option', { value: p })));
-  const objective = textarea({ value: c?.objective || '', maxLength: 500, rows: 2, placeholder: 'Para qué sirve esta pieza' });
-  const cta = input({ value: c?.cta || '', maxLength: 200, placeholder: 'Escríbenos por WhatsApp' });
-  const campaign = input({ value: c?.campaign || '', maxLength: 120, placeholder: 'Noviembre, Lanzamiento…' });
-  const caption = textarea({ value: c?.caption || '', maxLength: 2200, rows: 4, placeholder: 'El texto que acompaña la publicación' }, { counter: true });
-  const hashtags = input({ value: c?.hashtags || '', maxLength: 1000, placeholder: '#cafedeespecialidad #caracas' });
-  const script = textarea({ value: c?.script || '', maxLength: 8000, rows: 4, placeholder: '0–3 s: …\n3–8 s: …' });
-  const duration = input({ value: c?.duration || '', maxLength: 40, placeholder: '20 s' });
-  const notes = textarea({ value: c?.notes || '', maxLength: 5000, rows: 2, placeholder: 'Música, tono, lo que deba saber el cliente…' });
+  const objective = textarea({ value: base.objective || '', maxLength: 500, rows: 2, placeholder: 'Para qué sirve esta pieza' });
+  const cta = input({ value: base.cta || '', maxLength: 200, placeholder: 'Escríbenos por WhatsApp' });
+  const campaign = input({ value: base.campaign || '', maxLength: 120, placeholder: 'Noviembre, Lanzamiento…' });
+  const caption = textarea({ value: base.caption || '', maxLength: 2200, rows: 4, placeholder: 'El texto que acompaña la publicación' }, { counter: true });
+  const hashtags = input({ value: base.hashtags || '', maxLength: 1000, placeholder: '#cafedeespecialidad #caracas' });
+  const script = textarea({ value: base.script || '', maxLength: 8000, rows: 4, placeholder: '0–3 s: …\n3–8 s: …' });
+  const duration = input({ value: base.duration || '', maxLength: 40, placeholder: '20 s' });
+  const notes = textarea({ value: base.notes || '', maxLength: 5000, rows: 2, placeholder: 'Lugar, música, tono, lo que deba saber el cliente…' });
+  const headline = input({ value: prod.headline || '', maxLength: 500, placeholder: 'El texto grande de la pieza' });
+  const designNotes = textarea({ value: prod.design_notes || '', maxLength: 3000, rows: 3, placeholder: 'Foto o fondo, colores, composición, logo…' });
+  const outline = textarea({ value: prod.outline || '', maxLength: 5000, rows: 4, placeholder: 'Introducción, puntos, cierre…' });
+  const keyword = input({ value: prod.keyword || '', maxLength: 100, placeholder: 'café de especialidad en Caracas' });
   const link = input({ type: 'url', inputMode: 'url', value: c?.link || '', placeholder: 'https://… (la pieza en Drive o Canva)' });
   const picker = filePicker({ accept: 'image/*,video/*', multiple: true, label: 'Añadir imágenes o vídeos', hint: 'Portada, borradores, la pieza final… (hasta 50 MB cada uno)' });
   const current = el('div', { class: 'cl-assets-edit' });
@@ -296,13 +459,54 @@ export function editContent(c = null, { date: preDate } = {}) {
     } }, icon('plus'), 'Añadir')));
   drawRefs();
 
-  formSheet(c ? 'Editar publicación' : 'Nueva publicación', [
+  // La producción cambia con el formato.
+  const prodSec = el('section', { class: 'cl-form-sec' });
+  const matTitle = el('h4');
+  const drawProduction = () => {
+    const [kind, heading, material] = PRODUCTION[format] || PRODUCTION.otro;
+    matTitle.textContent = material;
+    fill(prodSec, el('h4', { text: heading }),
+      kind === 'design' && [field('Texto en la pieza', headline), field('Indicaciones de diseño', designNotes)],
+      kind === 'slides' && [field('Texto de cada diapositiva', listEditor(slides, 'Diapositiva', 'Diapositiva')), field('Indicaciones de diseño', designNotes)],
+      kind === 'frames' && [field('Lo que va en cada pantalla', listEditor(frames, 'Pantalla', 'Pantalla')), field('Indicaciones de diseño', designNotes)],
+      kind === 'video' && [field('Guion', script), el('div', { class: 'cl-grid2' }, field('Duración', duration), el('span')), field('Notas de grabación', notes)],
+      kind === 'article' && [field('Esquema', outline), field('Palabra clave', keyword)],
+      kind === 'notes' && field('Notas', notes),
+    );
+  };
+  drawProduction();
+
+  // Lo que se guarda (y lo que va a una plantilla: todo menos el día, el estado y los archivos).
+  const production = () => {
+    const out = {};
+    const put = (k, v) => {
+      if (v && !(Array.isArray(v) && !v.length)) out[k] = v;
+    };
+    put('headline', val(headline));
+    put('design_notes', val(areaOf(designNotes)));
+    put('slides', slides.map((x) => x.trim()).filter(Boolean));
+    put('frames', frames.map((x) => x.trim()).filter(Boolean));
+    put('outline', val(areaOf(outline)));
+    put('keyword', val(keyword));
+    return out;
+  };
+  const collect = () => ({
+    title: val(title), channels, channel: channels[0], format, funnel: funnel || null,
+    pillar: val(pillar) || null, objective: val(areaOf(objective)) || null, cta: val(cta) || null, campaign: val(campaign) || null,
+    caption: val(areaOf(caption)) || null, hashtags: val(hashtags) || null, script: val(areaOf(script)) || null, duration: val(duration) || null,
+    notes: val(areaOf(notes)) || null, refs, production: production(),
+  });
+
+  const tpl = !c && !template ? templatePicker('content', (data) => { ui.close(); setTimeout(() => editContent(null, { date: date.value, template: data }), 320); }) : null;
+  const ui = formSheet(c ? 'Editar publicación' : 'Nueva publicación', [
+    tpl,
+    c?.origin === 'client' && el('p', { class: 'cl-form-hint' }, icon('sparkles'), 'La propuso el cliente. Pásala a «En producción» o «Para revisar» cuando la tomes.'),
     el('section', { class: 'cl-form-sec' }, el('h4', { text: 'Lo básico' }),
       field('Título', title),
       el('div', { class: 'cl-grid2' }, field('Día', date), field('Hora', time)),
-      field('Red', chips(Object.entries(CHANNEL).filter(([k]) => k !== 'google').map(([k, [l, color, ico]]) => [k, l, color, ico]), channel, (v) => { channel = v; }, { scroll: true })),
-      field('Formato', chips(Object.entries(FORMAT).map(([k, l]) => [k, l]), format, (v) => { format = v; }, { scroll: true })),
-      field('Estado', chips(STATUS_ORDER.map((k) => [k, CONTENT_STATUS[k][0], CONTENT_STATUS[k][1]]), status, (v) => { status = v; }, { scroll: true }), 'En «Para revisar» el cliente puede aprobarla o pedir cambios.'),
+      field('Redes', chips(Object.entries(CHANNEL).filter(([k]) => k !== 'google').map(([k, [l, color, ico]]) => [k, l, color, ico]), channels, (v) => { channels = v; }, { multi: true, scroll: true }), 'Elige todas las redes donde sale la misma pieza.'),
+      field('Formato', chips(Object.entries(FORMAT).map(([k, l]) => [k, l]), format, (v) => { format = v; drawProduction(); }, { scroll: true })),
+      field('Estado', chips(STATUS_ORDER.map((k) => [k, CONTENT_STATUS[k][0], CONTENT_STATUS[k][1]]), status, (v) => { status = v; }, { scroll: true }), 'En «Para revisar» el cliente puede aprobarla, pedir cambios o rechazarla.'),
     ),
     el('section', { class: 'cl-form-sec' }, el('h4', { text: 'Estrategia' }),
       field('Embudo', chips(Object.entries(FUNNEL).map(([k, [l, color]]) => [k, l, color]), funnel, (v) => { funnel = v; }, { scroll: true })),
@@ -314,20 +518,21 @@ export function editContent(c = null, { date: preDate } = {}) {
       field('Copy', caption),
       field('Hashtags', hashtags),
     ),
-    el('section', { class: 'cl-form-sec' }, el('h4', { text: 'Producción' }),
-      field('Guion', script),
-      el('div', { class: 'cl-grid2' }, field('Duración', duration), el('span')),
-      field('Notas', notes),
-    ),
-    el('section', { class: 'cl-form-sec' }, el('h4', { text: 'Material y referencias' }),
+    prodSec,
+    el('section', { class: 'cl-form-sec' }, matTitle,
       current, picker.node,
       field('Referencias', refsBox),
       field('Enlace a la pieza', link),
     ),
     switchRow('Avisar a su teléfono', notify, (v) => { notify = v; }, { ico: 'bell', tone: 'var(--cf-expense)', sub: 'Si está «Para revisar», le pide que la apruebe' }),
+    el('div', { class: 'cl-row-actions' }, saveTemplateButton('content', () => { const { channel, ...data } = collect(); return data; }, () => val(title))),
   ], async () => {
     if (!val(title)) return need(title, 'Ponle un título.');
     if (!date.value) return need(date, 'Elige el día.');
+    if (!channels.length) {
+      toast('Elige al menos una red.', 'error');
+      return false;
+    }
     const files = picker.files();
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
@@ -337,10 +542,8 @@ export function editContent(c = null, { date: preDate } = {}) {
     picker.progress(null);
     await signPaths(assets.map((a) => a.path).filter(Boolean));
     const row = {
-      title: val(title), date: date.value, time: time.value || null, channel, format, status, funnel: funnel || null,
-      pillar: val(pillar) || null, objective: val(areaOf(objective)) || null, cta: val(cta) || null, campaign: val(campaign) || null,
-      caption: val(areaOf(caption)) || null, hashtags: val(hashtags) || null, script: val(areaOf(script)) || null, duration: val(duration) || null,
-      notes: val(areaOf(notes)) || null, link: safeUrl(val(link)), assets, refs, image_url: assets.find((a) => a.kind === 'image')?.path || c?.image_url || null, notify,
+      ...collect(), date: date.value, time: time.value || null, status, link: safeUrl(val(link)), assets,
+      image_url: assets.find((a) => a.kind === 'image')?.path || c?.image_url || null, notify,
     };
     // Volver a pedir revisión borra la respuesta anterior del cliente.
     if (c && status === 'review' && c.status !== 'review') Object.assign(row, { client_verdict: null, client_note: null, client_verdict_at: null });
@@ -349,9 +552,90 @@ export function editContent(c = null, { date: preDate } = {}) {
   }, { danger: c && { label: 'Borrar', confirm: '¿Borrar esta publicación del calendario?', run: async () => { await app.backend.remove('content', c.id); removeLocal('content', c.id); } } });
 }
 
+/** Una copia como idea, para repetir una pieza que funcionó. */
+export async function duplicateContent(c) {
+  const { id, created_at, updated_at, client_verdict, client_note, client_verdict_at, client_verdict_by, client_verdict_name, created_by, origin, image_url, assets, ...rest } = c;
+  try {
+    const saved = await persist('content', { ...rest, title: `${c.title} (copia)`.slice(0, 200), status: 'idea', notify: false, assets: [], image_url: null });
+    react('success');
+    toast('Duplicada como idea, sin los archivos.', 'ok');
+    redraw();
+    setTimeout(() => editContent(app.data.content.find((x) => x.id === saved.id) || saved), 320);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+/** Cambiar el día de una publicación (en el teléfono, en vez de arrastrarla). */
+export function moveContent(c) {
+  let day = c.date;
+  formSheet('Mover de día', [
+    el('p', { class: 'cl-form-hint', text: `«${c.title}» sale ${dayLabel(c.date).toLowerCase()}.` }),
+    field('Nuevo día', datePicker(day, (v) => { day = v; }, { allowEmpty: false, quick: [['Mañana', 1], ['En 3 días', 3], ['1 semana', 7], ['2 semanas', 14]] })),
+  ], async () => {
+    if (!day || day === c.date) return true;
+    await persist('content', { date: day }, c);
+    return { message: `Movida al ${fDay.format(dayDate(day))}.` };
+  }, { save: 'Mover' });
+}
+
+/** Lo que el estudio puede hacer con una publicación, sin abrir el formulario entero. */
+export function contentActions(c) {
+  return actionSheet(c.title, [
+    { label: 'Editar', icon: 'edit', run: () => editContent(c) },
+    { label: 'Duplicar', icon: 'copy', note: 'Una copia como idea', run: () => duplicateContent(c) },
+    { label: 'Mover de día', icon: 'calendar', run: () => moveContent(c) },
+    { label: 'Borrar', icon: 'trash', danger: true, run: async () => {
+      if (!(await confirmSheet(`¿Borrar «${c.title}» del calendario?`, { yes: 'Borrar', danger: true }))) return;
+      try {
+        await app.backend.remove('content', c.id);
+        removeLocal('content', c.id);
+        react('off');
+        redraw();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    } },
+  ], { message: `${cap(fDay.format(dayDate(c.date)))} · ${CONTENT_STATUS[c.status]?.[0] || ''}` });
+}
+
+/** Varias publicaciones a la vez: el mismo estado o fuera del calendario. */
+export async function bulkContent(items, done) {
+  const picked = await actionSheet(plural(items.length, 'publicación', 'publicaciones'), [
+    ...STATUS_ORDER.map((k) => ({ label: `Mover a «${CONTENT_STATUS[k][0]}»`, icon: k === 'published' ? 'check' : 'swap', value: k })),
+    { label: 'Borrar', icon: 'trash', danger: true, value: 'delete' },
+  ]);
+  const choice = picked?.value;
+  if (!choice) return;
+  if (choice === 'delete' && !(await confirmSheet(`¿Borrar ${plural(items.length, 'publicación', 'publicaciones')}?`, { yes: 'Borrar', danger: true }))) return;
+  let ok = 0;
+  for (const c of items) {
+    try {
+      if (choice === 'delete') {
+        await app.backend.remove('content', c.id);
+        removeLocal('content', c.id);
+      } else {
+        const patch = { id: c.id, status: choice };
+        if (choice === 'review') Object.assign(patch, { client_verdict: null, client_note: null, client_verdict_at: null, notify: true });
+        if (choice === 'published') patch.notify = true;
+        upsertLocal('content', await app.backend.save('content', patch));
+      }
+      ok++;
+    } catch (err) {
+      toast(err.message, 'error');
+      break;
+    }
+  }
+  react('success');
+  toast(choice === 'delete' ? `${plural(ok, 'borrada', 'borradas')}.` : `${plural(ok, 'publicación', 'publicaciones')} en «${CONTENT_STATUS[choice][0]}».`, 'ok');
+  done?.();
+  redraw();
+}
+
 export async function setContentStatus(c, status) {
   try {
-    const patch = { id: c.id, status };
+    // Al mandarla a revisar o publicarla se avisa aunque se creara en silencio (lo de Claude entra así).
+    const patch = { id: c.id, status, ...(status === 'review' || status === 'published' ? { notify: true } : {}) };
     if (status === 'review') Object.assign(patch, { client_verdict: null, client_note: null, client_verdict_at: null });
     upsertLocal('content', await app.backend.save('content', patch));
     react(status === 'published' ? 'success' : 'tick');
@@ -436,7 +720,7 @@ export function editLead(l = null) {
     if (!val(name)) return need(name, '¿Quién es?');
     await persist('leads', { name: val(name), contact: val(contact) || null, source, stage, value: value || null, date: date.value || todayKey(), campaign: val(campaign) || null, notes: val(areaOf(notes)) || null }, l);
     return { message: l ? 'Guardado.' : 'Lead registrado.', burst: !l && stage === 'ganado' };
-  }, { danger: l && { label: 'Borrar', confirm: '¿Borrar este lead?', run: async () => { await app.backend.remove('leads', l.id); removeLocal('leads', l.id); } } });
+  }, { danger: l && app.studio && { label: 'Borrar', confirm: '¿Borrar este lead?', run: async () => { await app.backend.remove('leads', l.id); removeLocal('leads', l.id); } } });
 }
 
 // ── Resultados del mes ──
@@ -539,10 +823,11 @@ function inboxRow(it, i, redrawList) {
       el('div', { class: 'cl-inbox-actions' }, el('button', { type: 'button', class: 'cl-btn sm', onclick: async (e) => { await approveTask(r, e.currentTarget); redrawList(); } }, icon('check'), 'Dar por buena')),
     );
   }
-  if (it.kind === 'changes') {
+  if (it.kind === 'changes' || it.kind === 'rejected' || it.kind === 'idea') {
+    const [label, ico] = it.kind === 'idea' ? ['Propone una publicación', 'sparkles'] : it.kind === 'rejected' ? [`${r.client_verdict_name || 'El cliente'} la rechazó`, 'x'] : [`${r.client_verdict_name || 'El cliente'} pide cambios`, 'edit'];
     return el('a', { ...base, href: `#/marketing/pieza/${r.id}` },
-      el('span', { class: 'cl-inbox-ico is-changes' }, icon('edit')),
-      el('div', { class: 'cl-inbox-main' }, el('b', { text: 'Pide cambios' }), el('p', { text: r.title }), r.client_note && el('small', { class: 'cl-inbox-note', text: `«${r.client_note}»` }), el('small', { text: ago(it.at) })),
+      el('span', { class: `cl-inbox-ico is-${it.kind}` }, icon(ico)),
+      el('div', { class: 'cl-inbox-main' }, el('b', { text: label }), el('p', { text: r.title }), r.client_note && el('small', { class: 'cl-inbox-note', text: `«${r.client_note}»` }), el('small', { text: ago(it.at) })),
       icon('right', 'cl-set-chev'),
     );
   }
@@ -585,7 +870,10 @@ export function portalSwitcher(onPick) {
   p.client.id === app.client?.id ? icon('check', 'cl-set-chev is-on') : icon('right', 'cl-set-chev'),
   )));
   ui = sheet(app.studio ? 'Tus clientes' : 'Tus proyectos', el('div', {}, list), {
-    actions: app.studio ? [el('button', { type: 'button', class: 'cl-btn', onclick: () => { ui.close(); editPortal(null, onPick); } }, icon('plus'), 'Nuevo portal')] : null,
+    actions: app.studio ? [
+      el('button', { type: 'button', class: 'cl-btn ghost', onclick: () => { ui.close(); setTimeout(overviewSheet, 320); } }, icon('sun'), 'Hoy en todos'),
+      el('button', { type: 'button', class: 'cl-btn', onclick: () => { ui.close(); editPortal(null, onPick); } }, icon('plus'), 'Nuevo portal'),
+    ] : null,
   });
 }
 
@@ -599,6 +887,7 @@ export function editPortal(c = null, onCreated) {
     field('Sector', industry),
     field('Color', colorSwatches(accent, (v) => { accent = v; })),
     field('Bienvenida', welcome),
+    c && group(null, rowLink('Permisos del cliente', { ico: 'key', tone: 'var(--cf-purple)', sub: 'Qué ve y qué puede hacer su gente', onClick: () => portalPermsSheet() })),
     c && group(null, switchRow('Archivado', Boolean(c.archived), async (v) => {
       try {
         Object.assign(c, await app.backend.updateClient(c.id, { archived: v }));
@@ -634,7 +923,7 @@ export function accessSheet() {
     ),
     group(`Con acceso a ${app.client.name}`, ...(app.data.members.length ? app.data.members.map((m) => el('button', { type: 'button', class: 'cl-row-set', onclick: () => memberMenu(m) },
       avatar(m.name || m.email, urlOf(m.avatar_path), 'sm'),
-      el('span', { class: 'cl-set-main' }, el('b', { text: m.name || m.email }), el('small', { text: `${m.email}${m.position ? ` · ${m.position}` : ''} · ${m.last_seen_at ? `entró ${ago(m.last_seen_at)}` : 'aún no ha entrado'}` })),
+      el('span', { class: 'cl-set-main' }, el('b', { text: m.name || m.email }), el('small', { text: `${ROLES[m.role]?.[0] || 'Equipo'}${Object.keys(m.perms || {}).length ? ' con excepciones' : ''} · ${m.last_seen_at ? `entró ${ago(m.last_seen_at)}` : 'aún no ha entrado'}` })),
       icon('more', 'cl-set-chev'),
     )) : [el('p', { class: 'cl-group-empty', text: 'Todavía nadie.' })])),
   );
@@ -659,6 +948,7 @@ export function accessSheet() {
   }
   async function memberMenu(m) {
     await actionSheet(m.name || m.email, [
+      { label: 'Rol y permisos', icon: 'lock', note: 'Qué ve y qué puede hacer', run: () => memberPermsSheet(m, draw) },
       { label: 'Nueva contraseña', icon: 'key', run: async () => {
         if (!(await confirmSheet(`¿Contraseña nueva para ${m.email}?`, { message: 'La anterior deja de valer.', yes: 'Crear' }))) return;
         try {
@@ -688,7 +978,175 @@ export function accessSheet() {
     ], { message: m.email });
   }
   draw();
-  sheet('Accesos', box, { subtitle: app.client.name });
+  sheet('Accesos', box, {
+    subtitle: app.client.name,
+    actions: [el('button', { type: 'button', class: 'cl-btn ghost', onclick: () => portalPermsSheet() }, icon('key'), 'Permisos del cliente')],
+  });
+}
+
+// ── Permisos (la misma regla que la base) ──
+
+const hiddenAsPerms = (hidden = []) => Object.fromEntries(Object.entries(SECTION_PERM).filter(([s]) => hidden.includes(s)).map(([, k]) => [k, false]));
+
+/** Lo que permite el portal entero: lo que su gente puede ver y hacer. */
+export function portalPermsSheet() {
+  const c = app.client;
+  const draft = { ...hiddenAsPerms(c.hidden), ...(c.perms || {}) };
+  const box = el('div', { class: 'cl-perms' });
+  const draw = () => fill(box,
+    el('p', { class: 'cl-form-hint', text: `Lo que la gente de ${c.name} puede ver y hacer. «Solo lectura» nunca hace más que ver, y a cada persona le puedes poner excepciones en Accesos.` }),
+    PERMS.map(([title, list]) => group(title, ...list.map(([k, label, sub]) => switchRow(label, portalAllows({ perms: draft }, k), (on) => { draft[k] = on; }, { sub })))),
+  );
+  draw();
+  formSheet('Permisos del cliente', [box], async () => {
+    Object.assign(app.client, await app.backend.updateClient(c.id, { perms: draft, hidden: [] }));
+    return { message: 'Permisos guardados.' };
+  }, { subtitle: c.name });
+}
+
+/** El rol de una persona y sus excepciones (lo que no sigue a su portal). */
+function memberPermsSheet(m, after) {
+  const portal = app.client;
+  let role = m.role || 'member';
+  const draft = { ...hiddenAsPerms(m.hidden), ...(m.perms || {}) };
+  const box = el('div', { class: 'cl-perms' });
+  const draw = () => fill(box,
+    field('Rol', seg(Object.entries(ROLES).map(([k, [l]]) => [k, l]), role, (v) => { role = v; draw(); }), ROLES[role]?.[1]),
+    el('p', { class: 'cl-form-hint', text: 'Lo marcado con un punto es una excepción para esta persona; lo demás sigue a su rol y a lo que permite el portal.' }),
+    PERMS.map(([title, list]) => group(title, ...list.map(([k, label]) => {
+      const own = k in draft;
+      const row = switchRow(label, memberCan({ role, perms: draft }, portal, k), (on) => { draft[k] = on; draw(); }, { sub: own ? 'Excepción para esta persona' : !roleAllows(role, k) ? `${ROLES[role]?.[0] || 'Su rol'}: no lo incluye` : portalAllows(portal, k) ? 'Como su rol y su portal' : 'El portal no lo permite' });
+      row.classList.toggle('is-override', own);
+      return row;
+    }))),
+    Object.keys(draft).length > 0 && el('button', { type: 'button', class: 'cl-btn sm ghost', onclick: () => { for (const k of Object.keys(draft)) delete draft[k]; react('off'); draw(); } }, icon('refresh'), 'Quitar las excepciones'),
+  );
+  draw();
+  formSheet(m.name || m.email, [box], async () => {
+    const saved = await app.backend.updateMember(app.client.id, m.user_id, { role, perms: draft, hidden: [] });
+    upsertMember({ ...m, ...saved });
+    after?.();
+    return { message: 'Guardado.' };
+  }, { subtitle: 'Rol y permisos' });
+}
+
+// ── Hoy en todos los clientes ──
+
+/** Al estudio: lo que pide atención hoy en cada portal, en una sola lista. */
+export async function overviewSheet() {
+  const box = el('div', { class: 'cl-overview' }, el('div', { class: 'cl-skel' }, el('i'), el('i')));
+  const ui = sheet('Hoy en todos', box, { subtitle: cap(fDay.format(new Date())), className: 'is-tall' });
+  let data;
+  try {
+    data = await app.backend.overview();
+  } catch (err) {
+    fill(box, el('p', { class: 'cl-form-hint', text: err.message }));
+    return;
+  }
+  const go = (clientId, route) => {
+    ui.close();
+    document.dispatchEvent(new CustomEvent('portal:open', { detail: { id: clientId, route } }));
+  };
+  const sections = data.clients.map((client) => {
+    const mine = (rows) => rows.filter((r) => r.client_id === client.id);
+    const content = mine(data.content);
+    const groups = [
+      ['Te respondieron', 'edit', 'var(--cf-orange)', content.filter((c) => ['changes', 'rejected'].includes(c.client_verdict) && !['scheduled', 'published'].includes(c.status)).map((c) => [`${VERDICT[c.client_verdict][0]}: ${c.title}`, `#/marketing/pieza/${c.id}`]), ['respuesta', 'respuestas']],
+      ['Ideas del cliente', 'sparkles', 'var(--cf-purple)', content.filter((c) => c.origin === 'client' && c.status === 'idea').map((c) => [c.title, `#/marketing/pieza/${c.id}`]), ['idea', 'ideas']],
+      ['Sale hoy', 'calendar', 'var(--cf-blue)', content.filter((c) => c.date === data.today && c.status !== 'published').map((c) => [`${c.time ? `${c.time.slice(0, 5)} · ` : ''}${c.title} · ${CONTENT_STATUS[c.status]?.[0] || ''}`, `#/marketing/pieza/${c.id}`]), ['sale hoy', 'salen hoy']],
+      ['Esperando su aprobación', 'clock', 'var(--cf-primary)', content.filter((c) => c.status === 'review' && !c.client_verdict).map((c) => [c.title, `#/marketing/pieza/${c.id}`]), ['por aprobar', 'por aprobar']],
+      ['Peticiones', 'inbox', 'var(--cf-expense)', mine(data.tasks).map((t) => [`${t.status === 'submitted' ? 'Enviada' : 'Vencida'}: ${t.title}`, t.status === 'submitted' ? '#/peticiones/enviadas' : '#/peticiones']), ['petición', 'peticiones']],
+      ['Te enviaron', 'send', 'var(--cf-income)', mine(data.submissions).map((s) => [`${s.author || 'El cliente'}: ${SENT_KIND[s.kind]?.[0].toLowerCase() || 'algo'}`, '#/']), ['envío', 'envíos']],
+    ].filter(([, , , items]) => items.length);
+    const total = groups.reduce((n, [, , , items]) => n + items.length, 0);
+    return { client, groups, total };
+  }).sort((a, b) => b.total - a.total);
+  const busy = sections.filter((x) => x.total);
+  fill(box,
+    busy.length ? null : el('div', { class: 'cl-empty' }, el('span', { class: 'cl-empty-ico' }, icon('checkCircle')), el('b', { text: 'Todo en orden' }), el('p', { text: 'Nada pendiente hoy en ningún cliente.' })),
+    busy.map(({ client, groups, total }, i) => el('section', { class: 'cl-ov-client', style: { '--accent': client.accent, '--i': Math.min(i, 8) } },
+      el('button', { type: 'button', class: 'cl-ov-head', onclick: () => go(client.id, '#/') },
+        el('span', { class: 'cl-logo' }, urlOf(client.logo_url) ? el('img', { src: urlOf(client.logo_url), alt: '' }) : initials(client.name)),
+        el('span', { class: 'cl-set-main' }, el('b', { text: client.name }), el('small', { text: groups.map(([, , , items, [one, many]]) => plural(items.length, one, many)).join(' · ') })),
+        el('i', { class: 'cl-badge', text: String(total) }),
+      ),
+      groups.map(([label, ico, color, items]) => el('div', { class: 'cl-ov-group', style: { '--c': color } },
+        el('small', { class: 'cl-eyebrow' }, icon(ico), label),
+        items.slice(0, 4).map(([text, route]) => el('button', { type: 'button', class: 'cl-ov-item', onclick: () => go(client.id, route) }, el('span', { text }), icon('right'))),
+        items.length > 4 && el('small', { class: 'cl-ov-more', text: `y ${items.length - 4} más` }),
+      )),
+    )),
+    sections.length > busy.length && el('p', { class: 'cl-form-hint', text: `Sin pendientes: ${sections.filter((x) => !x.total).map((x) => x.client.name).join(', ')}.` }),
+  );
+}
+
+// ── Importar el calendario que preparó Claude ──
+
+export function importCalendar() {
+  const area = textarea({ rows: 8, maxLength: 400000, placeholder: 'Pega aquí el bloque que te dio Claude ([ { "titulo": … } ])' });
+  const preview = el('div', { class: 'cl-import-preview' });
+  let parsed = null;
+  let timer = 0;
+  const read = () => {
+    const raw = val(areaOf(area));
+    if (!raw) {
+      parsed = null;
+      fill(preview);
+      return;
+    }
+    try {
+      parsed = parseCalendar(raw);
+    } catch (err) {
+      parsed = null;
+      fill(preview, el('p', { class: 'cl-form-hint is-error' }, icon('alert'), err.message));
+      return;
+    }
+    const { rows, errors } = parsed;
+    const byChannel = {};
+    for (const r of rows) for (const ch of r.channels) byChannel[ch] = (byChannel[ch] || 0) + 1;
+    const dates = rows.map((r) => r.date).sort();
+    fill(preview,
+      el('p', { class: 'cl-import-sum' }, icon('checkCircle'), el('b', { text: plural(rows.length, 'publicación', 'publicaciones') }), rows.length > 0 && ` · del ${fDay.format(dayDate(dates[0]))} al ${fDay.format(dayDate(dates.at(-1)))}`),
+      el('div', { class: 'cl-chips is-wrap' }, Object.entries(byChannel).map(([ch, n]) => el('span', { class: 'cl-chip', style: { '--c': CHANNEL[ch]?.[1] } }, icon(CHANNEL[ch]?.[2] || 'globe'), `${CHANNEL[ch]?.[0] || ch} ${n}`))),
+      el('div', { class: 'cl-import-list' }, rows.slice(0, 40).map((r) => el('div', { class: 'cl-import-row' },
+        el('small', { text: `${r.date.slice(8)}/${r.date.slice(5, 7)}` }),
+        el('span', { text: r.title }),
+        el('small', { text: `${FORMAT[r.format]} · ${r.channels.map((x) => CHANNEL[x]?.[0] || x).join(', ')}` }),
+      ))),
+      rows.length > 40 && el('small', { class: 'cl-form-hint', text: `y ${rows.length - 40} más` }),
+      errors.length > 0 && el('div', { class: 'cl-import-errors' }, el('b', { text: `${plural(errors.length, 'no se puede cargar', 'no se pueden cargar')}:` }), errors.map((e) => el('small', { text: e }))),
+    );
+  };
+  areaOf(area).addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(read, 250);
+  });
+  formSheet('Importar calendario', [
+    el('p', { class: 'cl-form-hint', text: `Pega el bloque que te dio Claude. Entran como «Idea» en el calendario de ${app.client.name} y el cliente no se entera hasta que las mandes a revisar.` }),
+    el('div', { class: 'cl-row-actions' },
+      el('button', { type: 'button', class: 'cl-btn sm ghost', onclick: () => copyText(claudeInstructions(app.client.name), 'Instrucciones copiadas: pégalas en Claude.') }, icon('copy'), 'Copiar instrucciones para Claude'),
+      el('button', { type: 'button', class: 'cl-btn sm ghost', onclick: async () => {
+        try {
+          areaOf(area).value = await navigator.clipboard.readText();
+          read();
+        } catch {
+          toast('No pude leer el portapapeles: pégalo a mano.', 'error');
+        }
+      } }, icon('download'), 'Pegar'),
+    ),
+    area,
+    preview,
+  ], async () => {
+    if (!parsed?.rows.length) {
+      toast('Pega primero el bloque de Claude.', 'error');
+      return false;
+    }
+    if (parsed.errors.length && !(await confirmSheet(`¿Cargar las ${parsed.rows.length} que están bien?`, { message: `${plural(parsed.errors.length, 'no se carga', 'no se cargan')}.`, yes: 'Cargar' }))) return false;
+    const saved = await app.backend.saveMany('content', parsed.rows.map((r) => ({ ...r, client_id: cid() })));
+    for (const x of saved) upsertLocal('content', x);
+    app.data.content.sort((a, b) => a.date.localeCompare(b.date) || String(a.time || '').localeCompare(String(b.time || '')));
+    return { message: `${plural(saved.length, 'publicación', 'publicaciones')} en el calendario, como idea.`, burst: true };
+  }, { save: 'Importar' });
 }
 
 function upsertMember(m) {

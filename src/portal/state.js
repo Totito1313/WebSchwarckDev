@@ -2,6 +2,7 @@
 // lo nuevo desde la última visita y lo que el estudio tiene que revisar.
 
 import { localDay, todayKey, safeUrl, cap, fDay, dayDate, fMonth } from './kit.js';
+import { memberCan, SECTION_PERM } from './brand.js';
 
 export const app = {
   backend: null,
@@ -24,16 +25,17 @@ export const redraw = () => redrawFn();
 
 export const isStudio = () => app.studio;
 
-/** Secciones ocultas para quien entra: las del portal y las suyas (al estudio, ninguna). */
-export function hiddenSet() {
-  if (app.studio) return new Set();
-  return new Set([...(app.client?.hidden || []), ...(app.member?.hidden || [])]);
-}
-export const can = (section) => !hiddenSet().has(section);
-/** Solo lectura no aprueba, no comenta, no marca ni envía. */
-export const canAct = () => app.studio || app.member?.role !== 'viewer';
-/** El dueño (y el estudio) edita los datos del negocio. */
-export const isOwner = () => app.studio || app.member?.role === 'owner';
+/**
+ * Si quien entra puede hacer algo: un permiso ('content.approve') o, como antes, el nombre de
+ * una sección ('calendario'). El estudio, todo. La base aplica la misma regla.
+ */
+export const can = (key) => app.studio || memberCan(app.member, app.client, SECTION_PERM[key] || key);
+/** Comentar (lo que «Solo lectura» no hace). */
+export const canAct = () => can('comment');
+/** Editar los datos del negocio. */
+export const isOwner = () => can('business.edit');
+/** Lo que creó esta persona (sus ideas, sus anuncios, sus recursos). */
+export const isMine = (row) => Boolean(row?.created_by && row.created_by === app.user?.id);
 export const myName = () => (app.studio ? 'Schwarck' : app.member?.name || app.user?.email || 'Cliente');
 
 // ── Textos ──
@@ -66,6 +68,13 @@ export const CHANNEL = {
   otro: ['Otro', 'var(--cf-fg-faint)', 'more'],
 };
 export const FORMAT = { post: 'Post', carrusel: 'Carrusel', reel: 'Reel', historia: 'Historia', video: 'Vídeo', articulo: 'Artículo', otro: 'Otro' };
+/** Las redes de una publicación (antes había una sola, en channel). */
+export const channelsOf = (c) => (c?.channels?.length ? c.channels : [c?.channel || 'otro']);
+export const VERDICT = {
+  approved: ['Aprobada', 'Aprobaste', 'aprobó', 'var(--cf-income)', 'checkCircle'],
+  changes: ['Pide cambios', 'Pediste cambios', 'pide cambios', 'var(--cf-orange)', 'edit'],
+  rejected: ['Rechazada', 'La rechazaste', 'rechazó', 'var(--cf-expense)', 'x'],
+};
 export const FUNNEL = {
   atraccion: ['Atracción', '#22c9a6', 'Llegar a gente nueva'],
   autoridad: ['Autoridad', 'var(--cf-blue)', 'Que confíen en ti'],
@@ -120,7 +129,10 @@ export function feed() {
   const out = [];
   const studio = app.studio;
   const see = (s) => studio || can(s);
-  for (const p of d.posts) out.push({ id: `p${p.id}`, at: p.occurred_at, group: p.kind === 'announcement' ? 'anuncios' : 'avances', kind: p.kind, label: POST_KIND[p.kind]?.[0], ico: POST_KIND[p.kind]?.[1], color: POST_KIND[p.kind]?.[2], title: p.title, body: p.body, link: p.link, pinned: p.pinned, mine: studio, ref: { type: 'post', row: p } });
+  for (const p of d.posts) {
+    const fromClient = p.origin === 'client';
+    out.push({ id: `p${p.id}`, at: p.occurred_at, group: p.kind === 'announcement' ? 'anuncios' : 'avances', kind: p.kind, label: fromClient ? `Anuncio de ${p.author || 'tu equipo'}` : POST_KIND[p.kind]?.[0], ico: POST_KIND[p.kind]?.[1], color: POST_KIND[p.kind]?.[2], title: p.title, body: p.body, link: p.link, pinned: p.pinned, mine: fromClient ? isMine(p) : studio, ref: { type: 'post', row: p } });
+  }
 
   // El trabajo de cada día se agrupa en un reporte.
   const days = new Map();
@@ -134,7 +146,11 @@ export function feed() {
     const last = items.map((w) => w.done_at || w.created_at).filter(Boolean).sort().pop() || `${day}T18:00:00`;
     const minutes = done.reduce((s, w) => s + (Number(w.minutes) || 0), 0);
     const nowIso = new Date().toISOString();
-    out.push({ id: `r${day}`, at: day === todayKey() ? (last > nowIso ? nowIso : last) : `${day}T23:00:00`, group: 'reportes', label: day === todayKey() ? 'Reporte de hoy' : 'Reporte del día', ico: 'tasks', color: 'var(--cf-income)', title: done.length ? `${done.length} ${done.length === 1 ? 'tarea hecha' : 'tareas hechas'}` : 'Trabajando en ello', report: { day, items, done, minutes }, mine: studio });
+    // Quién lo mandó, a qué hora, bloqueos y observaciones (el reporte pegado de Nexus).
+    const meta = (d.reports || []).find((r) => r.day === day) || null;
+    const sent = meta?.sent_at ? `${day}T${meta.sent_at.slice(0, 5)}:00` : null;
+    const at = sent || (day === todayKey() ? (last > nowIso ? nowIso : last) : `${day}T23:00:00`);
+    out.push({ id: `r${day}`, at: at > nowIso ? nowIso : at, group: 'reportes', label: day === todayKey() ? 'Reporte de hoy' : 'Reporte del día', ico: 'tasks', color: 'var(--cf-income)', title: done.length ? `${done.length} ${done.length === 1 ? 'tarea hecha' : 'tareas hechas'}` : 'Trabajando en ello', report: { day, items, done, minutes, meta }, mine: studio });
   }
 
   for (const t of see('peticiones') ? d.tasks : []) {
@@ -142,10 +158,17 @@ export function feed() {
     if (t.status === 'done' && t.done_at) out.push({ id: `td${t.id}`, at: t.done_at, group: 'peticiones', label: 'Revisado', ico: 'checkCircle', color: 'var(--cf-income)', title: t.title, go: '#/peticiones/hechas', mine: studio });
     if (t.status === 'submitted' && t.submitted_at) out.push({ id: `ts${t.id}`, at: t.submitted_at, group: 'tuyo', label: studio ? 'El cliente lo envió' : 'Marcaste como enviada', ico: 'send', color: studio ? 'var(--cf-primary)' : 'var(--cf-fg-muted)', title: t.title, go: '#/peticiones/enviadas', mine: !studio });
   }
-  for (const c of see('calendario') ? d.content : []) {
-    if (c.created_at) out.push({ id: `cn${c.id}`, at: c.created_at, group: 'marketing', label: 'Al calendario', ico: 'calendar', color: CHANNEL[c.channel]?.[1], title: c.title, body: `${FORMAT[c.format] || ''} · ${cap(fDay.format(dayDate(c.date)))}`, go: `#/marketing/pieza/${c.id}`, mine: studio });
+  for (const c of see('calendario') ? visibleContent() : []) {
+    const ideaOfClient = c.origin === 'client';
+    // Lo que el estudio carga como idea (también desde Claude) no sale hasta que pasa a producción.
+    if (c.created_at && (studio || !isDraft(c))) {
+      out.push({ id: `cn${c.id}`, at: c.created_at, group: ideaOfClient ? 'tuyo' : 'marketing', label: ideaOfClient ? (studio ? 'El cliente propone' : isMine(c) ? 'Propusiste' : 'Tu equipo propone') : 'Al calendario', ico: ideaOfClient ? 'sparkles' : 'calendar', color: CHANNEL[c.channel]?.[1], title: c.title, body: `${FORMAT[c.format] || ''} · ${cap(fDay.format(dayDate(c.date)))}`, go: `#/marketing/pieza/${c.id}`, mine: ideaOfClient ? !studio : studio });
+    }
     if (c.status === 'published' && c.date <= todayKey()) out.push({ id: `cp${c.id}`, at: `${c.date}T${(c.time || '12:00').slice(0, 5)}:00`, group: 'marketing', label: 'Publicado', ico: 'megaphone', color: 'var(--cf-purple)', title: c.title, go: `#/marketing/pieza/${c.id}`, mine: studio });
-    if (c.client_verdict && c.client_verdict_at) out.push({ id: `cv${c.id}`, at: c.client_verdict_at, group: 'tuyo', label: c.client_verdict === 'approved' ? (studio ? 'El cliente aprobó' : 'Aprobaste') : studio ? 'El cliente pide cambios' : 'Pediste cambios', ico: c.client_verdict === 'approved' ? 'check' : 'edit', color: studio ? (c.client_verdict === 'approved' ? 'var(--cf-income)' : 'var(--cf-orange)') : 'var(--cf-fg-muted)', title: c.title, body: c.client_note, go: `#/marketing/pieza/${c.id}`, mine: !studio });
+    if (c.client_verdict && c.client_verdict_at) {
+      const [, mineLabel, verb, color, ico] = VERDICT[c.client_verdict] || VERDICT.changes;
+      out.push({ id: `cv${c.id}`, at: c.client_verdict_at, group: 'tuyo', label: studio ? `${c.client_verdict_name || 'El cliente'} ${verb}` : mineLabel, ico, color: studio ? color : 'var(--cf-fg-muted)', title: c.title, body: c.client_note, go: `#/marketing/pieza/${c.id}`, mine: !studio });
+    }
   }
   for (const r of see('recursos') ? d.resources : []) out.push({ id: `res${r.id}`, at: r.created_at, group: 'avances', label: 'Recurso nuevo', ico: RESOURCE_KIND[r.kind]?.[1] || 'folder', color: 'var(--cf-blue)', title: r.title, body: r.description, go: '#/recursos', mine: studio });
   for (const m of see('rendimiento') ? d.metrics : []) if (m.channel === 'total') out.push({ id: `m${m.id}`, at: m.updated_at || m.created_at || `${m.month}T12:00:00`, group: 'marketing', label: 'Resultados', ico: 'chart', color: 'var(--cf-blue)', title: cap(fMonth.format(dayDate(m.month))), body: `${(m.reach || 0).toLocaleString('es')} de alcance · ${m.leads || 0} leads`, go: '#/marketing/rendimiento', mine: studio });
@@ -181,10 +204,16 @@ export function attention() {
     ...d.submissions.filter((s) => !s.seen_at).map((s) => ({ id: `s${s.id}`, kind: 'submission', at: s.created_at, row: s })),
     ...d.tasks.filter((t) => t.status === 'submitted').map((t) => ({ id: `t${t.id}`, kind: 'task', at: t.submitted_at || t.updated_at, row: t })),
     ...d.content.filter((c) => c.client_verdict === 'changes' && c.status === 'review').map((c) => ({ id: `c${c.id}`, kind: 'changes', at: c.client_verdict_at, row: c })),
+    ...d.content.filter((c) => c.client_verdict === 'rejected' && !['scheduled', 'published'].includes(c.status)).map((c) => ({ id: `x${c.id}`, kind: 'rejected', at: c.client_verdict_at, row: c })),
+    ...d.content.filter((c) => c.origin === 'client' && c.status === 'idea').map((c) => ({ id: `i${c.id}`, kind: 'idea', at: c.created_at, row: c })),
     ...d.comments.filter((c) => !c.from_studio && (!lastStudio.get(c.target_id) || lastStudio.get(c.target_id) < c.created_at)).map((c) => ({ id: `m${c.id}`, kind: 'comment', at: c.created_at, row: c })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at));
 }
 
+/** Las ideas que cargó Claude son borradores del estudio: el cliente no las ve hasta que pasan de «Idea». */
+const isDraft = (c) => c.origin === 'claude' && c.status === 'idea';
+/** El calendario que ve quien entra (al estudio, todo). */
+export const visibleContent = () => (app.studio ? app.data?.content || [] : (app.data?.content || []).filter((c) => !isDraft(c)));
 export const pendingTasks = () => (app.data?.tasks || []).filter((t) => t.status === 'pending');
 export const toReview = () => (app.data?.content || []).filter((c) => c.status === 'review' && !c.client_verdict);
 export const workToday = () => (app.data?.work || []).filter((w) => w.day === todayKey());

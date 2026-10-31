@@ -2,11 +2,14 @@
 //
 //   GET  ?action=vapid                 la clave pública para suscribirse a los avisos
 //   POST { action: 'event' }           lo manda la base en cada cambio que importa (cabecera x-portal-hook)
-//   POST { action: 'reminders' }       cada mañana (pg_cron): las peticiones que vencen
+//   POST { action: 'reminders' }       cada mañana (pg_cron): lo que vence, lo que espera aprobación
+//                                      y, los lunes, el resumen de la semana
 //   POST { action: 'claim' }           crea o recupera la cuenta del estudio con un pase de un solo uso
 //                                      que da el panel de schwarckdev.com (prueba que tiene la sesión abierta)
-//   POST { action: 'invite' | 'password' | 'link' | 'users' | 'create_user' | 'set_studio' | 'delete_user' }
-//                                      solo el estudio (app_metadata.role = 'admin')
+//   POST { action: 'invite' | 'password' | 'link' | 'users' | 'create_user' | 'set_studio' | 'delete_user'
+//          | 'mcp_key' | 'mcp_status' | 'mcp_revoke' }
+//                                      solo el estudio (app_metadata.role = 'admin'); los tres últimos,
+//                                      la dirección secreta del conector de Claude de cada portal
 //   POST { action: 'test' }            cualquiera con sesión: un aviso de prueba a sus dispositivos
 //
 // Las claves VAPID se crean aquí la primera vez y se guardan en Vault (portal_store_setting);
@@ -123,19 +126,39 @@ async function deliver(subs: Sub[], message: Message) {
   return { sent, failed, removed: gone.length };
 }
 
+// ── Permisos: la misma regla que private.perm() en la base ──
+
+const PERM_SECTION: Record<string, string> = {
+  'timeline.view': 'cronologia', 'report.view': 'reporte', 'content.view': 'calendario', 'metrics.view': 'rendimiento',
+  'leads.view': 'leads', 'resources.view': 'recursos', 'tasks.view': 'peticiones', send: 'enviar',
+};
+const PERM_KEYS = [
+  'timeline.view', 'report.view', 'content.view', 'metrics.view', 'leads.view', 'resources.view', 'tasks.view',
+  'content.approve', 'content.reject', 'content.propose', 'posts.create', 'tasks.submit', 'resources.upload',
+  'leads.add', 'leads.edit', 'comment', 'send', 'business.edit',
+];
+const roleAllows = (role: string, k: string) => (role === 'owner' ? true : role === 'member' ? k !== 'business.edit' : k.endsWith('.view'));
+const permDefault = (k: string) => k.endsWith('.view') || ['content.approve', 'content.reject', 'comment', 'tasks.submit', 'send', 'business.edit'].includes(k);
+function memberCan(m: Row, portal: Row, k: string) {
+  const section = PERM_SECTION[k];
+  if (section && (portal?.hidden?.includes(section) || m.hidden?.includes(section))) return false;
+  if (m.perms && k in m.perms) return m.perms[k] === true;
+  return roleAllows(m.role, k) && (portal?.perms?.[k] ?? permDefault(k));
+}
+
 /**
- * A los teléfonos del cliente, salvo a quien silenció esa categoría en su perfil o no puede
- * ver esa sección (oculta en su portal o solo para esa persona).
+ * A los teléfonos del cliente, salvo a quien silenció esa categoría en su perfil, a quien no
+ * tiene ese permiso (por ejemplo, no ve el calendario) y a quien lo hizo (`except`).
  */
-async function toClient(clientId: string, category: string, message: Message, section?: string) {
-  const [subs, members, [client]] = await Promise.all([
+async function toClient(clientId: string, category: string, message: Message, perm?: string, except?: string | null) {
+  const [subs, members, [portal]] = await Promise.all([
     rest('portal_push', `?client_id=eq.${clientId}&is_admin=is.false&select=id,endpoint,p256dh,auth,user_id`),
-    rest('portal_members', `?client_id=eq.${clientId}&select=user_id,prefs,hidden`),
-    rest('portal_clients', `?id=eq.${clientId}&select=hidden`),
+    rest('portal_members', `?client_id=eq.${clientId}&select=user_id,role,prefs,hidden,perms`),
+    rest('portal_clients', `?id=eq.${clientId}&select=hidden,perms,archived`),
   ]);
-  if (section && client?.hidden?.includes(section)) return { sent: 0, failed: 0 };
-  const skip = new Set(members.filter((m: Row) => m.prefs?.push === false || m.prefs?.mute?.includes(category) || (section && m.hidden?.includes(section))).map((m: Row) => m.user_id));
-  return deliver(subs.filter((s: Sub) => !skip.has(s.user_id ?? '')), message);
+  if (!portal || portal.archived) return { sent: 0, failed: 0 };
+  const allowed = new Set(members.filter((m: Row) => m.prefs?.push !== false && !m.prefs?.mute?.includes(category) && (!perm || memberCan(m, portal, perm)) && m.user_id !== except).map((m: Row) => m.user_id));
+  return deliver(subs.filter((s: Sub) => allowed.has(s.user_id ?? '')), message);
 }
 const toStudio = async (message: Message) => deliver(await rest('portal_push', '?is_admin=is.true&select=id,endpoint,p256dh,auth,user_id'), message);
 
@@ -158,38 +181,49 @@ async function onEvent({ table, op, record: r, old, actor }: { table: string; op
 
   switch (table) {
     case 'portal_posts':
+      if (byClient) {
+        // Un anuncio del cliente: al estudio y al resto de su equipo.
+        const who = clip(r.author || (await clientName(cid)), 40);
+        await toClient(cid, 'avisos', { title: `${who} publicó un anuncio`, body: clip(r.title), url: appUrl(cid, ''), tag: `post-${r.id}` }, undefined, r.created_by);
+        return toStudio({ title: `${who} publicó un anuncio`, body: clip(r.title), url: appUrl(cid, ''), tag: `post-${r.id}` });
+      }
       if (!r.notify) return null;
       return toClient(cid, 'avisos', { title: `${KIND[r.kind] ?? 'Novedad'}: ${clip(r.title, 80)}`, body: clip(r.body), url: appUrl(cid, 'cronologia'), tag: `post-${r.id}` });
 
     case 'portal_resources':
+      if (byClient) return toStudio({ title: `${await clientName(cid)} subió un recurso`, body: clip(r.title), url: appUrl(cid, 'recursos'), tag: `res-${r.id}` });
       if (!r.notify) return null;
-      return toClient(cid, 'avisos', { title: 'Recurso nuevo', body: clip(r.title), url: appUrl(cid, 'recursos'), tag: `res-${r.id}` }, 'recursos');
+      return toClient(cid, 'avisos', { title: 'Recurso nuevo', body: clip(r.title), url: appUrl(cid, 'recursos'), tag: `res-${r.id}` }, 'resources.view');
 
     case 'portal_tasks':
       if (op === 'INSERT') {
         if (!r.notify) return null;
         const due = r.due_date ? ` · para el ${new Date(`${r.due_date}T12:00:00`).toLocaleDateString('es', { weekday: 'long', day: 'numeric' })}` : '';
-        return toClient(cid, 'peticiones', { title: r.priority === 'high' ? 'Petición urgente' : 'Te necesitamos', body: `${clip(r.title, 100)}${due}`, url: appUrl(cid, 'peticiones'), tag: `task-${r.id}` }, 'peticiones');
+        return toClient(cid, 'peticiones', { title: r.priority === 'high' ? 'Petición urgente' : 'Te necesitamos', body: `${clip(r.title, 100)}${due}`, url: appUrl(cid, 'peticiones'), tag: `task-${r.id}` }, 'tasks.view');
       }
       if (!changed('status')) return null;
       if (byClient) {
         const name = await clientName(cid);
         return toStudio({ title: `${name} ${r.status === 'submitted' ? 'envió una petición' : 'reabrió una petición'}`, body: clip(r.client_note ? `«${r.title}» · ${r.client_note}` : r.title), url: appUrl(cid, 'peticiones/enviadas'), tag: `task-${r.id}` });
       }
-      if (r.status === 'done' && r.notify) return toClient(cid, 'peticiones', { title: 'Recibido, ¡gracias!', body: `Revisamos «${clip(r.title, 100)}».`, url: appUrl(cid, 'peticiones/hechas'), tag: `task-${r.id}` }, 'peticiones');
+      if (r.status === 'done' && r.notify) return toClient(cid, 'peticiones', { title: 'Recibido, ¡gracias!', body: `Revisamos «${clip(r.title, 100)}».`, url: appUrl(cid, 'peticiones/hechas'), tag: `task-${r.id}` }, 'tasks.view');
       return null;
 
     case 'portal_content':
+      if (byClient && op === 'INSERT') {
+        return toStudio({ title: `${await clientName(cid)} propone una publicación`, body: clip(r.title), url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` });
+      }
       if (byClient && changed('client_verdict') && r.client_verdict) {
-        const name = await clientName(cid);
-        return toStudio({ title: `${name} ${r.client_verdict === 'approved' ? 'aprobó' : 'pide cambios en'} «${clip(r.title, 60)}»`, body: clip(r.client_note), url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` });
+        const name = clip(r.client_verdict_name || (await clientName(cid)), 40);
+        const verb = r.client_verdict === 'approved' ? 'aprobó' : r.client_verdict === 'rejected' ? 'rechazó' : 'pide cambios en';
+        return toStudio({ title: `${name} ${verb} «${clip(r.title, 60)}»`, body: clip(r.client_note), url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` });
       }
       if (byClient || !r.notify) return null;
       if ((op === 'INSERT' && r.status === 'review') || (changed('status') && r.status === 'review')) {
-        return toClient(cid, 'marketing', { title: 'Para revisar', body: `«${clip(r.title, 90)}» espera tu aprobación.`, url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` }, 'calendario');
+        return toClient(cid, 'marketing', { title: 'Para revisar', body: `«${clip(r.title, 90)}» espera tu aprobación.`, url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` }, 'content.view');
       }
-      if (changed('status') && r.status === 'published') return toClient(cid, 'marketing', { title: 'Publicado', body: clip(r.title), url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` }, 'calendario');
-      if (op === 'INSERT') return toClient(cid, 'marketing', { title: 'Nuevo en tu calendario', body: clip(r.title), url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` }, 'calendario');
+      if (changed('status') && r.status === 'published') return toClient(cid, 'marketing', { title: 'Publicado', body: clip(r.title), url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` }, 'content.view');
+      if (op === 'INSERT') return toClient(cid, 'marketing', { title: 'Nuevo en tu calendario', body: clip(r.title), url: appUrl(cid, `marketing/pieza/${r.id}`), tag: `content-${r.id}` }, 'content.view');
       return null;
 
     case 'portal_work': {
@@ -197,11 +231,11 @@ async function onEvent({ table, op, record: r, old, actor }: { table: string; op
       const nowDone = r.status === 'done' && (op === 'INSERT' || changed('status'));
       const nowDoing = r.status === 'doing' && (op === 'INSERT' || changed('status'));
       if (!nowDone && !nowDoing) return null;
-      if (nowDoing) return toClient(cid, 'trabajo', { title: 'Estamos trabajando en…', body: clip(r.title), url: appUrl(cid, 'cronologia/reportes'), tag: `work-${cid}-${r.day}` }, 'reporte');
+      if (nowDoing) return toClient(cid, 'trabajo', { title: 'Estamos trabajando en…', body: clip(r.title), url: appUrl(cid, 'cronologia/reportes'), tag: `work-${cid}-${r.day}` }, 'report.view');
       // Un solo aviso por día que se va actualizando: «Reporte de hoy: 4 tareas hechas».
       const done = await rest('portal_work', `?client_id=eq.${cid}&day=eq.${r.day}&status=eq.done&select=id`);
       const n = done.length;
-      return toClient(cid, 'trabajo', { title: r.day === day() ? `Reporte de hoy: ${n} ${n === 1 ? 'tarea hecha' : 'tareas hechas'}` : `Reporte del ${r.day}`, body: `Lo último: ${clip(r.title, 100)}`, url: appUrl(cid, 'cronologia/reportes'), tag: `work-${cid}-${r.day}` }, 'reporte');
+      return toClient(cid, 'trabajo', { title: r.day === day() ? `Reporte de hoy: ${n} ${n === 1 ? 'tarea hecha' : 'tareas hechas'}` : `Reporte del ${r.day}`, body: `Lo último: ${clip(r.title, 100)}`, url: appUrl(cid, 'cronologia/reportes'), tag: `work-${cid}-${r.day}` }, 'report.view');
     }
 
     case 'portal_submissions': {
@@ -214,17 +248,27 @@ async function onEvent({ table, op, record: r, old, actor }: { table: string; op
       if (r.from_studio) return toClient(cid, 'mensajes', { title: 'Schwarck te respondió', body: clip(r.body), url: appUrl(cid, `hilo/${r.target}/${r.target_id}`), tag: `comment-${r.target_id}` });
       return toStudio({ title: `${clip(r.author || (await clientName(cid)), 40)} comentó`, body: clip(r.body), url: appUrl(cid, `hilo/${r.target}/${r.target_id}`), tag: `comment-${r.target_id}` });
 
+    case 'portal_leads':
+      if (!byClient) return null;
+      return toStudio({ title: `${await clientName(cid)} añadió un lead`, body: clip(r.name), url: appUrl(cid, 'marketing/leads'), tag: `lead-${r.id}` });
+
     case 'portal_metrics':
       if (byClient || r.channel !== 'total') return null;
-      return toClient(cid, 'marketing', { title: `Resultados de ${MONTH(r.month)}`, body: 'Ya puedes ver cómo le fue a tu marca este mes.', url: appUrl(cid, 'marketing/rendimiento'), tag: `metrics-${cid}-${r.month}` }, 'rendimiento');
+      return toClient(cid, 'marketing', { title: `Resultados de ${MONTH(r.month)}`, body: 'Ya puedes ver cómo le fue a tu marca este mes.', url: appUrl(cid, 'marketing/rendimiento'), tag: `metrics-${cid}-${r.month}` }, 'metrics.view');
   }
   return null;
 }
 
-/** Cada mañana: a cada cliente, lo que le falta enviar y vence hoy, mañana o ya venció. */
+const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Cada mañana: a cada cliente, lo que le falta enviar y vence hoy, mañana o ya venció; lo que
+ * lleva más de un día esperando su aprobación; y los lunes, cómo viene su semana.
+ */
 async function reminders() {
   const today = day();
-  const tomorrow = new Date(Date.parse(`${today}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  const tomorrow = addDays(today, 1);
   const tasks = await rest('portal_tasks', `?status=eq.pending&due_date=lte.${tomorrow}&select=client_id,title,due_date&order=due_date.asc`);
   const byClient = new Map<string, Row[]>();
   for (const t of tasks) byClient.set(t.client_id, [...(byClient.get(t.client_id) ?? []), t]);
@@ -237,10 +281,46 @@ async function reminders() {
       body: `«${clip(first.title, 80)}» ${when}.`,
       url: appUrl(cid, 'peticiones'),
       tag: `reminder-${cid}`,
-    }, 'peticiones');
+    }, 'tasks.view');
     sent += r.sent;
   }
-  return { clients: byClient.size, sent };
+
+  // Publicaciones para revisar sin respuesta desde ayer.
+  const since = new Date(Date.now() - 20 * 3_600_000).toISOString();
+  const waiting = await rest('portal_content', `?status=eq.review&client_verdict=is.null&updated_at=lt.${since}&select=client_id,title&order=date.asc`);
+  const toApprove = new Map<string, Row[]>();
+  for (const c of waiting) toApprove.set(c.client_id, [...(toApprove.get(c.client_id) ?? []), c]);
+  for (const [cid, list] of toApprove) {
+    const r = await toClient(cid, 'marketing', {
+      title: list.length === 1 ? 'Una publicación espera tu aprobación' : `${list.length} publicaciones esperan tu aprobación`,
+      body: list.length === 1 ? `«${clip(list[0].title, 90)}»` : `Empezando por «${clip(list[0].title, 70)}».`,
+      url: appUrl(cid, 'marketing'),
+      tag: `approve-${cid}`,
+    }, 'content.approve');
+    sent += r.sent;
+  }
+
+  // Los lunes, la semana de cada cliente.
+  let weekly = 0;
+  if (new Date(`${today}T12:00:00Z`).getUTCDay() === 1) {
+    const sunday = addDays(today, 6);
+    const [portals, week, review, pending] = await Promise.all([
+      rest('portal_clients', '?archived=is.false&select=id'),
+      rest('portal_content', `?date=gte.${today}&date=lte.${sunday}&select=client_id`),
+      rest('portal_content', '?status=eq.review&client_verdict=is.null&select=client_id'),
+      rest('portal_tasks', '?status=eq.pending&select=client_id'),
+    ]);
+    const count = (rows: Row[], id: string) => rows.filter((x) => x.client_id === id).length;
+    for (const p of portals) {
+      const [w, a, t] = [count(week, p.id), count(review, p.id), count(pending, p.id)];
+      if (!w && !a && !t) continue;
+      const parts = [w && plural(w, 'publicación', 'publicaciones'), a && `${a} para aprobar`, t && plural(t, 'petición pendiente', 'peticiones pendientes')].filter(Boolean);
+      const r = await toClient(p.id, 'marketing', { title: 'Tu semana', body: parts.join(' · '), url: appUrl(p.id, ''), tag: `week-${p.id}` });
+      sent += r.sent;
+      weekly++;
+    }
+  }
+  return { clients: byClient.size, approvals: toApprove.size, weekly, sent };
 }
 
 // ── Accesos (solo el estudio) ──
@@ -292,6 +372,9 @@ function memberAccess(body: Row) {
   const out: Row = {};
   if (ROLES.includes(body.role)) out.role = body.role;
   if (Array.isArray(body.hidden)) out.hidden = body.hidden.filter((x: unknown) => SECTIONS.includes(String(x)));
+  if (body.perms && typeof body.perms === 'object') {
+    out.perms = Object.fromEntries(Object.entries(body.perms).filter(([k, v]) => PERM_KEYS.includes(k) && typeof v === 'boolean'));
+  }
   return out;
 }
 const isStudio = (u: Row) => u?.app_metadata?.role === 'admin';
@@ -403,6 +486,16 @@ Deno.serve(async (req) => {
       const pass = password();
       await sb(`/auth/v1/admin/users/${body.user_id}`, { method: 'PUT', body: { password: pass } });
       return json({ password: pass });
+    }
+    if (action === 'mcp_key' || action === 'mcp_status' || action === 'mcp_revoke') {
+      if (!UUID.test(String(body.client_id))) throw new Fail(400, 'Portal no válido.');
+      if (action === 'mcp_revoke') {
+        await rpc('portal_mcp_revoke', { c: body.client_id });
+        return json({ ok: true });
+      }
+      if (action === 'mcp_status') return json({ status: await rpc('portal_mcp_status', { c: body.client_id }) });
+      const token = await rpc('portal_mcp_issue', { c: body.client_id });
+      return json({ url: `${SUPABASE_URL}/functions/v1/portal-mcp/${token}` });
     }
     if (action === 'link') {
       const email = String(body.email ?? '').trim().toLowerCase();

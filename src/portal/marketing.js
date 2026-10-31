@@ -1,12 +1,13 @@
 // Marketing: el calendario de contenido (mes, lista y la cuadrícula del perfil), la ficha de
-// cada publicación (para aprobarla o pedir cambios), el rendimiento del mes y los leads.
+// cada publicación (para aprobarla, pedir cambios o rechazarla, según lo que pueda cada
+// persona), las ideas que propone el cliente, el rendimiento del mes y los leads.
 
 import {
-  el, fill, icon, toast, sheet, seg, chips, chip, countUp, burst, emptyBox, sectionHead, copyText, textarea, avatar, ago, dayLabel, todayKey, localDay, dayDate, fMonth, fMonthShort, fWeekday, cap, fDay, safeUrl, hostOf, plural, compact, num, money, initials, shortDate,
+  el, fill, icon, toast, sheet, seg, chips, chip, countUp, burst, emptyBox, sectionHead, copyText, textarea, input, field, confirmSheet, avatar, ago, dayLabel, todayKey, addDays, localDay, dayDate, fMonth, fMonthShort, fWeekday, cap, fDay, safeUrl, hostOf, plural, compact, num, money, initials, shortDate,
 } from './kit.js';
 import { react, onLongPress } from './feel.js';
 import {
-  app, redraw, isStudio, upsertLocal, can, canAct, CONTENT_STATUS, STATUS_ORDER, CHANNEL, FORMAT, FUNNEL, LEAD_STAGE, LEAD_SOURCE, urlOf,
+  app, redraw, isStudio, isMine, upsertLocal, removeLocal, can, visibleContent, channelsOf, VERDICT, CONTENT_STATUS, STATUS_ORDER, CHANNEL, FORMAT, FUNNEL, LEAD_STAGE, LEAD_SOURCE, urlOf,
 } from './state.js';
 import { thread, commentCount } from './threads.js';
 import * as studio from './studio.js';
@@ -23,11 +24,6 @@ const remember = (key, value) => {
 
 export function marketingPage(sub = 'calendario', a, b) {
   const tabs = [['calendario', 'Calendario'], ['rendimiento', 'Rendimiento'], ['leads', 'Leads']].filter(([k]) => can(k));
-  if (sub === 'pieza') {
-    setTimeout(() => openPiece(a), 60);
-    sub = 'calendario';
-    a = undefined;
-  }
   if (!tabs.some(([k]) => k === sub)) sub = tabs[0]?.[0] || 'calendario';
   const body = el('div');
   const draw = () => {
@@ -51,26 +47,79 @@ export function marketingPage(sub = 'calendario', a, b) {
 
 // ── Calendario ──
 
-export function contentRow(c) {
+/** La respuesta del cliente como etiqueta («Aprobaste» si fue esta persona). */
+function verdictTag(c) {
+  const v = VERDICT[c.client_verdict];
+  if (!v || (c.client_verdict === 'changes' && c.status !== 'review')) return null;
+  const mine = !isStudio() && c.client_verdict_by && c.client_verdict_by === app.user?.id;
+  return chip(mine ? v[1] : v[0], v[3]);
+}
+
+function originTag(c) {
+  if (c.status !== 'idea') return null;
+  if (c.origin === 'client') return chip(isStudio() ? 'Idea del cliente' : isMine(c) ? 'Tu idea' : 'Idea de tu equipo', 'var(--cf-purple)', 'sparkles');
+  if (c.origin === 'claude' && isStudio()) return chip('De Claude', 'var(--cf-fg-muted)', 'sparkles');
+  return null;
+}
+
+/** Los iconos de sus redes (o el nombre, si es una sola). */
+function networks(c) {
+  const nets = channelsOf(c);
+  return [el('span', { class: 'cl-nets' }, nets.map((n) => icon((CHANNEL[n] || CHANNEL.otro)[2]))), nets.length > 1 ? `${nets.length} redes` : (CHANNEL[nets[0]] || CHANNEL.otro)[0]];
+}
+
+export function contentRow(c, { selecting = null } = {}) {
   const [status, sColor] = CONTENT_STATUS[c.status] || CONTENT_STATUS.idea;
-  const [channel, cColor, cIco] = CHANNEL[c.channel] || CHANNEL.otro;
+  const [, cColor] = CHANNEL[channelsOf(c)[0]] || CHANNEL.otro;
   const d = dayDate(c.date);
   const img = urlOf(c.image_url) || urlOf(c.assets?.find((x) => x.kind === 'image')?.path);
-  const row = el('button', { type: 'button', class: 'cl-row cl-content', style: { '--c': cColor }, onclick: () => openPiece(c.id) },
-    el('span', { class: 'cl-date-tile' }, el('small', { text: fWeekday.format(d).replace('.', '') }), el('b', { text: String(d.getDate()) })),
-    el('span', { class: 'cl-set-main' },
-      el('b', { text: c.title }),
-      el('small', {}, icon(cIco), `${channel} · ${FORMAT[c.format] || ''}${c.time ? ` · ${c.time.slice(0, 5)}` : ''}`),
-      el('span', { class: 'cl-row-tags' },
-        c.client_verdict === 'approved' ? chip(isStudio() ? 'Aprobada' : 'Aprobaste', 'var(--cf-income)') : c.client_verdict === 'changes' && c.status === 'review' ? chip('Pide cambios', 'var(--cf-orange)') : chip(status, sColor),
-        commentCount('content', c.id),
-      ),
+  const picked = selecting?.has(c.id);
+  const row = el('button', {
+    type: 'button',
+    class: `cl-row cl-content${selecting ? ' is-selectable' : ''}${picked ? ' is-picked' : ''}`,
+    style: { '--c': cColor },
+    'aria-pressed': selecting ? String(Boolean(picked)) : null,
+    draggable: isStudio() && !selecting ? 'true' : null,
+    onclick: () => (selecting ? selecting.toggle(c.id) : openPiece(c.id)),
+  },
+  selecting ? el('span', { class: 'cl-select-dot' }, icon('check')) : el('span', { class: 'cl-date-tile' }, el('small', { text: fWeekday.format(d).replace('.', '') }), el('b', { text: String(d.getDate()) })),
+  el('span', { class: 'cl-set-main' },
+    el('b', { text: c.title }),
+    el('small', {}, ...networks(c), ` · ${FORMAT[c.format] || ''}${c.time ? ` · ${c.time.slice(0, 5)}` : ''}${selecting ? ` · ${shortDate(c.date)}` : ''}`),
+    el('span', { class: 'cl-row-tags' },
+      originTag(c) || verdictTag(c) || chip(status, sColor),
+      commentCount('content', c.id),
     ),
-    img && el('img', { class: 'cl-row-thumb', src: img, alt: '', loading: 'lazy' }),
-    icon('right', 'cl-set-chev'),
+  ),
+  img && el('img', { class: 'cl-row-thumb', src: img, alt: '', loading: 'lazy' }),
+  icon('right', 'cl-set-chev'),
   );
-  if (isStudio()) onLongPress(row, () => studio.editContent(c));
+  if (isStudio() && !selecting) {
+    onLongPress(row, () => studio.contentActions(c));
+    // En el ordenador se arrastra a otro día del mes.
+    row.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/x-portal-content', c.id);
+      e.dataTransfer.effectAllowed = 'move';
+      document.body.classList.add('is-dragging');
+    });
+    row.addEventListener('dragend', () => document.body.classList.remove('is-dragging'));
+  }
   return row;
+}
+
+/** Mover una publicación a otro día soltándola sobre él. */
+async function dropOn(day, e) {
+  const id = e.dataTransfer.getData('text/x-portal-content');
+  const c = app.data.content.find((x) => x.id === id);
+  if (!c || c.date === day) return;
+  try {
+    upsertLocal('content', await app.backend.save('content', { id, date: day }));
+    react('success');
+    toast(`«${c.title.slice(0, 40)}» pasa al ${fDay.format(dayDate(day))}.`, 'ok');
+    redraw();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
 function calendar(month, selected) {
@@ -83,7 +132,7 @@ function calendar(month, selected) {
 
   const draw = () => {
     title.textContent = cap(fMonth.format(dayDate(`${ym}-15`)));
-    const items = app.data.content;
+    const items = visibleContent();
     if (mode === 'lista') return fill(body, agenda(items, now));
     if (mode === 'feed') return fill(body, feedGrid(items));
     const first = dayDate(`${ym}-01`);
@@ -101,7 +150,7 @@ function calendar(month, selected) {
       const key = `${ym}-${String(d).padStart(2, '0')}`;
       const list = byDay.get(key) || [];
       const review = list.some((c) => c.status === 'review' && !c.client_verdict);
-      cells.push(el('button', {
+      const cell = el('button', {
         type: 'button',
         class: `cl-cal-day${key === now ? ' is-today' : ''}${key === pick ? ' is-picked' : ''}${list.length ? ' has-items' : ''}${key < now ? ' is-past' : ''}${review ? ' is-review' : ''}`,
         'aria-pressed': String(key === pick),
@@ -113,7 +162,21 @@ function calendar(month, selected) {
           history.replaceState(null, '', `#/marketing/calendario/${ym}/${key}`);
           draw();
         },
-      }, el('span', { class: 'cl-cal-num', text: String(d) }), list.length ? el('i', { class: 'cl-cal-dots' }, list.slice(0, 3).map((c) => el('i', { style: { '--c': (CHANNEL[c.channel] || CHANNEL.otro)[1] } }))) : null));
+      }, el('span', { class: 'cl-cal-num', text: String(d) }), list.length ? el('i', { class: 'cl-cal-dots' }, list.slice(0, 3).map((c) => el('i', { style: { '--c': (CHANNEL[channelsOf(c)[0]] || CHANNEL.otro)[1] } }))) : null);
+      if (isStudio()) {
+        cell.addEventListener('dragover', (e) => {
+          if (!e.dataTransfer.types.includes('text/x-portal-content')) return;
+          e.preventDefault();
+          cell.classList.add('is-drop');
+        });
+        cell.addEventListener('dragleave', () => cell.classList.remove('is-drop'));
+        cell.addEventListener('drop', (e) => {
+          e.preventDefault();
+          cell.classList.remove('is-drop');
+          dropOn(key, e);
+        });
+      }
+      cells.push(cell);
     }
     const dayItems = pick ? byDay.get(pick) || [] : [];
     fill(body,
@@ -123,7 +186,9 @@ function calendar(month, selected) {
       ),
       funnelBalance(inMonth),
       pick && el('section', { class: 'cl-sec cl-cal-pick' },
-        sectionHead(dayLabel(pick), isStudio() && el('button', { type: 'button', class: 'cl-more', onclick: () => studio.editContent(null, { date: pick }) }, 'Añadir', icon('plus'))),
+        sectionHead(dayLabel(pick), isStudio()
+          ? el('button', { type: 'button', class: 'cl-more', onclick: () => studio.editContent(null, { date: pick }) }, 'Añadir', icon('plus'))
+          : can('content.propose') && pick >= now && el('button', { type: 'button', class: 'cl-more', onclick: () => proposeContent(pick) }, 'Proponer', icon('sparkles'))),
         dayItems.length ? el('div', { class: 'cl-list' }, dayItems.map(contentRow)) : el('p', { class: 'cl-none', text: 'Nada programado este día.' }),
       ),
     );
@@ -160,7 +225,9 @@ function calendar(month, selected) {
     seg([['mes', 'Mes'], ['lista', 'Lista'], ['feed', 'Feed']], mode, (v) => { mode = v; remember('portal:cal-mode', v); draw(); }, { small: true, label: 'Vista' }),
   );
   draw();
-  return el('div', { class: 'cl-stack' }, head, body);
+  // El cliente que puede proponer lo ve siempre a mano; el estudio, el «Crear» de siempre.
+  const propose = !isStudio() && can('content.propose') && el('button', { type: 'button', class: 'cl-btn sm ghost cl-propose', onclick: () => proposeContent(pick && pick >= now ? pick : addDays(now, 3)) }, icon('sparkles'), 'Proponer una publicación');
+  return el('div', { class: 'cl-stack' }, head, propose, body);
 }
 
 /** El equilibrio del mes entre atracción, autoridad, conversión y comunidad. */
@@ -185,20 +252,39 @@ function funnelBalance(items) {
 function agenda(items, now) {
   const upcoming = items.filter((c) => c.date >= now);
   const past = items.filter((c) => c.date < now).reverse();
-  const groups = new Map();
-  for (const c of upcoming) {
-    if (!groups.has(c.date)) groups.set(c.date, []);
-    groups.get(c.date).push(c);
-  }
-  return [
-    upcoming.length ? el('div', { class: 'cl-agenda' }, [...groups].map(([d, cs]) => el('section', { class: 'cl-sec' }, el('h3', { class: 'cl-tl-date' }, el('span', { text: dayLabel(d) })), el('div', { class: 'cl-list' }, cs.map(contentRow))))) : emptyBox('calendar', 'No hay nada programado', 'Cuando planifiquemos tu contenido lo verás aquí.'),
-    past.length && el('details', { class: 'cl-past' }, el('summary', { text: `Anteriores (${past.length})` }), el('div', { class: 'cl-list' }, past.slice(0, 40).map(contentRow))),
-  ];
+  const box = el('div', { class: 'cl-stack is-tight' });
+  let selecting = null;
+  const bar = el('div', { class: 'cl-bulk', hidden: true });
+  const draw = () => {
+    const groups = new Map();
+    for (const c of upcoming) {
+      if (!groups.has(c.date)) groups.set(c.date, []);
+      groups.get(c.date).push(c);
+    }
+    const row = (c) => contentRow(c, { selecting });
+    fill(box,
+      isStudio() && upcoming.length > 1 && el('div', { class: 'cl-bulk-head' }, el('button', { type: 'button', class: 'cl-btn xs ghost', onclick: () => {
+        selecting = selecting ? null : Object.assign(new Set(), { toggle(id) { this.has(id) ? this.delete(id) : this.add(id); react('tick'); draw(); } });
+        draw();
+      } }, icon(selecting ? 'x' : 'check'), selecting ? 'Cancelar' : 'Seleccionar varias')),
+      upcoming.length ? el('div', { class: 'cl-agenda' }, [...groups].map(([d, cs]) => el('section', { class: 'cl-sec' }, el('h3', { class: 'cl-tl-date' }, el('span', { text: dayLabel(d) })), el('div', { class: 'cl-list' }, cs.map(row))))) : emptyBox('calendar', 'No hay nada programado', 'Cuando planifiquemos tu contenido lo verás aquí.'),
+      past.length && el('details', { class: 'cl-past' }, el('summary', { text: `Anteriores (${past.length})` }), el('div', { class: 'cl-list' }, past.slice(0, 40).map(row))),
+    );
+    bar.hidden = !selecting;
+    if (selecting) {
+      fill(bar,
+        el('b', { text: selecting.size ? plural(selecting.size, 'elegida', 'elegidas') : 'Toca las que quieras' }),
+        el('button', { type: 'button', class: 'cl-btn sm', disabled: !selecting.size, onclick: () => studio.bulkContent(items.filter((c) => selecting.has(c.id)), () => { selecting = null; }) }, icon('swap'), 'Cambiar'),
+      );
+    }
+  };
+  draw();
+  return [box, bar];
 }
 
 /** Cómo quedará el perfil de Instagram: lo más nuevo arriba a la izquierda. */
 function feedGrid(items) {
-  const ig = items.filter((c) => c.channel === 'instagram' && c.format !== 'historia').sort((a, b) => `${b.date}${b.time || ''}`.localeCompare(`${a.date}${a.time || ''}`));
+  const ig = items.filter((c) => channelsOf(c).includes('instagram') && c.format !== 'historia').sort((a, b) => `${b.date}${b.time || ''}`.localeCompare(`${a.date}${a.time || ''}`));
   if (!ig.length) return emptyBox('grid', 'Sin publicaciones para Instagram', 'Aquí verás cómo quedará tu perfil.');
   return el('div', { class: 'cl-stack is-tight' },
     el('div', { class: 'cl-feed-profile' }, el('span', { class: 'cl-logo lg' }, urlOf(app.client.logo_url) ? el('img', { src: urlOf(app.client.logo_url), alt: '' }) : initials(app.client.name)), el('div', {}, el('b', { text: app.client.instagram || app.client.name }), el('small', { text: `${ig.length} publicaciones planificadas` }))),
@@ -219,26 +305,48 @@ function feedGrid(items) {
 export function openPiece(id) {
   const c = app.data.content.find((x) => x.id === id);
   if (!c) return toast('Esa publicación ya no está en el calendario.', 'error');
-  const [channel, cColor, cIco] = CHANNEL[c.channel] || CHANNEL.otro;
+  const nets = channelsOf(c);
   const media = [...(c.assets || [])];
   if (!media.length && c.image_url) media.push({ path: c.image_url, kind: 'image' });
   const statusIndex = STATUS_ORDER.indexOf(c.status);
-  const note = textarea({ placeholder: 'Qué cambiarías (obligatorio para pedir cambios)', maxLength: 2000, rows: 2, value: c.client_note || '' });
-  const canAnswer = !isStudio() && canAct() && c.status !== 'published';
+  const prod = c.production || {};
+  const note = textarea({ placeholder: 'Qué cambiarías o por qué no te convence', maxLength: 2000, rows: 2, value: c.client_note || '' });
+  const noteText = () => (note.querySelector?.('textarea') || note).value.trim();
+  // Lo que puede hacer quien mira (la base aplica lo mismo).
+  const client = !isStudio();
+  const canApprove = client && can('content.approve') && c.status === 'review';
+  const ownIdea = client && c.origin === 'client' && isMine(c) && c.status === 'idea';
+  // Tu propia idea no se rechaza: se retira.
+  const canReject = client && !ownIdea && can('content.reject') && !['scheduled', 'published'].includes(c.status) && c.client_verdict !== 'rejected';
   let ui;
   const answer = async (verdict, btn) => {
-    const text = (note.querySelector?.('textarea') || note).value.trim();
+    const text = noteText();
     if (verdict === 'changes' && !text) {
       toast('Cuéntanos qué cambiarías.', 'error');
       return (note.querySelector?.('textarea') || note).focus();
     }
+    if (verdict === 'rejected' && !(await confirmSheet('¿Rechazar esta publicación?', { message: text ? `«${text}»` : 'Si nos dices por qué, la próxima la acertamos.', yes: 'Rechazar', danger: true }))) return;
     btn.classList.add('is-busy');
     try {
       upsertLocal('content', await app.backend.save('content', { id: c.id, client_verdict: verdict, client_note: text || null }));
-      react('success');
+      react(verdict === 'rejected' ? 'off' : 'success');
       if (verdict === 'approved') burst(btn);
       ui.close();
-      toast(verdict === 'approved' ? '¡Aprobada! Gracias.' : 'Recibido: la ajustamos y te avisamos.', 'ok');
+      toast(verdict === 'approved' ? '¡Aprobada! Gracias.' : verdict === 'rejected' ? 'Rechazada: se lo decimos al equipo.' : 'Recibido: la ajustamos y te avisamos.', 'ok');
+      redraw();
+    } catch (err) {
+      btn.classList.remove('is-busy');
+      toast(err.message, 'error');
+    }
+  };
+  const withdraw = async (btn) => {
+    if (!(await confirmSheet('¿Retirar tu idea?', { yes: 'Retirar', danger: true }))) return;
+    btn.classList.add('is-busy');
+    try {
+      await app.backend.remove('content', c.id);
+      removeLocal('content', c.id);
+      ui.close();
+      react('off');
       redraw();
     } catch (err) {
       btn.classList.remove('is-busy');
@@ -246,40 +354,99 @@ export function openPiece(id) {
     }
   };
   const tags = (c.hashtags || '').split(/\s+/).filter((t) => t.startsWith('#'));
+  const kind = { post: 'design', carrusel: 'slides', historia: 'frames', reel: 'video', video: 'video', articulo: 'article' }[c.format] || 'other';
+  const verdict = VERDICT[c.client_verdict];
+  const verdictBy = c.client_verdict_by === app.user?.id && client ? verdict?.[1] : `${c.client_verdict_name || (isStudio() ? 'El cliente' : 'Tu equipo')} ${verdict?.[2]}`;
   const body = el('div', { class: 'cl-detail' },
     media.length > 0 && carousel(media),
     el('div', { class: 'cl-chips is-wrap' },
-      chip(channel, cColor, cIco),
+      nets.map((n) => chip((CHANNEL[n] || CHANNEL.otro)[0], (CHANNEL[n] || CHANNEL.otro)[1], (CHANNEL[n] || CHANNEL.otro)[2])),
       chip(FORMAT[c.format] || 'Post'),
       c.funnel && chip(FUNNEL[c.funnel][0], FUNNEL[c.funnel][1]),
       c.pillar && chip(c.pillar),
       c.campaign && chip(c.campaign, 'var(--cf-purple)', 'flag'),
+      originTag(c),
     ),
-    el('div', { class: 'cl-when' }, icon('calendar'), el('b', { text: `${cap(fDay.format(dayDate(c.date)))}${c.time ? `, ${c.time.slice(0, 5)}` : ''}` }), c.duration && el('span', {}, icon('clock'), c.duration)),
+    el('div', { class: 'cl-when' }, icon('calendar'), el('b', { text: `${cap(fDay.format(dayDate(c.date)))}${c.time ? `, ${c.time.slice(0, 5)}` : ''}` }), kind === 'video' && c.duration && el('span', {}, icon('clock'), c.duration)),
     // Las etapas: idea → producción → revisión → aprobado → programado → publicado.
     el('ol', { class: 'cl-steps-line', style: { '--n': String(STATUS_ORDER.length), '--at': String(statusIndex) } }, STATUS_ORDER.map((k, i) => el('li', { class: i < statusIndex ? 'is-done' : i === statusIndex ? 'is-now' : '', style: { '--c': CONTENT_STATUS[k][1] } }, el('i'), el('span', { text: CONTENT_STATUS[k][0] })))),
-    c.client_verdict && el('p', { class: `cl-verdict is-${c.client_verdict}` }, icon(c.client_verdict === 'approved' ? 'checkCircle' : 'edit'), el('span', {}, c.client_verdict === 'approved' ? (isStudio() ? 'El cliente la aprobó' : 'La aprobaste') : isStudio() ? 'Pide cambios' : 'Pediste cambios', c.client_note && el('small', { text: `«${c.client_note}»` })), c.client_verdict_at && el('small', { text: ago(c.client_verdict_at) })),
+    verdict && el('p', { class: `cl-verdict is-${c.client_verdict}` }, icon(verdict[4]), el('span', {}, verdictBy, c.client_note && el('small', { text: `«${c.client_note}»` })), c.client_verdict_at && el('small', { text: ago(c.client_verdict_at) })),
     c.objective && infoBlock('Objetivo', 'target', el('p', { class: 'cl-prose is-strong', text: c.objective })),
     c.cta && infoBlock('Llamada a la acción', 'bolt', el('p', { class: 'cl-prose is-strong', text: c.cta })),
     c.caption && infoBlock('Texto de la publicación', 'message', el('p', { class: 'cl-prose is-strong', text: c.caption }), el('button', { type: 'button', class: 'cl-btn xs ghost', onclick: () => copyText(`${c.caption}${c.hashtags ? `\n\n${c.hashtags}` : ''}`, 'Texto copiado.') }, icon('copy'), 'Copiar')),
     tags.length > 0 && infoBlock('Hashtags', 'hash', el('div', { class: 'cl-tags' }, tags.map((t) => el('span', { text: t }))), el('button', { type: 'button', class: 'cl-btn xs ghost', onclick: () => copyText(tags.join(' '), 'Hashtags copiados.') }, icon('copy'), 'Copiar')),
-    c.script && infoBlock('Guion', 'film', el('ol', { class: 'cl-script' }, c.script.split('\n').filter(Boolean).map((line) => {
+    // Lo que se prepara según el formato: un estático no tiene guion.
+    prod.headline && infoBlock('Texto en la pieza', 'image', el('p', { class: 'cl-prose is-headline', text: prod.headline })),
+    kind === 'slides' && prod.slides?.length > 0 && infoBlock(`Diapositivas (${prod.slides.length})`, 'layers', el('ol', { class: 'cl-slides' }, prod.slides.map((t, i) => el('li', {}, el('b', { text: String(i + 1) }), el('span', { text: t }))))),
+    kind === 'frames' && prod.frames?.length > 0 && infoBlock(`Pantallas (${prod.frames.length})`, 'layers', el('ol', { class: 'cl-slides' }, prod.frames.map((t, i) => el('li', {}, el('b', { text: String(i + 1) }), el('span', { text: t }))))),
+    prod.design_notes && ['design', 'slides', 'frames'].includes(kind) && infoBlock('Diseño', 'edit', el('p', { class: 'cl-prose', text: prod.design_notes })),
+    kind === 'video' && c.script && infoBlock('Guion', 'film', el('ol', { class: 'cl-script' }, c.script.split('\n').filter(Boolean).map((line) => {
       const m = /^([\d–\-:. s]+s?):\s*(.*)$/.exec(line);
       return el('li', {}, m ? [el('b', { text: m[1].trim() }), el('span', { text: m[2] })] : el('span', { text: line }));
     }))),
-    c.notes && infoBlock('Notas', 'doc', el('p', { class: 'cl-prose', text: c.notes })),
-    (c.refs?.length > 0 || safeUrl(c.link)) && infoBlock('Enlaces', 'link', el('div', { class: 'cl-ref-list' },
+    kind === 'article' && prod.outline && infoBlock('Esquema', 'list', el('p', { class: 'cl-prose', text: prod.outline }), prod.keyword && el('span', { class: 'cl-chip' }, icon('search'), prod.keyword)),
+    c.notes && infoBlock(kind === 'video' ? 'Notas de grabación' : 'Notas', 'doc', el('p', { class: 'cl-prose', text: c.notes })),
+    (c.refs?.length > 0 || safeUrl(c.link)) && infoBlock(['design', 'slides', 'frames'].includes(kind) ? 'Inspiración y enlaces' : 'Enlaces', 'link', el('div', { class: 'cl-ref-list' },
       safeUrl(c.link) && el('a', { class: 'cl-link is-strong', href: safeUrl(c.link), target: '_blank', rel: 'noopener' }, icon('external'), 'Ver la pieza'),
       (c.refs || []).map((r) => el('a', { class: 'cl-link', href: r.url, target: '_blank', rel: 'noopener' }, icon('link'), r.label || hostOf(r.url))),
     )),
-    canAnswer && el('section', { class: 'cl-answer' }, el('h4', { class: 'cl-eyebrow', text: c.client_verdict ? 'Cambiar tu respuesta' : '¿Qué te parece?' }), note),
+    (canApprove || canReject) && el('section', { class: 'cl-answer' }, el('h4', { class: 'cl-eyebrow', text: c.client_verdict ? 'Cambiar tu respuesta' : canApprove ? '¿Qué te parece?' : '¿No te convence?' }), note),
     isStudio() && el('section', { class: 'cl-answer' }, el('h4', { class: 'cl-eyebrow', text: 'Mover a' }), chips(STATUS_ORDER.map((k) => [k, CONTENT_STATUS[k][0], CONTENT_STATUS[k][1]]), c.status, (v) => { studio.setContentStatus(c, v); ui.close(); }, { scroll: true })),
-    thread('content', c.id),
+    can('comment') || app.data.comments.some((x) => x.target === 'content' && x.target_id === c.id) ? thread('content', c.id) : null,
   );
-  const actions = canAnswer
-    ? [el('button', { type: 'button', class: 'cl-btn ghost', onclick: (e) => answer('changes', e.currentTarget) }, icon('edit'), 'Pedir cambios'), el('button', { type: 'button', class: 'cl-btn', onclick: (e) => answer('approved', e.currentTarget) }, icon('check'), 'Aprobar')]
-    : isStudio() ? [el('button', { type: 'button', class: 'cl-btn', onclick: () => { ui.close(); studio.editContent(c); } }, icon('edit'), 'Editar')] : null;
-  ui = sheet(c.title, body, { actions, subtitle: CONTENT_STATUS[c.status][0], className: 'is-tall' });
+  const actions = isStudio()
+    ? [el('button', { type: 'button', class: 'cl-btn ghost is-icon', 'aria-label': 'Más', onclick: () => { ui.close(); studio.contentActions(c); } }, icon('more')), el('button', { type: 'button', class: 'cl-btn', onclick: () => { ui.close(); studio.editContent(c); } }, icon('edit'), 'Editar')]
+    : [
+      ownIdea && el('button', { type: 'button', class: 'cl-btn ghost is-danger', onclick: (e) => withdraw(e.currentTarget) }, icon('trash'), 'Retirar idea'),
+      canReject && el('button', { type: 'button', class: `cl-btn ghost is-danger${canApprove ? ' is-icon' : ''}`, 'aria-label': 'Rechazar', onclick: (e) => answer('rejected', e.currentTarget) }, icon('x'), canApprove ? null : 'Rechazar'),
+      canApprove && el('button', { type: 'button', class: 'cl-btn ghost', onclick: (e) => answer('changes', e.currentTarget) }, icon('edit'), 'Cambios'),
+      canApprove && el('button', { type: 'button', class: 'cl-btn', onclick: (e) => answer('approved', e.currentTarget) }, icon('check'), 'Aprobar'),
+    ].filter(Boolean);
+  ui = sheet(c.title, body, { actions: actions.length ? actions : null, subtitle: CONTENT_STATUS[c.status][0], className: 'is-tall' });
+}
+
+/** El cliente propone una publicación: entra como idea y el estudio decide. */
+export function proposeContent(day) {
+  let channels = ['instagram'];
+  let format = 'post';
+  const title = input({ maxLength: 200, placeholder: 'Lo que quieres publicar' });
+  const date = el('input', { type: 'date', class: 'cl-input', value: day, min: todayKey() });
+  const idea = textarea({ maxLength: 5000, rows: 4, placeholder: 'Cuéntanos la idea: qué se ve, qué dice, por qué ahora…' });
+  const ref = input({ type: 'url', inputMode: 'url', placeholder: 'https://… un ejemplo que te guste (opcional)' });
+  const btn = el('button', { type: 'button', class: 'cl-btn' }, icon('send'), 'Proponer');
+  const ui = sheet('Proponer una publicación', el('div', { class: 'cl-form' },
+    el('p', { class: 'cl-form-hint' }, icon('sparkles'), 'Le llega al estudio como idea: ellos la preparan y te la mandan a revisar.'),
+    field('Título', title),
+    field('¿Para cuándo?', date),
+    field('Redes', chips(Object.entries(CHANNEL).filter(([k]) => !['google', 'web', 'email', 'otro'].includes(k)).map(([k, [l, color, ico]]) => [k, l, color, ico]), channels, (v) => { channels = v; }, { multi: true, scroll: true })),
+    field('Formato', chips(Object.entries(FORMAT).filter(([k]) => k !== 'otro').map(([k, l]) => [k, l]), format, (v) => { format = v; }, { scroll: true })),
+    field('La idea', idea),
+    field('Un ejemplo', ref),
+  ), { actions: [btn] });
+  btn.addEventListener('click', async () => {
+    const t = title.value.trim();
+    if (!t) return toast('Ponle un título.', 'error');
+    if (!channels.length) return toast('Elige al menos una red.', 'error');
+    const url = safeUrl(ref.value.trim());
+    btn.classList.add('is-busy');
+    try {
+      const row = await app.backend.save('content', {
+        client_id: app.client.id, title: t, date: date.value || day, channels, channel: channels[0], format,
+        notes: (idea.querySelector?.('textarea') || idea).value.trim() || null, refs: url ? [{ url, label: hostOf(url) }] : [],
+        status: 'idea', origin: 'client', created_by: app.user?.id, notify: false,
+      });
+      upsertLocal('content', row);
+      app.data.content.sort((a, b) => a.date.localeCompare(b.date));
+      react('success');
+      burst(btn);
+      ui.close();
+      toast('Idea enviada al estudio.', 'ok');
+      redraw();
+    } catch (err) {
+      btn.classList.remove('is-busy');
+      toast(err.message, 'error');
+    }
+  });
 }
 
 function infoBlock(title, ico, ...kids) {
@@ -359,7 +526,9 @@ function performance() {
 
 function leads() {
   const all = app.data.leads;
-  if (!all.length) return emptyBox('funnel', 'Todavía no hay leads', isStudio() ? 'Registra cada persona interesada: de dónde llegó, en qué etapa está y cuánto vale.' : 'Aquí verás cada persona interesada en tu negocio que llegó gracias a tu marketing.', isStudio() && el('button', { type: 'button', class: 'cl-btn sm', onclick: () => studio.editLead() }, icon('plus'), 'Nuevo lead'));
+  const canAdd = isStudio() || can('leads.add');
+  const addBtn = (cls) => canAdd && el('button', { type: 'button', class: cls, onclick: () => studio.editLead() }, icon('plus'), 'Nuevo lead');
+  if (!all.length) return emptyBox('funnel', 'Todavía no hay leads', isStudio() ? 'Registra cada persona interesada: de dónde llegó, en qué etapa está y cuánto vale.' : 'Aquí verás cada persona interesada en tu negocio que llegó gracias a tu marketing.', addBtn('cl-btn sm'));
   let filter = 'abiertos';
   const list = el('div', { class: 'cl-list' });
   const month = todayKey().slice(0, 7);
@@ -389,13 +558,14 @@ function leads() {
     })),
     sources.length > 0 && el('div', { class: 'cl-chips is-wrap' }, sources.map(([, label, n]) => el('span', { class: 'cl-chip' }, el('i'), `${label} · ${n}`))),
     seg([['abiertos', 'Abiertos', open.length], ['ganados', 'Ganados', won.length], ['perdidos', 'Perdidos'], ['todos', 'Todos']], filter, (v) => { filter = v; draw(); }, { label: 'Leads' }),
+    !isStudio() && addBtn('cl-btn sm ghost cl-propose'),
     list,
   );
 }
 
 function leadRow(l) {
   const [stage, color] = LEAD_STAGE[l.stage] || LEAD_STAGE.nuevo;
-  return el('button', { type: 'button', class: 'cl-row cl-lead', style: { '--c': color }, onclick: () => (isStudio() ? studio.editLead(l) : leadSheet(l)) },
+  return el('button', { type: 'button', class: 'cl-row cl-lead', style: { '--c': color }, onclick: () => (isStudio() || can('leads.edit') ? studio.editLead(l) : leadSheet(l)) },
     avatar(l.name),
     el('span', { class: 'cl-set-main' }, el('b', { text: l.name }), el('small', { text: [LEAD_SOURCE[l.source], l.campaign, l.date && shortDate(l.date)].filter(Boolean).join(' · ') })),
     l.value ? el('b', { class: 'cl-lead-value', text: money(l.value) }) : null,

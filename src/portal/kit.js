@@ -318,10 +318,13 @@ export function input(props = {}) {
 export function textarea(props = {}, { counter } = {}) {
   const area = el('textarea', { class: 'cl-input', rows: 3, ...props });
   const fit = () => {
+    // Sin pintar (oculta o aún fuera del documento) mide 0: se queda con sus filas hasta que se vea.
+    if (!area.getClientRects().length) return;
     area.style.height = 'auto';
     area.style.height = `${Math.min(area.scrollHeight + 2, 420)}px`;
   };
   area.addEventListener('input', fit);
+  area.addEventListener('focus', fit);
   requestAnimationFrame(fit);
   if (!counter || !props.maxLength) return area;
   const count = el('small', { class: 'cl-count-chars' });

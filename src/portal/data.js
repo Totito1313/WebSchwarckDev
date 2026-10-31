@@ -10,8 +10,8 @@
 
 import { SUPABASE_URL, SUPABASE_KEY, FUNCTION_URL, BUCKET } from './config.js';
 
-const TABLES = ['posts', 'content', 'resources', 'tasks', 'submissions', 'work', 'metrics', 'leads', 'comments'];
-const ORDER = { posts: ['occurred_at', false], content: ['date', true], resources: ['created_at', false], tasks: ['created_at', false], submissions: ['created_at', false], work: ['day', false], metrics: ['month', false], leads: ['date', false], comments: ['created_at', true] };
+const TABLES = ['posts', 'content', 'resources', 'tasks', 'submissions', 'work', 'metrics', 'leads', 'comments', 'reports'];
+const ORDER = { posts: ['occurred_at', false], content: ['date', true], resources: ['created_at', false], tasks: ['created_at', false], submissions: ['created_at', false], work: ['day', false], metrics: ['month', false], leads: ['date', false], comments: ['created_at', true], reports: ['day', false] };
 
 export async function createBackend() {
   const demo = new URLSearchParams(location.search).get('demo');
@@ -110,6 +110,34 @@ function liveBackend(sb) {
     async upsertMetrics(row) {
       return must(await sb.from('portal_metrics').upsert(row, { onConflict: 'client_id,month,channel' }).select().single());
     },
+    /** Los datos del reporte de un día (quién, a qué hora, bloqueos y observaciones). */
+    async saveReport(row) {
+      return must(await sb.from('portal_reports').upsert(row, { onConflict: 'client_id,day' }).select().single());
+    },
+
+    // ── Plantillas del estudio (para todos los portales) ──
+    async templates() {
+      return must(await sb.from('portal_templates').select('*').order('created_at', { ascending: false }));
+    },
+    async saveTemplate(row) {
+      return must(await sb.from('portal_templates').insert(row).select().single());
+    },
+    async removeTemplate(id) {
+      must(await sb.from('portal_templates').delete().eq('id', id));
+    },
+
+    /** Al estudio: lo que pide atención hoy en todos los portales. */
+    async overview() {
+      const today = new Date().toLocaleDateString('en-CA');
+      const [clients, content, tasks, subs] = await Promise.all([
+        sb.from('portal_clients').select('id,name,accent,logo_url,archived').eq('archived', false).order('name').then(must),
+        sb.from('portal_content').select('id,client_id,title,date,time,status,channel,channels,format,client_verdict,client_verdict_name,client_note,origin,updated_at')
+          .or(`date.eq.${today},and(status.eq.review,client_verdict.is.null),client_verdict.in.(changes,rejected),and(origin.eq.client,status.eq.idea)`).then(must),
+        sb.from('portal_tasks').select('id,client_id,title,status,due_date,submitted_at').or(`status.eq.submitted,and(status.eq.pending,due_date.lte.${today})`).then(must),
+        sb.from('portal_submissions').select('id,client_id,kind,author,created_at').is('seen_at', null).then(must),
+      ]);
+      return { today, clients, content, tasks, submissions: subs };
+    },
     async remove(table, id) {
       must(await sb.from(`portal_${table}`).delete().eq('id', id));
     },
@@ -122,6 +150,10 @@ function liveBackend(sb) {
     async updateSelf(clientId, patch) {
       const user = await this.user();
       return must(await sb.from('portal_members').update(patch).eq('client_id', clientId).eq('user_id', user.id).select().single());
+    },
+    /** El estudio cambia el rol o los permisos de alguien del portal. */
+    async updateMember(clientId, userId, patch) {
+      return must(await sb.from('portal_members').update(patch).eq('client_id', clientId).eq('user_id', userId).select().single());
     },
     async removeMember(clientId, userId) {
       must(await sb.from('portal_members').delete().eq('client_id', clientId).eq('user_id', userId));
@@ -232,6 +264,10 @@ function liveBackend(sb) {
     // ── Solo el estudio ──
     invite: (clientId, email, name, reset = false) => call('invite', { client_id: clientId, email, name, reset }),
     resetPassword: (userId) => call('password', { user_id: userId }),
+    // La dirección secreta del conector de Claude del portal: crear (o cambiar), ver si hay y quitarla.
+    mcpKey: (clientId) => call('mcp_key', { client_id: clientId }),
+    mcpStatus: async (clientId) => (await call('mcp_status', { client_id: clientId })).status,
+    mcpRevoke: (clientId) => call('mcp_revoke', { client_id: clientId }),
     accessLink: (email) => call('link', { email, redirect_to: `${location.origin}/cliente/` }),
   };
 }
@@ -258,12 +294,12 @@ function demoBackend(studio) {
   const c2 = id();
   const me = { user_id: 'demo-user', email: studio ? 'admin@schwarckdev.com' : 'laura@cafearoma.com' };
   const clients = [
-    { id: c1, name: 'Café Aroma', accent: '#c26a3d', logo_url: null, welcome: 'Aquí verás cada avance, el calendario de publicaciones, cómo le va a tu marca y lo que necesitamos de ti.', industry: 'Cafetería de especialidad', website: 'https://cafearoma.com', instagram: '@cafearoma', phone: '+58 412 555 0101', address: 'Av. Principal de Las Mercedes, Caracas', hours: 'Lun–Sáb 7:00–21:00', description: 'Café de especialidad tostado en casa.' },
+    { id: c1, name: 'Café Aroma', accent: '#c26a3d', logo_url: null, perms: { 'content.propose': true, 'posts.create': true }, welcome: 'Aquí verás cada avance, el calendario de publicaciones, cómo le va a tu marca y lo que necesitamos de ti.', industry: 'Cafetería de especialidad', website: 'https://cafearoma.com', instagram: '@cafearoma', phone: '+58 412 555 0101', address: 'Av. Principal de Las Mercedes, Caracas', hours: 'Lun–Sáb 7:00–21:00', description: 'Café de especialidad tostado en casa.' },
     { id: c2, name: 'Lion Gym', accent: '#7c4dff', logo_url: null, welcome: 'Tu portal de proyecto.', industry: 'Gimnasio', instagram: '@liongym' },
   ];
   const members = [
-    { client_id: c1, user_id: 'demo-user', email: 'laura@cafearoma.com', name: 'Laura Méndez', position: 'Dueña', phone: '+58 414 555 0199', last_seen_at: at(-2, 9), prefs: {} },
-    { client_id: c1, user_id: 'demo-2', email: 'carlos@cafearoma.com', name: 'Carlos Ruiz', position: 'Encargado', last_seen_at: at(-5), prefs: {} },
+    { client_id: c1, user_id: 'demo-user', email: 'laura@cafearoma.com', name: 'Laura Méndez', position: 'Dueña', phone: '+58 414 555 0199', last_seen_at: at(-2, 9), prefs: {}, role: 'owner', perms: {} },
+    { client_id: c1, user_id: 'demo-2', email: 'carlos@cafearoma.com', name: 'Carlos Ruiz', position: 'Encargado', last_seen_at: at(-5), prefs: {}, role: 'member', perms: {} },
   ];
   const t1 = id();
   const t2 = id();
@@ -275,6 +311,14 @@ function demoBackend(studio) {
       { id: id(), client_id: c1, kind: 'delivery', title: 'Entregado: kit de plantillas para historias', body: 'Lo tienes en Recursos, en Canva y en PNG.', occurred_at: at(-3, 16), notify: true },
       { id: id(), client_id: c1, kind: 'milestone', title: 'Etapa completada: identidad visual', body: 'Cerramos logotipo, colores y tipografía.', occurred_at: at(-8, 12), notify: true },
       { id: id(), client_id: c1, kind: 'report', title: 'Resultados de octubre', body: 'Alcance +38 % frente a septiembre. Los reels de proceso son lo que mejor funciona: seguiremos por ahí.', occurred_at: at(-12, 10), notify: true },
+      { id: id(), client_id: c1, kind: 'announcement', origin: 'client', author: 'Carlos Ruiz', created_by: 'demo-2', title: 'El sábado cerramos a las 15:00', body: 'Por inventario. Si hay que publicar algo ese día, que sea temprano.', occurred_at: at(-2, 18), notify: true },
+    ],
+    reports: [
+      { client_id: c1, day: date(-1), author: 'Alan Schwarck', sent_at: '16:15', blockers: null, notes: 'Las fotos de producto quedaron muy bien: las usamos en la campaña de noviembre.', source: 'nexus' },
+    ],
+    templates: [
+      { id: id(), kind: 'content', name: 'Reel de proceso', data: { title: 'Reel: ', channels: ['instagram', 'tiktok'], format: 'reel', funnel: 'atraccion', pillar: 'Proceso', duration: '20 s', script: '0–3 s: gancho\n3–10 s: el proceso\n10–20 s: resultado + CTA' }, created_at: at(-20) },
+      { id: id(), kind: 'task', name: 'Fotos del producto', data: { title: 'Fotos del producto nuevo', description: 'Unas 10 fotos con luz natural, sobre fondo neutro.', expects: 'file', priority: 'normal' }, created_at: at(-20) },
     ],
     work: [
       { id: id(), client_id: c1, title: 'Editar el reel de tostado', status: 'doing', day: date(0), minutes: 0, category: 'Vídeo', created_at: at(0, 9) },
@@ -293,7 +337,8 @@ function demoBackend(studio) {
       { id: id(), client_id: c1, title: 'Historia: encuesta de sabores', date: date(0), time: '20:00', channel: 'instagram', format: 'historia', status: 'scheduled', funnel: 'comunidad', created_at: at(-3) },
       { id: id(), client_id: c1, title: 'Post: nuestro equipo', date: date(-2), time: '11:00', channel: 'instagram', format: 'post', status: 'published', funnel: 'comunidad', caption: 'Ellos hacen tu café cada mañana.', client_verdict: 'approved', created_at: at(-6) },
       { id: id(), client_id: c1, title: 'Vídeo: cata guiada', date: date(9), time: '19:00', channel: 'tiktok', format: 'video', status: 'idea', funnel: 'atraccion', created_at: at(-1) },
-      { id: id(), client_id: c1, title: 'Reel: un día en la barra', date: date(12), time: '18:00', channel: 'instagram', format: 'reel', status: 'idea', funnel: 'atraccion', created_at: at(-1) },
+      { id: id(), client_id: c1, title: 'Reel: un día en la barra', date: date(12), time: '18:00', channel: 'instagram', channels: ['instagram', 'tiktok'], format: 'reel', status: 'idea', funnel: 'atraccion', created_at: at(-1) },
+      { id: id(), client_id: c1, title: 'Post: el nuevo lote de Etiopía', date: date(7), time: '10:00', channel: 'instagram', channels: ['instagram', 'facebook'], format: 'post', status: 'idea', origin: 'client', created_by: 'demo-user', caption: 'Llegó un lote nuevo y queremos contarlo.', production: { headline: 'Nuevo: Etiopía Yirgacheffe', design_notes: 'Foto del saco con el sello de origen.' }, created_at: at(-1, 19) },
     ],
     resources: [
       { id: id(), client_id: c1, title: 'Kit de plantillas para historias', kind: 'link', category: 'Diseño', description: 'Editable en Canva.', url: 'https://www.canva.com/', created_at: at(-3, 16) },
@@ -373,6 +418,29 @@ function demoBackend(studio) {
       const hit = data.metrics.find((m) => m.client_id === row.client_id && m.month === row.month && m.channel === row.channel);
       return this.save('metrics', hit ? { ...row, id: hit.id } : row);
     },
+    async saveReport(row) {
+      await wait();
+      const i = data.reports.findIndex((r) => r.client_id === row.client_id && r.day === row.day);
+      if (i >= 0) data.reports[i] = { ...data.reports[i], ...row };
+      else data.reports.unshift(row);
+      notify();
+      return clone(data.reports[Math.max(i, 0)]);
+    },
+    async templates() { await wait(120); return clone(data.templates); },
+    async saveTemplate(row) { const t = { id: id(), created_at: new Date().toISOString(), ...row }; data.templates.unshift(t); return clone(t); },
+    async removeTemplate(tid) { data.templates = data.templates.filter((t) => t.id !== tid); },
+    async overview() {
+      await wait(200);
+      const today = new Date().toLocaleDateString('en-CA');
+      const live = clients.filter((c) => !c.archived);
+      return clone({
+        today,
+        clients: live,
+        content: data.content.filter((c) => c.date === today || (c.status === 'review' && !c.client_verdict) || ['changes', 'rejected'].includes(c.client_verdict) || (c.origin === 'client' && c.status === 'idea')),
+        tasks: data.tasks.filter((t) => t.status === 'submitted' || (t.status === 'pending' && t.due_date <= today)),
+        submissions: data.submissions.filter((s) => !s.seen_at),
+      });
+    },
     async remove(table, rid) {
       await wait();
       data[table] = data[table].filter((x) => x.id !== rid);
@@ -392,6 +460,12 @@ function demoBackend(studio) {
     async updateSelf(cid, patch) {
       await wait();
       const m = members.find((x) => x.client_id === cid && x.user_id === 'demo-user');
+      if (m) Object.assign(m, patch);
+      return clone(m || patch);
+    },
+    async updateMember(cid, uid, patch) {
+      await wait();
+      const m = members.find((x) => x.client_id === cid && x.user_id === uid);
       if (m) Object.assign(m, patch);
       return clone(m || patch);
     },
@@ -431,6 +505,9 @@ function demoBackend(studio) {
     async savePush() {},
     async dropPush() {},
     async testPush() { return { sent: 0 }; },
+    async mcpKey() { await wait(400); return { url: `${location.origin}/demo-conector-de-claude` }; },
+    async mcpStatus() { return null; },
+    async mcpRevoke() {},
     async invite(cid, email, name) {
       await wait(500);
       const m = { client_id: cid, user_id: id(), email, name, prefs: {} };

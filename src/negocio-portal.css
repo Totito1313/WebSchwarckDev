@@ -94,8 +94,9 @@
 .pt-people .ng-avatar { width: 30px; height: 30px; margin-right: -7px; border-radius: 50%; background: color-mix(in srgb, var(--c) 32%, var(--paper)); font-size: 11px; box-shadow: 0 0 0 2px var(--cloud); }
 .pt-people > small { color: var(--body); font-size: 13px; }
 .pt-more { margin-left: 12px; color: var(--body); font-size: 12px; font-weight: 600; }
-.pt-card .pt-hidden-note { display: flex; align-items: center; gap: 6px; }
+.pt-hidden-note { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; margin-top: 6px; padding: 4px 10px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, var(--paper)); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .pt-hidden-note .ic svg { width: 14px; height: 14px; }
+.pt-hidden-note:hover { background: color-mix(in srgb, var(--accent) 22%, var(--paper)); }
 .pt-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; }
 
 /* Colores */
@@ -111,11 +112,24 @@
 .pt-color::-moz-color-swatch { border: 0; border-radius: 50%; }
 .pill.is-on { background: var(--ink); color: var(--paper); }
 
-/* Qué secciones ve */
-.pt-sections { display: grid; gap: 4px; }
-.pt-section-row { display: grid; gap: 2px; padding: 10px 12px; border-radius: 16px; background: var(--field-bg); }
-.pt-section-row .ng-toggle { padding: 0; background: none; }
-.pt-section-row > small { color: var(--body); font-size: 13px; }
+/* Permisos: por grupos, cada uno con su interruptor y para qué sirve */
+.pt-perms { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.pt-perms > .pill { justify-self: start; }
+.pt-perm-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.pt-perm-group { display: grid; gap: 4px; padding: 12px; border-radius: 20px; background: var(--field-bg); }
+.pt-perm-group h3 { padding: 2px 4px 6px; color: var(--body); font-size: 12px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; }
+.pt-perm-row { display: grid; gap: 2px; padding: 8px 10px; border-radius: 14px; transition: background 0.2s; }
+.pt-perm-row .ng-toggle { padding: 0; background: none; }
+.pt-perm-row > small { color: var(--body); font-size: 12.5px; line-height: 1.4; }
+.pt-perm-row.is-own { background: color-mix(in srgb, var(--blue) 10%, var(--paper)); }
+.pt-perm-row.is-own > small { color: var(--blue); font-weight: 600; }
+
+/* El conector de Claude */
+.pt-claude .pt-box.is-new { background: color-mix(in srgb, var(--income) 12%, var(--paper)); }
+.pt-claude .pt-box > .pill { justify-self: start; }
+.pt-mcp-url { display: block; margin-top: 0; padding: 10px 12px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12.5px; line-height: 1.5; user-select: all; }
+.pt-steps { display: grid; gap: 8px; padding-left: 20px; color: var(--body); font-size: 14px; line-height: 1.5; list-style: decimal; }
+.pt-steps b { color: var(--ink); font-weight: 600; }
 
 /* Accesos */
 .pt-search { min-width: 270px; padding: 10px 14px; border: 1px solid transparent; border-radius: 14px; background: var(--cloud); color: var(--ink); font: inherit; font-size: 14px; }
@@ -197,6 +211,9 @@
   .pt-save-bar { bottom: 84px; }
   .pt-connect { padding: 18px; }
   .pt-connect-form { padding: 18px; border-radius: 20px; }
+}
+@media (max-width: 720px) {
+  .pt-perm-groups { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
   .pt-user.ng-row { grid-template-columns: 40px minmax(0, 1fr) 18px; }

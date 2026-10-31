@@ -262,14 +262,15 @@ En un espacio KV de Cloudflare enlazado como `SITE` (salvo el portal de clientes
 
 ### Lo que ve el cliente
 
-- **Inicio**: saludo, «Hoy en tu proyecto» (lo que el estudio hizo hoy y lo que está haciendo ahora, con un anillo de progreso), el tablón, lo que tiene que aprobar, lo que le pedimos, el resumen de resultados del mes, lo próximo del calendario y lo último que pasó.
-- **Cronología**: todo, por días: el **reporte diario** del estudio (cada tarea hecha, en curso o planificada, con su tiempo), anuncios, avances, hitos, entregas, peticiones, contenido, resultados y lo que el propio cliente envió o comentó. Lo nuevo desde su última visita sale marcado.
+- **Inicio**: saludo, «Hoy en tu proyecto» (lo que el estudio hizo hoy y lo que está haciendo ahora, con un anillo de progreso), el tablón (si su portal lo permite, también publica en él para su equipo y para el estudio), lo que tiene que aprobar, lo que le pedimos, el resumen de resultados del mes, lo próximo del calendario y lo último que pasó.
+- **Cronología**: todo, por días: el **reporte diario** del estudio (cada tarea hecha, en curso o planificada, con su tiempo, quién lo mandó y a qué hora, y sus dificultades y observaciones), anuncios, avances, hitos, entregas, peticiones, contenido, resultados y lo que el propio cliente envió o comentó. Lo nuevo desde su última visita sale marcado.
 - **Marketing**:
   - **Calendario** por mes (con el equilibrio del mes entre atracción, autoridad, conversión y comunidad), en lista o como la cuadrícula del perfil de Instagram. Se cambia de mes deslizando.
-  - **La ficha de cada publicación**: imágenes y vídeos, red, formato, embudo, pilar y campaña, fecha y duración, las etapas (idea → producción → revisión → aprobado → programado → publicado), objetivo, llamada a la acción, texto y hashtags (con botón de copiar), guion por tiempos, notas, referencias y la conversación. El cliente la **aprueba** o **pide cambios**.
+  - **La ficha de cada publicación**: imágenes y vídeos, sus redes (una misma pieza puede salir en varias), formato, embudo, pilar y campaña, fecha, las etapas (idea → producción → revisión → aprobado → programado → publicado), objetivo, llamada a la acción, texto y hashtags (con botón de copiar), la producción según el formato (texto en la pieza y diseño en un post; cada diapositiva en un carrusel; cada pantalla en una historia; guion por tiempos, duración y notas de grabación en un reel o vídeo; esquema y palabra clave en un artículo), referencias y la conversación. Lo que está para revisar lo **aprueba** o **pide cambios**; y puede **rechazar** cualquier publicación hasta que se programa (con quién lo hizo, a la vista del estudio).
+  - **Proponer** (si su portal lo permite): una idea con su fecha, redes, formato y un ejemplo. Llega al estudio como «Idea del cliente»; mientras siga siendo idea, quien la propuso la puede retirar.
   - **Rendimiento** del mes: alcance (con la variación frente al mes anterior y los últimos 6 meses), seguidores, interacciones y su tasa, leads y coste por lead, ventas y retorno, clics, impresiones, publicaciones, inversión y el desglose por red.
-  - **Leads**: los del mes, los ganados y la conversión, el valor del embudo, el embudo por etapas, las fuentes y la lista.
-- **Recursos**: guías, manuales, fotos, vídeos y enlaces, con buscador y categorías.
+  - **Leads**: los del mes, los ganados y la conversión, el valor del embudo, el embudo por etapas, las fuentes y la lista. Si su portal lo permite, añade leads y los mueve de etapa.
+- **Recursos**: guías, manuales, fotos, vídeos y enlaces, con buscador y categorías. Si su portal lo permite, sube los suyos (y solo borra esos).
 - **Peticiones**: lo que le pedimos (con prioridad, fecha y qué se espera). La marca como enviada o manda lo pedido desde ahí; cada petición tiene su conversación.
 - **Enviar** (el botón flotante): mensajes, enlaces, archivos y vídeos de hasta 50 MB.
 - **Perfil**: su foto, nombre, cargo y teléfono; los datos de su negocio (sector, descripción, web, redes, teléfono, correo, dirección y horario); qué avisos quiere recibir; vibración, sonidos y tema; instalar la app, cambiar la contraseña y salir.
@@ -278,28 +279,57 @@ En un espacio KV de Cloudflare enlazado como `SITE` (salvo el portal de clientes
 
 Todo lo anterior, editable (mantener pulsado un recurso, una petición o una publicación también lo abre para editar), y además:
 
-- **Inicio del estudio**: lo que pide atención (envíos sin ver, peticiones enviadas, cambios pedidos y comentarios sin responder), ocho atajos para crear y el trabajo de hoy, que se marca como hecho, en curso o planificado con un toque.
-- **El botón «Crear»**: reporte de hoy (varias líneas de golpe), trabajo, anuncio o avance, petición, publicación del calendario (la ficha completa, con imágenes y vídeos), recurso, lead y resultados del mes (en total o por red).
+- **Inicio del estudio**: lo que pide atención (envíos sin ver, peticiones enviadas, cambios pedidos, rechazos, ideas del cliente y comentarios sin responder), ocho atajos para crear y el trabajo de hoy, que se marca como hecho, en curso o planificado con un toque.
+- **Hoy en todos tus clientes** (con más de un portal): en una sola lista, lo que te respondieron, las ideas de cada cliente, lo que sale hoy, lo que espera su aprobación, las peticiones y lo que te enviaron. Cada línea abre ese portal justo ahí.
+- **El botón «Crear»**: reporte de hoy (varias líneas de golpe, con quién lo manda, dificultades y observaciones, que el cliente ve debajo), pegar el reporte de Nexus, importar el calendario de Claude, trabajo, anuncio o avance, petición, publicación del calendario (la ficha completa, con imágenes y vídeos, y la producción según el formato), recurso, lead y resultados del mes (en total o por red).
+- **Plantillas**: una publicación o una petición se guarda como plantilla («Reel de proceso», «Pedir fotos del mes»…) y la siguiente empieza desde ahí. También se duplican.
+- **Calendario**: arrastrar una publicación a otro día la mueve; «Seleccionar varias» cambia de etapa o borra muchas de golpe; mantener pulsada una deja editarla, duplicarla, moverla de día o borrarla.
 - **Clientes**: el logo de arriba a la izquierda cambia de cliente (con lo pendiente de cada uno) y crea portales.
-- **Accesos** (en el perfil o en los atajos): dar acceso con un correo (la contraseña se ve una sola vez, con el mensaje listo para mandar por WhatsApp), crear una contraseña nueva, copiar un enlace de acceso de un solo uso o quitar el acceso. No se envía ningún correo.
+- **Accesos** (en el perfil o en los atajos): dar acceso con un correo (la contraseña se ve una sola vez, con el mensaje listo para mandar por WhatsApp), cambiar el rol y las excepciones de cada persona, los permisos de todo el portal, crear una contraseña nueva, copiar un enlace de acceso de un solo uso o quitar el acceso. No se envía ningún correo.
 
 ### Desde Negocio › Portal de clientes
 
 La administración de los portales, con la misma cuenta del estudio que la app (la sesión se comparte: es el mismo sitio). Cuatro pestañas:
 
 - **Resumen**: portales, personas con acceso, lo que te enviaron sin ver y las peticiones por revisar; el QR para instalar la app; y «Mandar al portal», que lleva lo que terminaste hoy en Negocio (tareas hechas y horas) al reporte diario de cada cliente, sin repetirlo si ya está.
-- **Clientes**: cada portal con su logo, su color, su gente y las secciones que tiene ocultas. Crear uno (enlazado a un cliente de Negocio), elegir qué secciones ve todo el portal, archivarlo (su gente deja de verlo) o borrarlo con todo lo suyo.
-- **Accesos**: todas las cuentas, con buscador y filtro por portal. «Nueva cuenta» crea la de un cliente (portal, rol y secciones) o la de alguien del estudio, con una contraseña generada o elegida; se ve una sola vez, con el mensaje listo para mandar. En cada cuenta: hacerla del estudio o no, cambiar su rol o lo que ve en cada portal, añadirla a otro portal o quitarla, crear una contraseña nueva, copiar un enlace de acceso de un solo uso o borrarla.
+- **Clientes**: cada portal con su logo, su color, su gente y cuántos permisos tiene cambiados. Crear uno (enlazado a un cliente de Negocio), sus **permisos** (qué ve y qué puede hacer su gente), **Conectar Claude** (ver abajo), archivarlo (su gente deja de verlo) o borrarlo con todo lo suyo.
+- **Accesos**: todas las cuentas, con buscador y filtro por portal. «Nueva cuenta» crea la de un cliente (portal, rol y excepciones) o la de alguien del estudio, con una contraseña generada o elegida; se ve una sola vez, con el mensaje listo para mandar. En cada cuenta: hacerla del estudio o no, cambiar su rol o sus excepciones en cada portal (la llave), añadirla a otro portal o quitarla, crear una contraseña nueva, copiar un enlace de acceso de un solo uso o borrarla.
 - **Identidad**: la marca de cada cliente en su app, con la app de verdad al lado (en un teléfono, al ancho real) que cambia mientras editas: nombre del cliente y nombre de la app, logo, color principal y secundario, bienvenida, tipografía de los títulos (nueve), esquinas (rectas, suaves o redondas), inicio (degradado, color liso o imagen de portada) y tema por defecto (si la persona elige otro en su perfil, manda el suyo).
 
-### Roles y secciones
+### Roles y permisos
 
 - **Estudio** (`app_metadata.role = 'admin'`): entra en todos los portales y lo puede todo, también en Negocio.
-- **Dueño**: ve y hace todo en su portal y es el único que edita los datos del negocio. La primera persona de cada portal lo es.
-- **Equipo**: ve, aprueba, comenta y envía.
-- **Solo lectura**: solo mira; no aprueba, no comenta ni envía (la app esconde esos botones y la base los rechaza).
+- **Dueño**: lo que permita su portal, y es el único que edita los datos del negocio. La primera persona de cada portal lo es.
+- **Equipo**: lo que permita su portal, salvo editar el negocio.
+- **Solo lectura**: solo ve lo que su portal deja ver.
 
-Las secciones (cronología, reporte diario, calendario, rendimiento, leads, recursos, peticiones y enviar) se ocultan a todo un portal o a una persona en concreto. No es solo la interfaz: las reglas de la base (`private.can_see`, `can_act` e `is_owner`) dejan de dar esos datos, y no llegan avisos de lo que no se ve.
+Encima de eso, cada portal tiene sus **permisos** (Negocio › Clientes › Permisos, o Accesos › Permisos del cliente en la app):
+
+| Grupo | Permisos | Si nadie lo cambia |
+| --- | --- | --- |
+| Ve | cronología, reporte diario, calendario, rendimiento, leads, recursos y peticiones | sí |
+| Decide sobre el contenido | aprobar o pedir cambios, rechazar | sí |
+| | proponer publicaciones | no |
+| Crea y envía | publicar anuncios, subir recursos, añadir leads, mover leads | no |
+| | entregar peticiones, enviar mensajes y archivos, comentar | sí |
+| Su negocio | editar los datos del negocio | sí (solo el dueño) |
+
+Y a una persona se le ponen **excepciones**: lo que se marque solo para ella manda sobre su rol y su portal; lo demás los sigue. Así, por ejemplo, Patryk ve la producción, aprueba y rechaza pero no crea, y a alguien de su equipo se le quita rechazar.
+
+No es solo la interfaz: la regla es una sola (`private.perm` en la base, `memberCan` en `src/portal/brand.js` y en la función `portal`), y la base no da los datos ni acepta los cambios que no tocan; tampoco llegan avisos de lo que no se ve. Lo que crea un cliente entra marcado como suyo: una propuesta siempre como idea, un anuncio sin fijar y con su nombre.
+
+### Reporte de Nexus
+
+El reporte diario que se copia en Nexus («📋 REPORTE DIARIO DE ACTIVIDADES», con fecha, asistente, hora, tareas realizadas, pendientes, dificultades y observaciones) se publica tal cual: Crear › «Pegar reporte de Nexus» (o el botón «Nexus» junto a «Trabajo de hoy»). Cada tarea realizada queda como una línea hecha y cada pendiente como «en curso», en el día del reporte; quién lo mandó, a qué hora, las dificultades y las observaciones quedan como notas del día, que el cliente ve debajo del reporte («Ninguno» se ignora). Pegar el mismo reporte dos veces no repite nada. Si el navegador ya dio permiso para leer el portapapeles, al volver a la app con el reporte copiado aparece un aviso para publicarlo con un toque. Quien pega el reporte necesita una cuenta del estudio.
+
+### Claude y el calendario
+
+Después de idear el contenido con Claude (por ejemplo, en el proyecto de PatrykBioHacker), Claude lo carga de una vez en el calendario del cliente, para las redes que se le digan. Dos formas:
+
+- **Conector** (lo recomendado): Negocio › Portal de clientes › Clientes › ⋯ › «Conectar Claude» crea una dirección secreta para ese portal (se ve una sola vez; en la base solo queda su huella). En Claude: Ajustes › Conectores › «Añadir conector personalizado», pegar la dirección y activarlo en la conversación. Herramientas: `ver_portal`, `ver_calendario`, `ver_publicacion`, `crear_publicaciones` (hasta 60 de golpe; si una falla, no se carga ninguna y dice cuál), `editar_publicacion` (solo ideas o en producción) y `borrar_publicacion` (solo las ideas que cargó el conector). «Cambiar la dirección» deja la anterior sin valor; «Desconectar» la borra.
+- **Pegar**: en el mismo diálogo, «Copiar instrucciones» da el texto para Claude; él responde con un bloque que se pega en la app (Crear › «Importar calendario de Claude»), que enseña antes de cargar cuántas son, de qué fechas, por red, y lo que no se puede cargar.
+
+Lo que carga Claude entra como «Idea» marcada «De Claude»: el cliente no lo ve ni recibe avisos hasta que el estudio lo pasa a producción o a revisión. Es la función `supabase/functions/portal-mcp/` (MCP por HTTP, sin estado).
 
 ### Tacto, sonido y movimiento
 
@@ -313,8 +343,8 @@ Las secciones (cronología, reporte diario, calendario, rendimiento, leads, recu
 Los manda la propia base: cada cambio que importa llama (con `pg_net`) a la función `portal` de Supabase, que decide a quién avisar y firma y cifra el aviso (Web Push con VAPID y aes128gcm, sin librerías):
 
 - **Al cliente**: anuncios y recursos nuevos, el reporte del día (un solo aviso que se actualiza: «Reporte de hoy: 4 tareas hechas»), lo que el estudio empieza a hacer, peticiones nuevas y revisadas, contenido para revisar o publicado, resultados del mes y las respuestas del estudio. Cada categoría se puede silenciar en el perfil.
-- **Al estudio**: lo que envía cada cliente, las peticiones que marca como enviadas, lo que aprueba o pide cambiar y sus comentarios.
-- **Recordatorios**: cada mañana a las 9:00 (Venezuela), `pg_cron` recuerda a cada cliente lo que vence hoy, mañana o ya venció.
+- **Al estudio**: lo que envía cada cliente, las peticiones que marca como enviadas, lo que aprueba, pide cambiar o rechaza, sus ideas, sus anuncios, recursos y leads, y sus comentarios. Los anuncios de un cliente también le llegan al resto de su equipo.
+- **Recordatorios**: cada mañana a las 9:00 (Venezuela), `pg_cron` recuerda a cada cliente lo que vence hoy, mañana o ya venció, y a quien aprueba, lo que lleva más de 20 horas esperando su respuesta. Los lunes, además, el resumen de la semana.
 
 La app pide el permiso tras entrar, con una hoja que explica para qué sirve (en el iPhone, primero pide instalarla: los avisos solo llegan a la app instalada, con iOS 16.4 o posterior). En el perfil se ve el estado y hay un botón «Probar».
 
@@ -322,7 +352,8 @@ La app pide el permiso tras entrar, con una hoja que explica para qué sirve (en
 
 Todo en **Supabase** (proyecto SchwarckDevWeb); Cloudflare solo sirve los archivos de la página. Así el portal no gasta la cuota gratuita de KV, y los archivos y vídeos van al almacén de Supabase (1 GB gratis).
 
-- `supabase/migrations/`: las tablas (portales, miembros, tablón, trabajo, contenido, recursos, peticiones, envíos, comentarios, rendimiento, leads y suscripciones a avisos), las reglas (RLS) y los avisos. El cliente solo ve sus portales; puede marcar peticiones como enviadas (no darlas por buenas), aprobar contenido, comentar, enviar archivos a su carpeta y editar su perfil y las columnas públicas de su negocio. El estudio (cuentas con `app_metadata.role = 'admin'`) lo puede todo.
+- `supabase/migrations/`: las tablas (portales, miembros, tablón, trabajo, notas del reporte de cada día, contenido, recursos, peticiones, envíos, comentarios, rendimiento, leads, plantillas y suscripciones a avisos), las reglas (RLS), los permisos y los avisos. El cliente solo ve sus portales y hace lo que le dejen sus permisos (marcar peticiones como enviadas, no darlas por buenas; aprobar, pedir cambios o rechazar contenido; comentar; enviar archivos a su carpeta; proponer ideas, anunciar, subir recursos o añadir leads si se le permite; editar su perfil y, si es el dueño, las columnas públicas de su negocio). El estudio (cuentas con `app_metadata.role = 'admin'`) lo puede todo. Las direcciones del conector de Claude viven en `private.portal_mcp_keys`, solo como huella.
+- `supabase/functions/portal-mcp/`: el conector de Claude para el calendario.
 - `supabase/functions/portal/`: la función de accesos y avisos. Las claves VAPID las crea ella misma la primera vez y las guarda en Vault, igual que el secreto con el que la base la llama: no hay ningún secreto en el código ni en Cloudflare.
 - `src/portal/config.js`: la dirección y la clave publicable del proyecto (son públicas).
 
@@ -341,10 +372,10 @@ Falta, una sola vez:
 ### Archivos
 
 - `cliente/index.html`, `src/cliente.js` y `src/cliente.css`: la app (rutas, barra de arriba, pestañas y estilos).
-- `src/portal/`: `data.js` (Supabase y la demostración), `state.js` (la cronología y lo pendiente), `kit.js` (piezas, hojas y controles), `feel.js` (vibración y sonido), `screens.js` (Inicio, Cronología, Recursos y Peticiones), `marketing.js`, `profile.js`, `threads.js` (conversaciones) y `studio.js` (todo lo del estudio).
+- `src/portal/`: `data.js` (Supabase y la demostración), `state.js` (la cronología, lo pendiente y los permisos de quien mira), `kit.js` (piezas, hojas y controles), `feel.js` (vibración y sonido), `screens.js` (Inicio, Cronología, Recursos y Peticiones), `marketing.js`, `profile.js`, `threads.js` (conversaciones), `studio.js` (todo lo del estudio), `importers.js` (el reporte de Nexus y el calendario de Claude) y `tab-icons.js` (los iconos de las pestañas).
 - `public/cliente/`: el manifiesto, el service worker (sin conexión y avisos) y los iconos.
-- `src/portal/brand.js`: la identidad de cada cliente (tipografías, esquinas, inicio, tema y colores), los roles y las secciones.
-- `src/negocio-portal.js` y `src/negocio-portal.css`: la administración desde Negocio (clientes, accesos e identidad).
+- `src/portal/brand.js`: la identidad de cada cliente (tipografías, esquinas, inicio, tema y colores), los roles y los permisos.
+- `src/negocio-portal.js` y `src/negocio-portal.css`: la administración desde Negocio (clientes, permisos, el conector de Claude, accesos e identidad).
 
 ## Cuando CeroFiao esté en Google Play
 
