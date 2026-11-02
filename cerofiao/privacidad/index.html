@@ -46,13 +46,13 @@
 
 <main class="doc">
   <h1>Política de privacidad de CeroFiao</h1>
-  <p class="when">Vigente desde el 12 de octubre de 2026.</p>
-  <p class="lead">CeroFiao es una app para llevar tus cuentas, gastos, deudas y metas en varias monedas. <strong>Tus datos se guardan en tu teléfono.</strong> La app no tiene cuentas de usuario ni servidores propios, no muestra anuncios y no mide lo que haces en ella.</p>
+  <p class="when">Vigente desde el 12 de octubre de 2026. Última actualización: 1 de noviembre de 2026 (versión 1.0).</p>
+  <p class="lead">CeroFiao es una app para llevar tus cuentas, gastos, deudas y metas en varias monedas. <strong>Tus datos se guardan en tu teléfono.</strong> La app no tiene cuentas de usuario, no muestra anuncios y no mide lo que haces en ella. Lo poco que puede salir de tu teléfono está explicado abajo, y casi todo depende de que tú lo uses.</p>
   <h2>Quién responde</h2>
   <p>Schwarck Developer. Para cualquier duda sobre esta política: <a href="mailto:soporte@schwarckdev.com">soporte@schwarckdev.com</a>.</p>
 
   <h2>Lo que guardas en la app</h2>
-  <p>Todo lo que escribes o capturas se queda en el almacenamiento privado de la app, dentro de tu teléfono: tus cuentas y saldos, tus movimientos, deudas, metas, presupuestos, suscripciones y compras; los nombres de las personas y los comercios que anotas; las fotos de recibos y facturas que adjuntas o escaneas, y lo que se lee de ellas; y tus ajustes.</p>
+  <p>Todo lo que escribes o capturas se queda en el almacenamiento privado de la app, dentro de tu teléfono: tus cuentas y saldos, tus movimientos, deudas, metas, presupuestos, suscripciones, compras y turnos de trabajo; los nombres, fotos y teléfonos de las personas y los comercios que anotas; las fotos de recibos y facturas que adjuntas o escaneas, y lo que se lee de ellas; tus conversaciones con el asistente; los cupones que guardas y lo que ahorraste con ellos; tus ajustes; y los respaldos automáticos, que son copias de todo lo anterior en el mismo teléfono (cifradas, si les pones contraseña).</p>
   <p>Nosotros no recibimos nada de eso. No podemos verlo, copiarlo ni recuperarlo por ti.</p>
 
   <h2>Los permisos que pide y para qué</h2>
@@ -60,28 +60,32 @@
   <div class="table">
   <table>
     <tr><th>Permiso</th><th>Para qué se usa</th></tr>
-    <tr><td>Cámara</td><td>Tomar la foto de un recibo y escanear una factura o un comprobante. El texto se lee <strong>dentro del teléfono</strong>: la foto y lo leído no se envían a ningún sitio.</td></tr>
+    <tr><td>Cámara</td><td>Tomar la foto de un recibo, escanear una factura o un comprobante y leer precios con la lente. El texto se lee <strong>dentro del teléfono</strong>: la foto y lo leído no se envían a ningún sitio.</td></tr>
+    <tr><td>Micrófono</td><td>Registrar por voz ("gasté veinte dólares en almuerzo"). Usa el reconocedor de voz que trabaja <strong>dentro del teléfono</strong>: el audio no se graba ni se envía.</td></tr>
     <tr><td>Ubicación (aproximada y precisa)</td><td>Solo si la activas o tocas "Usar dónde estoy": anota el lugar de un movimiento. La posición se consulta en ese momento; no se sigue tu recorrido ni se usa en segundo plano. El nombre del sitio lo resuelve el servicio de direcciones de tu teléfono.</td></tr>
-    <tr><td>Notificaciones</td><td>Recordatorios que tú configuras: vencimientos, presupuestos, tasas.</td></tr>
-    <tr><td>Internet</td><td>Traer las tasas de cambio del día y abrir el formulario de sugerencias.</td></tr>
+    <tr><td>Notificaciones</td><td>Los avisos que eliges: vencimientos y cuotas, presupuestos, cambios de tasa, el informe del mes, el fin de tu jornada y, con el carrito abierto, el total de tu compra. En la pantalla bloqueada su contenido se oculta. Cada tipo se apaga por separado en los ajustes del teléfono.</td></tr>
+    <tr><td>Internet</td><td>Traer las tasas de cambio del día, bajar el modelo de IA si lo pides, usar el modelo en línea si lo enciendes y abrir el formulario de sugerencias.</td></tr>
   </table>
   </div>
 
   <h2>Cuándo sale algo de tu teléfono</h2>
   <ul>
     <li><strong>Tasas de cambio.</strong> La app las pide a un servicio público (<code>ve.dolarapi.com</code>). Esa petición no lleva ningún dato tuyo; como en cualquier conexión, el servicio ve la dirección IP desde la que se hace.</li>
+    <li><strong>El modelo de IA en el teléfono.</strong> Si lo bajas, la app pide el archivo a Hugging Face (<code>huggingface.co</code>), sin ningún dato tuyo. Después, el asistente contesta dentro del teléfono y nada de lo que preguntas sale de él.</li>
+    <li><strong>El modelo en línea (apagado de fábrica).</strong> Solo si lo enciendes en Ajustes › Escáner y voz: lo que le pides (una pregunta, el texto leído de una factura, una frase o el concepto de un movimiento) y lo que la app le pasa para contestar (cifras, nombres de cuentas, categorías y personas, notas de movimientos) va cifrado a nuestro servicio en Cloudflare, que se lo da a Cloudflare Workers AI y no guarda nada. Nunca salen fotos ni tu base de datos. Lo apagas en el mismo sitio.</li>
     <li><strong>Sugerencias.</strong> Si abres "Sugerencias" y envías el formulario, lo que escribas ahí llega a nosotros a través de Tally (<code>tally.so</code>). Es opcional y solo ocurre si tú lo envías.</li>
-    <li><strong>Lo que tú compartes.</strong> Un recibo, una imagen, un archivo CSV o un respaldo salen de la app únicamente cuando tú eliges compartirlos o guardarlos, y van a donde tú decidas.</li>
-    <li><strong>La copia de seguridad de Android.</strong> Si tienes activada la copia de tu teléfono en tu cuenta de Google, Android guarda ahí los datos de la app (no las fotos) para devolvértelos al cambiar de teléfono. Esa copia la gestionan tu teléfono y Google, no nosotros, y puedes apagarla en los ajustes del sistema.</li>
+    <li><strong>Reportar una respuesta del asistente.</strong> Abre tu app de correo con la pregunta y la respuesta escritas; solo sale si tú envías ese correo.</li>
+    <li><strong>Lo que tú compartes.</strong> Un recibo, una imagen, un mensaje de cobro por WhatsApp, un archivo CSV, un informe PDF o un respaldo salen de la app únicamente cuando tú eliges compartirlos o guardarlos, y van a donde tú decidas.</li>
+    <li><strong>La copia de seguridad de Android.</strong> Si tienes activada la copia de tu teléfono en tu cuenta de Google, Android guarda ahí los datos de la app (no las fotos ni los respaldos de la app) para devolvértelos al cambiar de teléfono. Esa copia la gestionan tu teléfono y Google, no nosotros, y puedes apagarla en los ajustes del sistema.</li>
   </ul>
   <p>No vendemos datos, no los compartimos con anunciantes y no usamos herramientas de analítica ni de seguimiento.</p>
 
   <h2>Cuánto se conservan y cómo borrarlos</h2>
-  <p>Los datos están en tu teléfono mientras tú quieras. Para borrarlos: <strong>Ajustes › Datos › Borrar todos los datos</strong>, o desinstala la app. Como no guardamos nada en servidores, no hay nada más que eliminar por nuestra parte.</p>
+  <p>Los datos están en tu teléfono mientras tú quieras. Para borrarlos: <strong>Ajustes › Datos › Borrar todos los datos</strong> (borra también las fotos), o desinstala la app. Los respaldos automáticos se borran en Ajustes › Respaldos. Como no guardamos nada en servidores, no hay nada más que eliminar por nuestra parte; el modelo en línea no conserva lo que se le pide.</p>
   <p>Lo que hayas enviado por el formulario de sugerencias puedes pedir que se borre escribiendo al correo de contacto.</p>
 
   <h2>Menores de edad</h2>
-  <p>CeroFiao es una herramienta de finanzas personales para adultos. No está dirigida a menores de 13 años.</p>
+  <p>CeroFiao es una herramienta de finanzas personales para adultos. No está dirigida a menores de 18 años.</p>
 
   <h2>Este sitio web</h2>
   <p>Lo anterior habla de la app. Esta página web, <code>schwarckdev.com</code>, es otra cosa y recoge lo mínimo:</p>
