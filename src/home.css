@@ -431,7 +431,9 @@ html.motion .contact:not(.in) .contact-mark path { stroke-dashoffset: 1; fill-op
 /* ══ [07] Quién está detrás: la persona, su papel y cómo contactarla ══ */
 .founder { display: grid; grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr); gap: clamp(28px, 5vw, 64px); align-items: center; padding: clamp(14px, 2vw, 22px); border: 1px solid var(--line); border-radius: 36px; background: var(--surface); }
 .founder-photo { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 5; overflow: hidden; border-radius: 26px; background: radial-gradient(90% 70% at 25% 15%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%), repeating-linear-gradient(-45deg, transparent 0 10px, var(--grid) 10px 11px), var(--surface-2); }
-.founder-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; transition: scale 0.9s var(--ease); }
+.founder-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; transition: scale 0.9s var(--ease), opacity 0.6s var(--ease); }
+/* Con JavaScript la foto aparece al cargar; si todavía no hay foto, se quita y quedan las iniciales. */
+html.motion .founder-photo:not(.has-photo) img { opacity: 0; }
 .founder:hover .founder-photo img { scale: 1.03; }
 .founder-initials { font-size: clamp(110px, 15vw, 200px); font-weight: 600; line-height: 1; letter-spacing: -0.08em; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; transition: scale 0.9s var(--ease); }
 .founder:hover .founder-initials { scale: 1.05; }
@@ -444,6 +446,7 @@ html.motion .contact:not(.in) .contact-mark path { stroke-dashoffset: 1; fill-op
 .founder-data > div { min-width: 0; padding: 15px 0; border-bottom: 1px solid var(--line); }
 .founder-data .wide { grid-column: 1 / -1; }
 .founder-data dt { color: var(--dim); }
+.founder-data address { font-style: normal; }
 .founder-data dd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 3px; overflow-wrap: anywhere; }
 .founder-data dd > a:not(.founder-wa) { color: var(--ink); text-decoration: none; background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat; transition: background-size 0.35s var(--ease), color 0.2s; }
 .founder-data dd > a:not(.founder-wa):hover { color: var(--accent-ink); background-size: 100% 1px; }

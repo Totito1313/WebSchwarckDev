@@ -38,6 +38,7 @@
   opacity: 0.55;
   transition: opacity 0.4s;
 }
+.hub-card.is-wide { grid-column: 1 / -1; min-height: 0; }
 .hub-card.is-main { background: var(--cf-grad-logo); color: #fff; box-shadow: var(--cf-shadow-lift); }
 .hub-card.is-main::before { background: radial-gradient(420px circle at var(--mx, 80%) var(--my, 0%), rgba(255, 255, 255, 0.28), transparent 60%); }
 .hub-card h2 { margin-top: auto; font-size: 26px; font-weight: 800; letter-spacing: -0.025em; }

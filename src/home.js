@@ -217,6 +217,18 @@ for (const btn of document.querySelectorAll('[data-copy]')) {
   });
 }
 
+// Foto del titular: la sube el panel (/admin/perfil/). Si todavía no hay, quedan las iniciales.
+const photo = document.querySelector('[data-founder-photo]');
+if (photo) {
+  const shown = () => photo.closest('.founder-photo').classList.add('has-photo');
+  const missing = () => photo.remove();
+  if (photo.complete) (photo.naturalWidth ? shown : missing)();
+  else {
+    photo.addEventListener('load', shown, { once: true });
+    photo.addEventListener('error', missing, { once: true });
+  }
+}
+
 // Preguntas: sin JS están todas abiertas; aquí se pliegan y cada una abre con su botón.
 const questions = [...document.querySelectorAll('.faq-item')];
 if (questions.length) {

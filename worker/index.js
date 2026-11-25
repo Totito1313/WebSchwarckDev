@@ -17,6 +17,7 @@
 //   crm:file:<id>        un archivo subido (recibo, imagen de una línea o de una tarea…)
 //   crm:seq              el último número usado por serie (FAC-2026…): nunca baja
 //   portal:ticket:<t>    pase de un solo uso (2 min) para crear la cuenta del estudio del portal
+//   site:photo           la foto del titular en la portada (/#fundador); tipo y fecha en metadatos
 //   crm:<colección>      clientes, catálogo, formas de cobro, documentos, proyectos,
 //                        tareas, horas, páginas, leads, campañas…, cada colección en una sola clave
 //                        (ver CRM más abajo)
@@ -77,6 +78,7 @@ async function route(request, env, url) {
   if (pathname === '/api/download' && method === 'GET') {
     return json(await readDownload(env), 200, { 'cache-control': 'public, max-age=60' });
   }
+  if (pathname === '/api/perfil/foto' && (method === 'GET' || method === 'HEAD')) return publicPhoto(request, env);
   if (pathname === '/api/reviews' && method === 'GET') return publicReviews(env);
   if (pathname === '/api/reviews' && method === 'POST') return submitReview(request, env, url);
   if (pathname.startsWith('/api/public/doc/')) return publicDoc(request, env, url);
@@ -262,6 +264,53 @@ function validateDownload(body) {
   if (out.mode === 'play' && !out.playUrl) throw new HttpError(400, 'Para «En Google Play» falta el enlace de la ficha.');
   if (out.mode === 'test' && !out.testUrl) throw new HttpError(400, 'Para «Prueba abierta» falta el enlace para unirse.');
   return out;
+}
+
+// ── Perfil público: la foto del titular ──
+//
+// La portada la pide siempre a /api/perfil/foto (así sale en el HTML aunque no haya
+// JavaScript). El panel (/admin/perfil/) la sube ya reducida; aquí solo se acepta si
+// sus primeros bytes son de una imagen JPG, PNG o WebP, y se sirve con ese tipo.
+
+const PHOTO_KEY = 'site:photo';
+const PHOTO_BYTES = 2_000_000;
+
+/** El tipo real de la imagen, por su firma: no vale lo que diga la petición. */
+function imageType(bytes) {
+  const ascii = (from, to) => String.fromCharCode(...bytes.subarray(from, to));
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  if (ascii(0, 8) === '\x89PNG\r\n\x1a\n') return 'image/png';
+  if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return 'image/webp';
+  return '';
+}
+
+async function photoMeta(env) {
+  const { keys } = await env.SITE.list({ prefix: PHOTO_KEY, limit: 1 });
+  return keys[0]?.name === PHOTO_KEY ? keys[0].metadata || null : null;
+}
+
+async function publicPhoto(request, env) {
+  const none = () => json({ error: 'Todavía no hay foto.' }, 404, { 'cache-control': 'public, max-age=60' });
+  if (!env.SITE) return none();
+  const { value, metadata } = await env.SITE.getWithMetadata(PHOTO_KEY, 'arrayBuffer');
+  if (!value || !metadata?.type) return none();
+  const etag = `"${metadata.updatedAt || metadata.size}"`;
+  const headers = { 'content-type': metadata.type, 'cache-control': 'public, max-age=300, stale-while-revalidate=86400', etag, 'x-content-type-options': 'nosniff' };
+  if (request.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers });
+  return new Response(request.method === 'HEAD' ? null : value, { headers });
+}
+
+async function savePhoto(request, env) {
+  const declared = Number(request.headers.get('content-length'));
+  if (!Number.isFinite(declared) || declared <= 0) throw new HttpError(411, 'Falta el tamaño de la foto.');
+  if (declared > PHOTO_BYTES) throw new HttpError(413, 'La foto pasa de 2 MB.');
+  const body = await request.arrayBuffer();
+  if (body.byteLength > PHOTO_BYTES) throw new HttpError(413, 'La foto pasa de 2 MB.');
+  const type = imageType(new Uint8Array(body, 0, Math.min(body.byteLength, 16)));
+  if (!type) throw new HttpError(415, 'Solo fotos JPG, PNG o WebP.');
+  const metadata = { type, size: body.byteLength, updatedAt: new Date().toISOString() };
+  await env.SITE.put(PHOTO_KEY, body, { metadata });
+  return metadata;
 }
 
 // ── Reseñas ──
@@ -802,6 +851,13 @@ async function admin(request, env, url) {
     const download = validateDownload(await readJson(request, 4000));
     await env.SITE.put(DOWNLOAD_KEY, JSON.stringify(download));
     return json(download);
+  }
+
+  if (path === '/perfil' && method === 'GET') return json({ photo: await photoMeta(env) });
+  if (path === '/perfil/foto' && method === 'PUT') return json({ photo: await savePhoto(request, env) });
+  if (path === '/perfil/foto' && method === 'DELETE') {
+    await env.SITE.delete(PHOTO_KEY);
+    return json({ photo: null });
   }
 
   // Pase de un solo uso para el portal de clientes: prueba ante la función de Supabase
