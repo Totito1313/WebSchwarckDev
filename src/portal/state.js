@@ -96,6 +96,58 @@ export const LEAD_STAGE = {
 };
 export const LEAD_SOURCE = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', whatsapp: 'WhatsApp', web: 'Web', google: 'Google', referido: 'Referido', otro: 'Otro' };
 
+// ── Lo de la v5: proyecto, documentos, reuniones y valoraciones ──
+
+/** Si la base ya tiene esa tabla (la migración v5 puede no estar aplicada). */
+export const has = (table) => Boolean(app.data?.features?.[table]);
+export const DOC_TYPE = { invoice: ['Factura', 'file', 'var(--cf-blue)'], quote: ['Cotización', 'doc', 'var(--cf-purple)'], proposal: ['Propuesta', 'send', 'var(--cf-primary)'], receipt: ['Recibo', 'checkCircle', 'var(--cf-income)'] };
+export const DOC_STATUS = {
+  open: ['Por pagar', 'var(--cf-orange)'],
+  partial: ['Pago parcial', 'var(--cf-blue)'],
+  paid: ['Pagada', 'var(--cf-income)'],
+  viewed: ['Por responder', 'var(--cf-orange)'],
+  accepted: ['Firmada', 'var(--cf-income)'],
+  declined: ['Rechazada', 'var(--cf-expense)'],
+  expired: ['Vencida', 'var(--cf-fg-faint)'],
+  void: ['Anulada', 'var(--cf-fg-faint)'],
+};
+/** El estado de un documento en palabras: una cotización «abierta» está por responder, no por pagar. */
+export function docState(d) {
+  if (d.type === 'receipt') return ['Recibido', 'var(--cf-income)'];
+  if (d.type !== 'invoice' && (d.status === 'open' || d.status === 'viewed')) return ['Por responder', 'var(--cf-orange)'];
+  if (d.type === 'invoice' && d.status === 'viewed') return DOC_STATUS.open;
+  if (d.type === 'invoice' && ['open', 'partial'].includes(d.status) && d.due_date && d.due_date < todayKey()) return ['Vencida', 'var(--cf-expense)'];
+  return DOC_STATUS[d.status] || DOC_STATUS.open;
+}
+/** Lo que espera algo del cliente: facturas por pagar y propuestas o cotizaciones por responder. */
+export const docWaiting = (d) => (d.type === 'invoice' ? ['open', 'partial', 'viewed'].includes(d.status) : ['quote', 'proposal'].includes(d.type) && ['open', 'viewed'].includes(d.status));
+export const pendingDocs = () => (has('documents') && can('docs.view') ? app.data.documents.filter(docWaiting) : []);
+export const MEETING_MODE = { video: ['Videollamada', 'play'], call: ['Llamada', 'call'], in_person: ['En persona', 'pin'] };
+export const MEETING_STATUS = {
+  requested: ['Pedida', 'var(--cf-orange)'],
+  confirmed: ['Confirmada', 'var(--cf-income)'],
+  declined: ['Sin hora', 'var(--cf-expense)'],
+  cancelled: ['Cancelada', 'var(--cf-fg-faint)'],
+  done: ['Hecha', 'var(--cf-purple)'],
+};
+/** La próxima reunión confirmada (o la que está en curso: hasta que acabe). */
+export function nextMeeting() {
+  if (!has('meetings')) return null;
+  const now = Date.now();
+  return app.data.meetings
+    .filter((m) => m.status === 'confirmed' && m.starts_at && new Date(m.starts_at).getTime() + (m.duration || 30) * 60_000 > now)
+    .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at))[0] || null;
+}
+export const requestedMeetings = () => (has('meetings') ? app.data.meetings.filter((m) => m.status === 'requested') : []);
+/** El proyecto que se enseña: el que está en curso y, si no, el último que cambió. */
+export function currentProject() {
+  if (!has('projects') || !can('project.view')) return null;
+  const list = app.data.projects.filter((p) => !p.hidden);
+  return list.find((p) => p.status === 'active') || list.find((p) => p.status !== 'completed') || list[0] || null;
+}
+/** El primer día del mes de una fecha (o de hoy), como en portal_ratings.month. */
+export const monthKey = (key = todayKey()) => `${key.slice(0, 7)}-01`;
+
 // ── Archivos: direcciones firmadas (una hora), guardadas aquí ──
 
 export const isPath = (v) => v && !safeUrl(v);
@@ -177,6 +229,28 @@ export function feed() {
     if (c.from_studio === studio) continue;
     out.push({ id: `cm${c.id}`, at: c.created_at, group: studio ? 'tuyo' : 'avances', label: `${c.from_studio ? 'Schwarck' : c.author || 'El cliente'} comentó`, ico: 'chat', color: 'var(--cf-primary)', title: targetTitle(c.target, c.target_id), body: c.body, go: `#/hilo/${c.target}/${c.target_id}`, mine: false });
   }
+  if (has('documents') && see('docs.view')) {
+    for (const doc of d.documents) {
+      const [word, ico, color] = DOC_TYPE[doc.type] || DOC_TYPE.invoice;
+      const name = `${word}${doc.number ? ` ${doc.number}` : ''}`;
+      out.push({ id: `dn${doc.id}`, at: doc.created_at, group: 'avances', label: doc.type === 'receipt' ? 'Recibo de pago' : `${word} nueva`, ico, color, title: doc.title || name, body: doc.title ? name : null, go: '#/documentos', mine: studio });
+      if (doc.updated_at && doc.updated_at !== doc.created_at && doc.type !== 'receipt') {
+        if (doc.status === 'paid') out.push({ id: `dp${doc.id}`, at: doc.updated_at, group: 'avances', label: studio ? 'Cobrada' : 'Pago recibido', ico: 'checkCircle', color: 'var(--cf-income)', title: name, go: '#/documentos', mine: studio });
+        if (doc.status === 'accepted' || doc.status === 'declined') out.push({ id: `dv${doc.id}`, at: doc.updated_at, group: 'tuyo', label: studio ? `El cliente ${doc.status === 'accepted' ? 'firmó' : 'rechazó'}` : doc.status === 'accepted' ? 'Firmaste' : 'Rechazaste', ico: doc.status === 'accepted' ? 'edit' : 'x', color: doc.status === 'accepted' ? 'var(--cf-income)' : 'var(--cf-expense)', title: name, go: '#/documentos', mine: !studio });
+      }
+    }
+  }
+  if (has('meetings')) {
+    for (const m of d.meetings) {
+      const fromClient = m.origin === 'client';
+      if (fromClient) out.push({ id: `mq${m.id}`, at: m.created_at, group: 'tuyo', label: studio ? `${m.author || 'El cliente'} pide una reunión` : isMine(m) ? 'Pediste una reunión' : `${m.author || 'Tu equipo'} pidió una reunión`, ico: 'calendar', color: studio ? 'var(--cf-orange)' : 'var(--cf-fg-muted)', title: m.topic, go: '#/reuniones', mine: !studio });
+      if (m.status === 'confirmed' && m.starts_at) out.push({ id: `mc${m.id}`, at: fromClient ? m.updated_at || m.created_at : m.created_at, group: 'avances', label: 'Reunión confirmada', ico: 'calendar', color: 'var(--cf-income)', title: m.topic, body: cap(fDay.format(new Date(m.starts_at))), go: '#/reuniones', mine: studio });
+      if (m.status === 'declined') out.push({ id: `md${m.id}`, at: m.updated_at || m.created_at, group: 'avances', label: 'Buscamos otra hora', ico: 'clock', color: 'var(--cf-expense)', title: m.topic, body: m.studio_note, go: '#/reuniones', mine: studio });
+    }
+  }
+  if (has('ratings') && studio) {
+    for (const r of d.ratings) out.push({ id: `rt${r.client_id}${r.month}${r.user_id}`, at: r.updated_at || r.created_at, group: 'tuyo', label: `${r.author || 'El cliente'} valoró ${fMonth.format(dayDate(r.month))}`, ico: 'heart', color: r.score >= 4 ? 'var(--cf-income)' : r.score === 3 ? 'var(--cf-orange)' : 'var(--cf-expense)', title: `${'★'.repeat(r.score)}${'☆'.repeat(5 - r.score)}`, body: r.comment, go: '#/', mine: false });
+  }
   const soon = Date.now() + 60_000;
   return out.filter((x) => x.at && new Date(x.at) <= soon).sort((a, b) => new Date(b.at) - new Date(a.at));
 }
@@ -207,6 +281,7 @@ export function attention() {
     ...d.content.filter((c) => c.client_verdict === 'rejected' && !['scheduled', 'published'].includes(c.status)).map((c) => ({ id: `x${c.id}`, kind: 'rejected', at: c.client_verdict_at, row: c })),
     ...d.content.filter((c) => c.origin === 'client' && c.status === 'idea').map((c) => ({ id: `i${c.id}`, kind: 'idea', at: c.created_at, row: c })),
     ...d.comments.filter((c) => !c.from_studio && (!lastStudio.get(c.target_id) || lastStudio.get(c.target_id) < c.created_at)).map((c) => ({ id: `m${c.id}`, kind: 'comment', at: c.created_at, row: c })),
+    ...requestedMeetings().map((m) => ({ id: `q${m.id}`, kind: 'meeting', at: m.created_at, row: m })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at));
 }
 

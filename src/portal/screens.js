@@ -14,10 +14,18 @@ import { thread, commentCount, openThread } from './threads.js';
 import * as studio from './studio.js';
 import { contentRow } from './marketing.js';
 import { notificationsCard, installCard } from './profile.js';
+import { meetingCard, requestMeeting, canRequest } from './meetings.js';
+import { projectCard } from './project.js';
+import { docsCard, canSeeDocs } from './documents.js';
+import { ratingCard, ratingSummary } from './rating.js';
+import { reportCard as monthReportCard, reportLink } from './report.js';
 
 const stat = (value, label, href, tone, fmt) => el('a', { class: 'cl-stat', href, style: tone ? { '--c': tone } : null }, countUp(el('b'), value, fmt), el('span', { text: label }));
 
 // ── Inicio ──
+
+/** Por fecha y hora: lo de hoy a las 9 antes que lo de mañana. */
+const byWhen = (a, b) => `${a.date}${a.time || ''}`.localeCompare(`${b.date}${b.time || ''}`);
 
 export function homePage() {
   return isStudio() ? studioHome() : clientHome();
@@ -28,10 +36,10 @@ function clientHome() {
   const hour = new Date().getHours();
   const greet = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
   const pending = pendingTasks();
-  const review = toReview();
+  const review = toReview().sort(byWhen);
   const week = visibleContent().filter((c) => c.date >= todayKey() && c.date < addDays(todayKey(), 7)).length;
   const board = app.data.posts.filter((p) => p.kind === 'announcement' || p.pinned).sort((a, b) => Number(b.pinned) - Number(a.pinned) || new Date(b.occurred_at) - new Date(a.occurred_at)).slice(0, 3);
-  const soon = visibleContent().filter((c) => c.date >= todayKey() && c.status !== 'published').slice(0, 4);
+  const soon = visibleContent().filter((c) => c.date >= todayKey() && c.status !== 'published').sort(byWhen).slice(0, 4);
   const canPost = can('posts.create');
   const latest = feed().filter((x) => x.group !== 'anuncios').slice(0, 5);
 
@@ -46,9 +54,12 @@ function clientHome() {
         can('calendario') && stat(week, week === 1 ? 'publicación esta semana' : 'publicaciones esta semana', '#/marketing'),
       ),
     ),
-    notificationsCard(),
-    installCard(),
+    notificationsCard() || installCard(),
+    ratingCard(),
+    meetingCard(),
     can('reporte') && todayCard(),
+    projectCard(),
+    docsCard(),
     (board.length > 0 || canPost) && el('section', { class: 'cl-sec' },
       sectionHead('Tablón', canPost ? el('button', { type: 'button', class: 'cl-more', onclick: announceSheet }, 'Publicar', icon('plus')) : more('Todo', '#/cronologia?anuncios')),
       board.length ? el('div', { class: 'cl-list' }, board.map(postCard)) : el('p', { class: 'cl-none', text: 'Comparte un aviso con tu equipo y con el estudio.' }),
@@ -62,6 +73,7 @@ function clientHome() {
       el('div', { class: 'cl-list' }, pending.slice(0, 3).map((t) => taskCard(t, { compact: true }))),
     ),
     can('rendimiento') && resultsTeaser(),
+    monthReportCard(),
     soon.length && el('section', { class: 'cl-sec' },
       sectionHead('Próximo en el calendario', more('Ver mes', '#/marketing')),
       el('div', { class: 'cl-list' }, soon.map((c) => contentRow(c))),
@@ -129,7 +141,7 @@ function studioHome() {
   const node = el('div', { class: 'cl-stack' },
     el('button', { type: 'button', class: `cl-card cl-attention${att.length ? ' is-hot' : ''}`, onclick: studio.inboxSheet },
       el('span', { class: 'cl-attention-ico' }, icon(att.length ? 'inbox' : 'checkCircle')),
-      el('span', { class: 'cl-set-main' }, el('b', { text: att.length ? `${plural(att.length, 'cosa', 'cosas')} para revisar` : 'Todo revisado' }), el('small', { text: att.length ? att.slice(0, 2).map((a) => a.kind === 'submission' ? `${a.row.author || 'El cliente'} envió algo` : a.kind === 'task' ? `Petición enviada: ${a.row.title}` : a.kind === 'changes' ? `Pide cambios: ${a.row.title}` : a.kind === 'rejected' ? `Rechazó: ${a.row.title}` : a.kind === 'idea' ? `Propone: ${a.row.title}` : `Comentario: ${a.row.body}`).join(' · ') : `Nada pendiente de ${app.client.name}.` })),
+      el('span', { class: 'cl-set-main' }, el('b', { text: att.length ? `${plural(att.length, 'cosa', 'cosas')} para revisar` : 'Todo revisado' }), el('small', { text: att.length ? att.slice(0, 2).map((a) => a.kind === 'submission' ? `${a.row.author || 'El cliente'} envió algo` : a.kind === 'task' ? `Petición enviada: ${a.row.title}` : a.kind === 'changes' ? `Pide cambios: ${a.row.title}` : a.kind === 'rejected' ? `Rechazó: ${a.row.title}` : a.kind === 'idea' ? `Propone: ${a.row.title}` : a.kind === 'meeting' ? `Pide reunión: ${a.row.topic}` : `Comentario: ${a.row.body}`).join(' · ') : `Nada pendiente de ${app.client.name}.` })),
       att.length ? el('i', { class: 'cl-badge', text: String(att.length) }) : null,
       icon('right', 'cl-set-chev'),
     ),
@@ -138,6 +150,8 @@ function studioHome() {
       el('span', { class: 'cl-set-main' }, el('b', { text: 'Hoy en todos tus clientes' }), el('small', { text: `${app.portals.length} portales: lo que sale hoy, lo que te respondieron y lo que espera` })),
       icon('right', 'cl-set-chev'),
     ),
+    meetingCard(),
+    ratingSummary(),
     el('section', { class: 'cl-sec' },
       sectionHead('Crear', null, 'Le llega al cliente al momento'),
       el('div', { class: 'cl-quick' }, quick.map(([label, ico, tone, run], i) => el('button', { type: 'button', class: 'cl-quick-tile', style: { '--c': tone, '--i': i }, onclick: run }, el('span', { class: 'cl-quick-ico' }, icon(ico)), el('span', { text: label })))),
@@ -152,7 +166,15 @@ function studioHome() {
       stat(week, 'publicaciones esta semana', '#/marketing'),
       stat(leadsMonth, 'leads este mes', '#/marketing/leads', 'var(--cf-purple)'),
     ),
-    notificationsCard(),
+    projectCard(),
+    docsCard(),
+    el('div', { class: 'cl-link-row' },
+      el('a', { class: 'cl-fchip', href: '#/proyecto' }, icon('folder'), 'Proyecto'),
+      el('a', { class: 'cl-fchip', href: '#/documentos' }, icon('file'), 'Documentos'),
+      el('a', { class: 'cl-fchip', href: '#/reuniones' }, icon('calendar'), 'Reuniones'),
+      el('a', { class: 'cl-fchip', href: '#/informe' }, icon('chart'), 'Informe del mes'),
+    ),
+    notificationsCard() || installCard(),
   );
   return { node, title: app.client.name, large: app.client.name, sub: `Estudio · ${app.client.industry || 'Portal del cliente'}` };
 }
@@ -319,10 +341,21 @@ export function timelinePage(filter = 'todo') {
     draw();
   }, { scroll: true, label: 'Filtrar' });
   draw();
-  return { node: el('div', { class: 'cl-stack' }, filters, list), title: 'Cronología', large: 'Cronología', sub: isStudio() ? 'Lo que ve el cliente, día a día' : 'Todo lo que hicimos por tu marca, día a día' };
+  return { node: el('div', { class: 'cl-stack' }, el('div', { class: 'cl-tl-tools' }, filters, reportLink('Informe')), list), title: 'Cronología', large: 'Cronología', sub: isStudio() ? 'Lo que ve el cliente, día a día' : 'Todo lo que hicimos por tu marca, día a día' };
 }
 
 // ── Recursos ──
+
+/** La entrada a Facturas y documentos, arriba de Recursos. */
+function docsEntry() {
+  const waiting = app.data.documents.filter((d) => (d.type === 'invoice' ? ['open', 'partial', 'viewed'].includes(d.status) : ['quote', 'proposal'].includes(d.type) && ['open', 'viewed'].includes(d.status))).length;
+  return el('a', { class: 'cl-card cl-row-set cl-docs-entry', href: '#/documentos' },
+    el('span', { class: 'cl-set-ico', style: { '--c': 'var(--cf-blue)' } }, icon('file')),
+    el('span', { class: 'cl-set-main' }, el('b', { text: 'Facturas y documentos' }), el('small', { text: waiting ? `${waiting} ${waiting === 1 ? 'espera' : 'esperan'} algo de ${isStudio() ? 'el cliente' : 'ti'}` : `${app.data.documents.length} en total` })),
+    waiting ? el('i', { class: 'cl-badge', text: String(waiting) }) : null,
+    icon('right', 'cl-set-chev'),
+  );
+}
 
 export function resourcesPage() {
   let q = '';
@@ -338,7 +371,8 @@ export function resourcesPage() {
   if (cats.length) fill(catsBox, chips([['todo', 'Todo'], ...cats.map((c) => [c, c])], cat, (v) => { cat = v; draw(); }, { scroll: true }));
   const search = el('input', { type: 'search', class: 'cl-input', placeholder: 'Buscar recursos', 'aria-label': 'Buscar recursos', oninput: (e) => { q = e.target.value.trim().toLowerCase(); draw(); } });
   draw();
-  return { node: el('div', { class: 'cl-stack' }, el('label', { class: 'cl-search' }, icon('search'), search), upload, catsBox, grid), title: 'Recursos', large: 'Recursos', sub: 'Archivos, guías y enlaces de tu proyecto' };
+  const docs = canSeeDocs() && (isStudio() || app.data.documents.length > 0) && docsEntry();
+  return { node: el('div', { class: 'cl-stack' }, docs, el('label', { class: 'cl-search' }, icon('search'), search), upload, catsBox, grid), title: 'Recursos', large: 'Recursos', sub: 'Archivos, guías y enlaces de tu proyecto' };
 }
 
 /** El cliente comparte un archivo o un enlace en Recursos (en su carpeta). */
@@ -587,6 +621,11 @@ export function sendSheet({ task = null } = {}) {
   const submit = el('button', { type: 'button', class: 'cl-btn' }, icon('send'), 'Enviar');
   const ui = sheet(task ? 'Enviar para esta petición' : 'Enviar a Schwarck', el('div', { class: 'cl-stack is-tight' },
     task && el('p', { class: 'cl-form-hint' }, icon('inbox'), task.title),
+    !task && canRequest() && el('button', { type: 'button', class: 'cl-card cl-row-set cl-meet-ask', onclick: () => { ui.close(); setTimeout(requestMeeting, 280); } },
+      el('span', { class: 'cl-set-ico', style: { '--c': '#22c9a6' } }, icon('calendar')),
+      el('span', { class: 'cl-set-main' }, el('b', { text: '¿Mejor hablarlo?' }), el('small', { text: 'Pide una reunión con los horarios que te vienen bien' })),
+      icon('right', 'cl-set-chev'),
+    ),
     seg([['message', 'Mensaje'], ['link', 'Enlace'], ['file', 'Archivo']], mode, (v) => { mode = v; draw(); }, { label: 'Qué envías' }),
     fields,
   ), { actions: [submit] });

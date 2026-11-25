@@ -50,6 +50,8 @@ export const PERMS = [
     ['leads.view', 'Leads', 'Clientes potenciales y su embudo'],
     ['resources.view', 'Recursos', 'Guías, archivos y enlaces'],
     ['tasks.view', 'Peticiones', 'Lo que el estudio le pide'],
+    ['project.view', 'Proyecto', 'Etapas, avance y próximas entregas'],
+    ['docs.view', 'Facturas y documentos', 'Lo que tiene por pagar o por firmar'],
   ]],
   ['Decide sobre el contenido', [
     ['content.approve', 'Aprobar o pedir cambios', 'En lo que está para revisar'],
@@ -64,6 +66,8 @@ export const PERMS = [
     ['leads.edit', 'Mover leads', 'Cambiar su etapa y sus datos'],
     ['send', 'Enviar mensajes y archivos', 'El botón «Enviar»'],
     ['comment', 'Comentar', 'En publicaciones, peticiones y anuncios'],
+    ['meetings.request', 'Pedir reuniones', 'Proponer día y hora'],
+    ['rating.send', 'Valorar el mes', 'Una nota del 1 al 5 cada mes'],
   ]],
   ['Su negocio', [
     ['business.edit', 'Editar los datos del negocio', 'Sector, web, redes, horario…'],
@@ -77,7 +81,7 @@ const PERM_SECTION = Object.fromEntries(Object.entries(SECTION_PERM).map(([s, k]
 /** Lo que trae cada rol: solo lectura ve; equipo, todo menos editar el negocio; dueño, todo. */
 export const roleAllows = (role, k) => (role === 'owner' ? true : role === 'member' ? k !== 'business.edit' : k.endsWith('.view'));
 /** Lo que un portal permite si nadie lo cambió: ver, decidir y entregar, sí; crear, no. */
-export const permDefault = (k) => k.endsWith('.view') || ['content.approve', 'content.reject', 'comment', 'tasks.submit', 'send', 'business.edit'].includes(k);
+export const permDefault = (k) => k.endsWith('.view') || ['content.approve', 'content.reject', 'comment', 'tasks.submit', 'send', 'business.edit', 'meetings.request', 'rating.send'].includes(k);
 /** Si el portal lo permite (sin mirar a nadie en concreto). */
 export const portalAllows = (portal, k) => !(portal?.hidden || []).includes(PERM_SECTION[k]) && (portal?.perms?.[k] ?? permDefault(k));
 /** Si una persona puede hacerlo: su excepción o, si no tiene, su rol dentro de lo que el portal permite. */

@@ -209,6 +209,7 @@ En «Leads» (`#/leads`) se lleva a quien todavía no es cliente: de dónde lleg
 - **Aperturas**: cada vez que el cliente abre el enlace queda anotado (como mucho una vez cada media hora). La cotización o la propuesta pasa a «Vista» y el inicio lo cuenta.
 - **Firma**: en cotizaciones y propuestas, el cliente acepta escribiendo su nombre o dibujando su firma, y queda la fecha y la hora. También puede rechazar con un motivo. Lo firmado se bloquea: el servidor no deja cambiar su contenido, solo su estado y a qué factura o proyecto llevó.
 - **Después de firmar**: «Convertir en factura» copia las líneas a una factura nueva, y «Factura y proyecto» además crea el proyecto con su presupuesto.
+- **En su portal**: si el cliente tiene portal (y la cuenta del estudio está conectada), «Enlace» › «Publicar en su portal» la pone en su app (Facturas y documentos) con un aviso; su estado se mantiene al día solo y «Quitar de su portal» la retira. Si aún no tenía enlace, se crea uno sin contraseña ni caducidad.
 
 El panel se entera de aperturas y firmas al volver a su pestaña. Abrir el enlace con «Abrir» desde el panel no cuenta como visita del cliente.
 
@@ -276,6 +277,12 @@ En un espacio KV de Cloudflare enlazado como `SITE` (salvo el portal de clientes
 - **Peticiones**: lo que le pedimos (con prioridad, fecha y qué se espera). La marca como enviada o manda lo pedido desde ahí; cada petición tiene su conversación.
 - **Enviar** (el botón flotante): mensajes, enlaces, archivos y vídeos de hasta 50 MB.
 - **Perfil**: su foto, nombre, cargo y teléfono; los datos de su negocio (sector, descripción, web, redes, teléfono, correo, dirección y horario); qué avisos quiere recibir; vibración, sonidos y tema; instalar la app, cambiar la contraseña y salir.
+- **Proyecto** (`#/proyecto`, y su tarjeta en Inicio): el proyecto de Negocio tal como avanza: etapas, porcentaje de tareas hechas, horas del mes y totales, fechas, lo próximo con fecha, y sus hitos y entregas.
+- **Facturas y documentos** (`#/documentos`, arriba de Recursos y en Inicio lo que espera algo): las facturas, cotizaciones, propuestas y recibos que el estudio publica desde Negocio, con lo que falta por pagar y lo pagado en el año. Cada uno abre su hoja (`/documento/#…`) para pagarla o firmarla; el estado se pone al día solo.
+- **Reuniones** (`#/reuniones`): pide una con su tema, la modalidad (videollamada, llamada o en persona), la duración y hasta tres horarios que le vienen bien (también desde «Enviar»). La próxima sale en Inicio con «Unirse» y «Añadir al calendario» (un `.ics` con aviso 15 minutos antes). Puede cancelar la suya.
+- **Valoración del mes**: del día 20 al 7 del mes siguiente, Inicio pregunta «¿Cómo lo hicimos en noviembre?» (1 a 5 estrellas y un comentario, que solo ve el estudio). Se puede cambiar dentro de ese plazo, también desde Perfil.
+- **Informe del mes** (`#/informe/2026-11`, desde Cronología, Perfil y, la primera semana del mes, Inicio): el trabajo con sus horas por área, lo publicado, los resultados frente al mes anterior, los leads, los hitos y reuniones y el proyecto, con su marca. «PDF» lo imprime limpio (sin barras ni botones) y «Compartir» manda un resumen. Solo enseña lo que esa persona puede ver.
+- **Buscar** (la lupa de arriba, o `/` y ⌘K en el ordenador): publicaciones, trabajo, peticiones, recursos, anuncios, conversaciones, leads, documentos y reuniones, sin que estorben tildes ni mayúsculas, con lo encontrado resaltado y las últimas búsquedas.
 
 ### Lo que hace el estudio
 
@@ -287,13 +294,17 @@ Todo lo anterior, editable (mantener pulsado un recurso, una petición o una pub
 - **Plantillas**: una publicación o una petición se guarda como plantilla («Reel de proceso», «Pedir fotos del mes»…) y la siguiente empieza desde ahí. También se duplican.
 - **Calendario**: arrastrar una publicación a otro día la mueve; «Seleccionar varias» cambia de etapa o borra muchas de golpe; mantener pulsada una deja editarla, duplicarla, moverla de día o borrarla.
 - **Clientes**: el logo de arriba a la izquierda cambia de cliente (con lo pendiente de cada uno) y crea portales.
+- **Reuniones**: las que pide el cliente salen en lo que pide atención; se confirman con uno de sus horarios (u otra hora), con el enlace de la videollamada (se recuerda para la próxima) o la dirección, o se responde «No puedo» con un mensaje. «Crear › Reunión» agenda una directamente. Su valoración del mes sale en Inicio (media, frente al mes anterior y el último comentario) y en Perfil › Valoraciones.
+- **Tareas en Negocio**: cada cosa que pide el cliente (un envío, una petición entregada, un cambio pedido, un rechazo, una idea, un comentario o una reunión) tiene su botón «Tarea»: crea la tarea en la columna «Solicitud» de su proyecto de Negocio, con el enlace de vuelta al portal, y el botón pasa a enseñar su clave (`CAF-28`). Usa la sesión del panel; si no está abierta, pide la contraseña en una hoja.
 - **Accesos** (en el perfil o en los atajos): dar acceso con un correo (la contraseña se ve una sola vez, con el mensaje listo para mandar por WhatsApp), cambiar el rol y las excepciones de cada persona, los permisos de todo el portal, crear una contraseña nueva, copiar un enlace de acceso de un solo uso o quitar el acceso. No se envía ningún correo.
 
 ### Desde Negocio › Portal de clientes
 
 La administración de los portales, con la misma cuenta del estudio que la app (la sesión se comparte: es el mismo sitio). Cuatro pestañas:
 
-- **Resumen**: portales, personas con acceso, lo que te enviaron sin ver y las peticiones por revisar; el QR para instalar la app; y «Mandar al portal», que lleva lo que terminaste hoy en Negocio (tareas hechas y horas) al reporte diario de cada cliente, sin repetirlo si ya está.
+- **Resumen**: portales, personas con acceso, lo que te enviaron sin ver, las peticiones por revisar, las reuniones por confirmar y la valoración media; el QR para instalar la app; y «Mandar al portal», que publica directamente en el reporte de hoy de cada cliente lo que terminaste en Negocio (tareas hechas y horas, eligiendo qué), sin repetir lo que ya esté («Editarlo en la app antes» lo abre en la app, como antes).
+  - **Lo que te piden tus clientes**: en todos los portales, los envíos sin ver, las peticiones entregadas, los cambios pedidos, los rechazos, las ideas y las reuniones pedidas. «Crear tarea» la pone en «Solicitud» del proyecto de ese cliente; si ya tiene tarea, enseña su clave.
+  - **Al día con los portales**: se ponen al día solos unos segundos después de cada cambio (o con «Sincronizar ahora»): los **proyectos** de cada cliente enlazado (etapas, avance, horas, lo próximo con fecha; cada etapa completada llega una sola vez como hito a su cronología, y solo avisa al teléfono la más reciente), los **documentos publicados** (pagos, aperturas, firmas, importes) y los **datos del cliente** (correo, teléfono, dirección y web: se rellena lo que falte en cada lado, y si los dos tienen algo distinto se elige cuál vale).
 - **Clientes**: cada portal con su logo, su color, su gente y cuántos permisos tiene cambiados. Crear uno (enlazado a un cliente de Negocio), sus **permisos** (qué ve y qué puede hacer su gente), **Conectar Claude** (ver abajo), archivarlo (su gente deja de verlo) o borrarlo con todo lo suyo.
 - **Accesos**: todas las cuentas, con buscador y filtro por portal. «Nueva cuenta» crea la de un cliente (portal, rol y excepciones) o la de alguien del estudio, con una contraseña generada o elegida; se ve una sola vez, con el mensaje listo para mandar. En cada cuenta: hacerla del estudio o no, cambiar su rol o sus excepciones en cada portal (la llave), añadirla a otro portal o quitarla, crear una contraseña nueva, copiar un enlace de acceso de un solo uso o borrarla.
 - **Identidad**: la marca de cada cliente en su app, con la app de verdad al lado (en un teléfono, al ancho real) que cambia mientras editas: nombre del cliente y nombre de la app, logo, color principal y secundario, bienvenida, tipografía de los títulos (nueve), esquinas (rectas, suaves o redondas), inicio (degradado, color liso o imagen de portada) y tema por defecto (si la persona elige otro en su perfil, manda el suyo).
@@ -315,6 +326,8 @@ Encima de eso, cada portal tiene sus **permisos** (Negocio › Clientes › Perm
 | Crea y envía | publicar anuncios, subir recursos, añadir leads, mover leads | no |
 | | entregar peticiones, enviar mensajes y archivos, comentar | sí |
 | Su negocio | editar los datos del negocio | sí (solo el dueño) |
+| Ve (v5) | proyecto, facturas y documentos | sí |
+| Pide (v5) | pedir reuniones, valorar el mes | sí (no «Solo lectura») |
 
 Y a una persona se le ponen **excepciones**: lo que se marque solo para ella manda sobre su rol y su portal; lo demás los sigue. Así, por ejemplo, Patryk ve la producción, aprueba y rechaza pero no crea, y a alguien de su equipo se le quita rechazar.
 
@@ -347,6 +360,7 @@ Los manda la propia base: cada cambio que importa llama (con `pg_net`) a la func
 - **Al cliente**: anuncios y recursos nuevos, el reporte del día (un solo aviso que se actualiza: «Reporte de hoy: 4 tareas hechas»), lo que el estudio empieza a hacer, peticiones nuevas y revisadas, contenido para revisar o publicado, resultados del mes y las respuestas del estudio. Cada categoría se puede silenciar en el perfil.
 - **Al estudio**: lo que envía cada cliente, las peticiones que marca como enviadas, lo que aprueba, pide cambiar o rechaza, sus ideas, sus anuncios, recursos y leads, y sus comentarios. Los anuncios de un cliente también le llegan al resto de su equipo.
 - **Recordatorios**: cada mañana a las 9:00 (Venezuela), `pg_cron` recuerda a cada cliente lo que vence hoy, mañana o ya venció, y a quien aprueba, lo que lleva más de 20 horas esperando su respuesta. Los lunes, además, el resumen de la semana.
+- **Con la v5**: al cliente, cada factura o propuesta publicada, el pago recibido y la reunión confirmada, movida o sin hora; al estudio, las reuniones pedidas o canceladas, las firmas y rechazos y cada valoración del mes. Y por la mañana, las facturas que vencen hoy o mañana (o ya vencieron) y las reuniones del día (al cliente y al estudio).
 
 La app pide el permiso tras entrar, con una hoja que explica para qué sirve (en el iPhone, primero pide instalarla: los avisos solo llegan a la app instalada, con iOS 16.4 o posterior). En el perfil se ve el estado y hay un botón «Probar».
 
@@ -355,6 +369,7 @@ La app pide el permiso tras entrar, con una hoja que explica para qué sirve (en
 Todo en **Supabase** (proyecto SchwarckDevWeb); Cloudflare solo sirve los archivos de la página. Así el portal no gasta la cuota gratuita de KV, y los archivos y vídeos van al almacén de Supabase (1 GB gratis).
 
 - `supabase/migrations/`: las tablas (portales, miembros, tablón, trabajo, notas del reporte de cada día, contenido, recursos, peticiones, envíos, comentarios, rendimiento, leads, plantillas y suscripciones a avisos), las reglas (RLS), los permisos y los avisos. El cliente solo ve sus portales y hace lo que le dejen sus permisos (marcar peticiones como enviadas, no darlas por buenas; aprobar, pedir cambios o rechazar contenido; comentar; enviar archivos a su carpeta; proponer ideas, anunciar, subir recursos o añadir leads si se le permite; editar su perfil y, si es el dueño, las columnas públicas de su negocio). El estudio (cuentas con `app_metadata.role = 'admin'`) lo puede todo. Las direcciones del conector de Claude viven en `private.portal_mcp_keys`, solo como huella.
+- `supabase/migrations/20261125120000_portal_v5_negocio.sql` (**v5**): `portal_projects` (el proyecto de Negocio de cada cliente), `portal_documents` (lo publicado desde Negocio), `portal_meetings` (las reuniones: el cliente solo las pide, sin hora fijada, y solo cancela las suyas) y `portal_ratings` (una valoración por persona y mes, del mes que corre o el anterior), `portal_posts.source` (para no repetir un hito) y los permisos nuevos. Mientras no esté aplicada, la app y Negocio siguen como antes: lo nuevo no aparece y no da errores.
 - `supabase/functions/portal-mcp/`: el conector de Claude para el calendario.
 - `supabase/functions/portal/`: la función de accesos y avisos. Las claves VAPID las crea ella misma la primera vez y las guarda en Vault, igual que el secreto con el que la base la llama: no hay ningún secreto en el código ni en Cloudflare.
 - `src/portal/config.js`: la dirección y la clave publicable del proyecto (son públicas).
@@ -363,13 +378,15 @@ Todo en **Supabase** (proyecto SchwarckDevWeb); Cloudflare solo sirve los archiv
 
 Ya está hecho: las migraciones aplicadas, la función desplegada y un portal «Cliente de prueba» con su cuenta (`demo@schwarckdev.com`; la contraseña está en el archivo local `.env.portal-prueba`).
 
-Falta, una sola vez:
+Falta, una sola vez (además de la **v5**, abajo):
 
 1. **Tu cuenta del estudio**: en `schwarckdev.com`, Negocio › Portal de clientes › «Crear mi cuenta del estudio» (o «Ya tengo cuenta» si ya la tienes). Como ya tienes abierta la sesión del panel, el Worker da un pase de un solo uso (dos minutos) y la función `portal` crea la cuenta o convierte la tuya en cuenta del estudio. Solo funciona en el sitio publicado: la función comprueba el pase contra `schwarckdev.com`.
 
 2. En Authentication › Sign In / Providers, desactiva «Allow new users to sign up» (las cuentas las crea el estudio) y activa la protección de contraseñas filtradas. En URL Configuration, pon `https://schwarckdev.com/cliente/` como Site URL (lo usan los enlaces de acceso de un solo uso).
 
-`/cliente/?demo` enseña la app del cliente con datos de ejemplo, y `/cliente/?demo=estudio`, el modo estudio.
+**La v5** (proyecto, documentos, reuniones y valoraciones) necesita dos pasos en Supabase: aplicar `supabase/migrations/20261125120000_portal_v5_negocio.sql` y volver a desplegar la función `portal` (para los avisos y recordatorios nuevos). Con el conector de Supabase activo en una sesión de Claude Code se hace desde ahí; si no, pegando el SQL en el editor SQL del proyecto y con `supabase functions deploy portal`.
+
+`/cliente/?demo` enseña la app del cliente con datos de ejemplo (también lo de la v5), y `/cliente/?demo=estudio`, el modo estudio.
 
 ### Archivos
 
@@ -378,6 +395,8 @@ Falta, una sola vez:
 - `public/cliente/`: el manifiesto, el service worker (sin conexión y avisos) y los iconos.
 - `src/portal/brand.js`: la identidad de cada cliente (tipografías, esquinas, inicio, tema y colores), los roles y los permisos.
 - `src/negocio-portal.js` y `src/negocio-portal.css`: la administración desde Negocio (clientes, permisos, el conector de Claude, accesos e identidad).
+- `src/negocio-puente.js`: Negocio ⇄ portal: la sesión de Supabase del estudio (una sola para todo Negocio), proyectos, documentos, datos del cliente, el reporte directo, lo que piden los clientes y la sincronización automática.
+- `src/portal/project.js`, `documents.js`, `meetings.js`, `rating.js`, `report.js` y `search.js`: proyecto, documentos, reuniones, valoración del mes, informe del mes y buscador. `src/portal/negocio-link.js`: el botón «Tarea» del modo estudio (crea la tarea en Negocio con sus propios módulos).
 
 ## Cuando CeroFiao esté en Google Play
 

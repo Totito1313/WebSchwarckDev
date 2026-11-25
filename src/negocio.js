@@ -16,6 +16,7 @@ import { pagesPage, createPage } from './negocio-paginas.js';
 import { leadsPage, createLead } from './negocio-leads.js';
 import { ensureKeys } from './negocio-work.js';
 import { portalPage, mountPortalBadge } from './negocio-portal.js';
+import { startAutoSync } from './negocio-puente.js';
 import { enterPage, mountRail } from './negocio-fx.js';
 import { mountCommand } from './negocio-cmdk.js';
 
@@ -285,6 +286,8 @@ async function openApp() {
   mountPortalBadge(document.querySelector('[data-nav="portal"]'));
   show('app');
   draw();
+  // Proyectos y documentos publicados se ponen al día solos en el portal de cada cliente.
+  startAutoSync();
 }
 
 try {

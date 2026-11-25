@@ -11,7 +11,10 @@
 import { SUPABASE_URL, SUPABASE_KEY, FUNCTION_URL, BUCKET } from './config.js';
 
 const TABLES = ['posts', 'content', 'resources', 'tasks', 'submissions', 'work', 'metrics', 'leads', 'comments', 'reports'];
-const ORDER = { posts: ['occurred_at', false], content: ['date', true], resources: ['created_at', false], tasks: ['created_at', false], submissions: ['created_at', false], work: ['day', false], metrics: ['month', false], leads: ['date', false], comments: ['created_at', true], reports: ['day', false] };
+// Las de la migración v5 (proyecto, documentos, reuniones y valoraciones): si la base aún no
+// las tiene, la app sigue sin ellas y lo nuevo no aparece (app.features).
+export const EXTRA = ['projects', 'documents', 'meetings', 'ratings'];
+const ORDER = { posts: ['occurred_at', false], content: ['date', true], resources: ['created_at', false], tasks: ['created_at', false], submissions: ['created_at', false], work: ['day', false], metrics: ['month', false], leads: ['date', false], comments: ['created_at', true], reports: ['day', false], projects: ['updated_at', false], documents: ['issue_date', false], meetings: ['created_at', false], ratings: ['month', false] };
 
 export async function createBackend() {
   const demo = new URLSearchParams(location.search).get('demo');
@@ -36,6 +39,7 @@ export function friendly(message = '') {
 // ── Supabase ──
 
 function liveBackend(sb) {
+  let available = new Set();
   const must = ({ data, error }) => {
     if (error) throw new Error(friendly(error.message));
     return data;
@@ -73,13 +77,14 @@ function liveBackend(sb) {
     /** Los portales de quien entra. Al estudio, todos, con lo que tiene pendiente cada uno. */
     async portals(user) {
       if (this.isAdmin(user)) {
-        const [clients, unseen, sent] = await Promise.all([
+        const [clients, unseen, sent, asked] = await Promise.all([
           sb.from('portal_clients').select('*').order('archived').order('name').then(must),
           sb.from('portal_submissions').select('client_id').is('seen_at', null).then(must),
           sb.from('portal_tasks').select('client_id').eq('status', 'submitted').then(must),
+          sb.from('portal_meetings').select('client_id').eq('status', 'requested').then(must).catch(() => []),
         ]);
         const count = (rows, id) => rows.filter((r) => r.client_id === id).length;
-        return clients.map((c) => ({ client: c, member: { user_id: user.id, name: 'Schwarck', email: user.email, studio: true, prefs: {} }, alerts: count(unseen, c.id) + count(sent, c.id) }));
+        return clients.map((c) => ({ client: c, member: { user_id: user.id, name: 'Schwarck', email: user.email, studio: true, prefs: {} }, alerts: count(unseen, c.id) + count(sent, c.id) + count(asked, c.id) }));
       }
       const rows = must(await sb.from('portal_members').select('*, portal_clients(*)').eq('user_id', user.id));
       return rows.filter((r) => r.portal_clients && !r.portal_clients.archived).map(({ portal_clients: client, ...member }) => ({ client, member }));
@@ -90,12 +95,18 @@ function liveBackend(sb) {
         const [col, asc] = ORDER[t];
         return sb.from(`portal_${t}`).select('*').eq('client_id', clientId).order(col, { ascending: asc }).limit(800).then(must);
       };
+      // Una tabla que no existe todavía no tumba la carga: se queda vacía y sin función.
+      const optional = (t) => q(t).then((rows) => ({ rows, ok: true }), () => ({ rows: [], ok: false }));
       const [client, members, ...rest] = await Promise.all([
         sb.from('portal_clients').select('*').eq('id', clientId).single().then(must),
         sb.from('portal_members').select('*').eq('client_id', clientId).then(must),
         ...TABLES.map(q),
+        ...EXTRA.map(optional),
       ]);
-      return { client, members, ...Object.fromEntries(TABLES.map((t, i) => [t, rest[i]])) };
+      const extras = rest.slice(TABLES.length);
+      const features = Object.fromEntries(EXTRA.map((t, i) => [t, extras[i].ok]));
+      available = new Set(EXTRA.filter((t) => features[t]));
+      return { client, members, ...Object.fromEntries(TABLES.map((t, i) => [t, rest[i]])), ...Object.fromEntries(EXTRA.map((t, i) => [t, extras[i].rows])), features };
     },
 
     /** Crea o actualiza una fila (con id: actualiza). Devuelve la fila guardada. */
@@ -114,6 +125,11 @@ function liveBackend(sb) {
     async saveReport(row) {
       return must(await sb.from('portal_reports').upsert(row, { onConflict: 'client_id,day' }).select().single());
     },
+    /** La valoración del mes de quien entra (una por persona y mes: se puede cambiar). */
+    async saveRating(row) {
+      const user = await this.user();
+      return must(await sb.from('portal_ratings').upsert({ ...row, user_id: user.id }, { onConflict: 'client_id,month,user_id' }).select().single());
+    },
 
     // ── Plantillas del estudio (para todos los portales) ──
     async templates() {
@@ -129,14 +145,17 @@ function liveBackend(sb) {
     /** Al estudio: lo que pide atención hoy en todos los portales. */
     async overview() {
       const today = new Date().toLocaleDateString('en-CA');
-      const [clients, content, tasks, subs] = await Promise.all([
+      const dayStart = new Date(`${today}T00:00:00`);
+      const dayEnd = new Date(dayStart.getTime() + 86_400_000);
+      const [clients, content, tasks, subs, meetings] = await Promise.all([
         sb.from('portal_clients').select('id,name,accent,logo_url,archived').eq('archived', false).order('name').then(must),
         sb.from('portal_content').select('id,client_id,title,date,time,status,channel,channels,format,client_verdict,client_verdict_name,client_note,origin,updated_at')
           .or(`date.eq.${today},and(status.eq.review,client_verdict.is.null),client_verdict.in.(changes,rejected),and(origin.eq.client,status.eq.idea)`).then(must),
         sb.from('portal_tasks').select('id,client_id,title,status,due_date,submitted_at').or(`status.eq.submitted,and(status.eq.pending,due_date.lte.${today})`).then(must),
         sb.from('portal_submissions').select('id,client_id,kind,author,created_at').is('seen_at', null).then(must),
+        sb.from('portal_meetings').select('id,client_id,topic,status,starts_at,author,created_at').or(`status.eq.requested,and(status.eq.confirmed,starts_at.gte.${dayStart.toISOString()},starts_at.lt.${dayEnd.toISOString()})`).then(must).catch(() => []),
       ]);
-      return { today, clients, content, tasks, submissions: subs };
+      return { today, clients, content, tasks, submissions: subs, meetings };
     },
     async remove(table, id) {
       must(await sb.from(`portal_${table}`).delete().eq('id', id));
@@ -225,7 +244,7 @@ function liveBackend(sb) {
     /** Avisa de cualquier cambio en el portal abierto (y, al estudio, de lo nuevo en cualquiera). */
     watch(clientId, onChange, { studio } = {}) {
       const channel = sb.channel(`portal-${clientId}-${Date.now()}`);
-      for (const t of ['clients', 'members', ...TABLES]) {
+      for (const t of ['clients', 'members', ...TABLES, ...EXTRA.filter((x) => available.has(x))]) {
         const filter = t === 'clients' ? `id=eq.${clientId}` : `client_id=eq.${clientId}`;
         channel.on('postgres_changes', { event: '*', schema: 'public', table: `portal_${t}`, filter }, (p) => onChange(t, p));
       }
@@ -290,6 +309,16 @@ function demoBackend(studio) {
     return d.toLocaleDateString('en-CA');
   };
   const id = () => crypto.randomUUID();
+  /** El n-ésimo día laborable desde hoy, a esa hora (para que la demo no proponga domingos). */
+  const weekday = (n, hour) => {
+    const d = new Date(now);
+    d.setHours(hour, 0, 0, 0);
+    for (let added = 0; added < n;) {
+      d.setDate(d.getDate() + 1);
+      if (d.getDay() % 6) added++;
+    }
+    return d.toISOString();
+  };
   const c1 = id();
   const c2 = id();
   const me = { user_id: 'demo-user', email: studio ? 'admin@schwarckdev.com' : 'laura@cafearoma.com' };
@@ -368,6 +397,32 @@ function demoBackend(studio) {
       { id: id(), client_id: c1, target: 'content', target_id: k1, user_id: 'demo-user', author: 'Laura Méndez', from_studio: false, body: '¿Podemos poner el precio del lote al final?', created_at: at(-1, 16) },
       { id: id(), client_id: c1, target: 'content', target_id: k1, user_id: 'studio', author: 'Schwarck', from_studio: true, body: 'Claro, lo añadimos como texto en los últimos 3 segundos.', created_at: at(-1, 17) },
     ],
+    // Lo que llega de Negocio y lo nuevo de la v5.
+    projects: [
+      {
+        id: id(), client_id: c1, crm_project_id: 'demo-proyecto', name: 'Marca y redes de Café Aroma', code: 'CAF', status: 'active',
+        stages: [{ name: 'Arranque', done: true, done_at: at(-30, 12) }, { name: 'Identidad visual', done: true, done_at: at(-8, 12) }, { name: 'Contenido y redes', done: false }, { name: 'Entrega final', done: false }],
+        tasks_done: 18, tasks_total: 27, minutes_month: 1710, minutes_total: 4920, start_date: date(-34), due_date: date(21),
+        upcoming: [{ title: 'Guion del carrusel «5 métodos»', due: date(1), status: 'todo' }, { title: 'Edición final del reel de tostado', due: date(2), status: 'doing' }, { title: 'Informe de resultados de noviembre', due: date(6), status: 'todo' }],
+        description: 'Identidad visual, calendario de contenido y gestión de redes.', updated_at: at(0, 9), created_at: at(-34),
+      },
+    ],
+    documents: [
+      { id: id(), client_id: c1, crm_doc_id: 'demo-fac-14', type: 'invoice', number: 'FAC-2026-0014', title: 'Gestión de redes · noviembre', issue_date: date(-5), due_date: date(2), currency: 'USD', total: 450, paid: 0, status: 'open', url: null, created_at: at(-5, 11), updated_at: at(-5, 11) },
+      { id: id(), client_id: c1, crm_doc_id: 'demo-pro-6', type: 'proposal', number: 'PRO-2026-0006', title: 'Campaña de Navidad', issue_date: date(-2), due_date: date(12), currency: 'USD', total: 780, paid: 0, status: 'viewed', url: null, created_at: at(-2, 10), updated_at: at(-1, 19) },
+      { id: id(), client_id: c1, crm_doc_id: 'demo-fac-11', type: 'invoice', number: 'FAC-2026-0011', title: 'Identidad visual', issue_date: date(-26), due_date: date(-11), currency: 'USD', total: 900, paid: 900, status: 'paid', url: null, created_at: at(-26, 10), updated_at: at(-12, 15) },
+      { id: id(), client_id: c1, crm_doc_id: 'demo-rec-9', type: 'receipt', number: 'REC-2026-0009', title: 'Pago de FAC-2026-0011', issue_date: date(-12), currency: 'USD', total: 900, paid: 900, status: 'paid', url: null, created_at: at(-12, 15), updated_at: at(-12, 15) },
+    ],
+    meetings: [
+      { id: id(), client_id: c1, origin: 'studio', topic: 'Revisión del calendario de diciembre', notes: 'Repasamos las piezas de Navidad y el presupuesto de anuncios.', mode: 'video', options: [], starts_at: at(2, 15), duration: 45, status: 'confirmed', link: 'https://meet.google.com/', created_at: at(-1, 12), updated_at: at(-1, 12) },
+      { id: id(), client_id: c1, origin: 'client', created_by: 'demo-user', author: 'Laura Méndez', topic: 'Ideas para la campaña de Navidad', notes: 'Queremos hablar de promociones y del presupuesto.', mode: 'in_person', options: [weekday(3, 10), weekday(4, 16)], starts_at: null, duration: 60, status: 'requested', created_at: at(0, 8), updated_at: at(0, 8) },
+      { id: id(), client_id: c1, origin: 'studio', topic: 'Arranque del proyecto', mode: 'video', options: [], starts_at: at(-33, 11), duration: 60, status: 'done', created_at: at(-35), updated_at: at(-33, 12) },
+    ],
+    ratings: [
+      { client_id: c1, month: month(1), user_id: 'demo-user', author: 'Laura Méndez', score: 5, comment: 'Muy contentos con los reels: se nota en las ventas.', created_at: at(-24, 18) },
+      { client_id: c1, month: month(1), user_id: 'demo-2', author: 'Carlos Ruiz', score: 4, comment: 'Más historias entre semana, por favor.', created_at: at(-23, 9) },
+      { client_id: c1, month: month(2), user_id: 'demo-user', author: 'Laura Méndez', score: 4, comment: null, created_at: at(-54, 18) },
+    ],
   };
   const listeners = new Set();
   const notify = () => listeners.forEach((fn) => fn('demo'));
@@ -384,12 +439,15 @@ function demoBackend(studio) {
     async signOut() { location.href = '/admin/'; },
     async updatePassword() { await wait(); },
     async portals() {
-      if (studio) return clients.map((c) => ({ client: c, member: { user_id: 'demo-user', name: 'Schwarck', email: me.email, studio: true, prefs: {} }, alerts: data.submissions.filter((s) => s.client_id === c.id && !s.seen_at).length + data.tasks.filter((t) => t.client_id === c.id && t.status === 'submitted').length }));
+      if (studio) return clients.map((c) => ({ client: c, member: { user_id: 'demo-user', name: 'Schwarck', email: me.email, studio: true, prefs: {} }, alerts: data.submissions.filter((s) => s.client_id === c.id && !s.seen_at).length + data.tasks.filter((t) => t.client_id === c.id && t.status === 'submitted').length + data.meetings.filter((m) => m.client_id === c.id && m.status === 'requested').length }));
       return [{ client: clients[0], member: members[0] }];
     },
     async load(cid) {
       await wait(160);
-      return clone({ client: clients.find((c) => c.id === cid), members: members.filter((m) => m.client_id === cid), ...of(cid) });
+      const own = of(cid);
+      // Como en la base: cada cliente solo ve sus valoraciones; el estudio, todas.
+      if (!studio) own.ratings = own.ratings.filter((r) => r.user_id === 'demo-user');
+      return clone({ client: clients.find((c) => c.id === cid), members: members.filter((m) => m.client_id === cid), ...own, features: { projects: true, documents: true, meetings: true, ratings: true } });
     },
     async save(table, row) {
       await wait();
@@ -426,6 +484,15 @@ function demoBackend(studio) {
       notify();
       return clone(data.reports[Math.max(i, 0)]);
     },
+    async saveRating(row) {
+      await wait();
+      const full = { ...row, user_id: 'demo-user', author: members[0].name, updated_at: new Date().toISOString() };
+      const i = data.ratings.findIndex((r) => r.client_id === row.client_id && r.month === row.month && r.user_id === 'demo-user');
+      if (i >= 0) data.ratings[i] = { ...data.ratings[i], ...full };
+      else data.ratings.unshift({ created_at: new Date().toISOString(), ...full });
+      notify();
+      return clone(data.ratings[Math.max(i, 0)]);
+    },
     async templates() { await wait(120); return clone(data.templates); },
     async saveTemplate(row) { const t = { id: id(), created_at: new Date().toISOString(), ...row }; data.templates.unshift(t); return clone(t); },
     async removeTemplate(tid) { data.templates = data.templates.filter((t) => t.id !== tid); },
@@ -439,6 +506,7 @@ function demoBackend(studio) {
         content: data.content.filter((c) => c.date === today || (c.status === 'review' && !c.client_verdict) || ['changes', 'rejected'].includes(c.client_verdict) || (c.origin === 'client' && c.status === 'idea')),
         tasks: data.tasks.filter((t) => t.status === 'submitted' || (t.status === 'pending' && t.due_date <= today)),
         submissions: data.submissions.filter((s) => !s.seen_at),
+        meetings: data.meetings.filter((m) => m.status === 'requested' || (m.status === 'confirmed' && m.starts_at && new Date(m.starts_at).toLocaleDateString('en-CA') === today)),
       });
     },
     async remove(table, rid) {

@@ -568,8 +568,7 @@ function leadRow(l) {
   return el('button', { type: 'button', class: 'cl-row cl-lead', style: { '--c': color }, onclick: () => (isStudio() || can('leads.edit') ? studio.editLead(l) : leadSheet(l)) },
     avatar(l.name),
     el('span', { class: 'cl-set-main' }, el('b', { text: l.name }), el('small', { text: [LEAD_SOURCE[l.source], l.campaign, l.date && shortDate(l.date)].filter(Boolean).join(' · ') })),
-    l.value ? el('b', { class: 'cl-lead-value', text: money(l.value) }) : null,
-    chip(stage, color),
+    el('span', { class: 'cl-lead-end' }, chip(stage, color), l.value ? el('b', { class: 'cl-lead-value', text: money(l.value) }) : null),
   );
 }
 

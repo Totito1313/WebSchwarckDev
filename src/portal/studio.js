@@ -12,10 +12,12 @@ import {
 } from './state.js';
 import { PERMS, ROLES, SECTION_PERM, memberCan, portalAllows, roleAllows } from './brand.js';
 import { isNexusReport, parseNexusReport, nexusSource, parseCalendar, claudeInstructions } from './importers.js';
+import { taskButton } from './negocio-link.js';
+import { editMeeting, openMeeting } from './meetings.js';
 
 // ── Formulario en hoja: guardar con su estado y su respuesta ──
 
-function formSheet(title, body, onSave, { save = 'Guardar', danger, subtitle } = {}) {
+export function formSheet(title, body, onSave, { save = 'Guardar', danger, subtitle } = {}) {
   const btn = el('button', { type: 'button', class: 'cl-btn' }, icon('check'), save);
   const actions = [
     danger && el('button', { type: 'button', class: 'cl-btn ghost is-danger is-icon', 'aria-label': danger.label, onclick: async () => {
@@ -86,6 +88,7 @@ export function createMenu() {
     { label: 'Trabajo', icon: 'bolt', note: 'Una tarea del estudio', run: () => editWork() },
     { label: 'Anuncio o avance', icon: 'megaphone', run: () => editPost() },
     { label: 'Petición al cliente', icon: 'inbox', run: () => editTask() },
+    { label: 'Reunión', icon: 'calendar', note: 'Queda confirmada y le avisa', run: () => editMeeting() },
     { label: 'Publicación del calendario', icon: 'calendar', run: () => editContent() },
     { label: 'Recurso', icon: 'folder', run: () => editResource() },
     { label: 'Lead', icon: 'funnel', run: () => editLead() },
@@ -121,7 +124,7 @@ export function editPost(p = null) {
   }, { save: p ? 'Guardar' : 'Publicar', danger: p && { label: 'Borrar', confirm: '¿Borrar esta publicación?', run: async () => { await app.backend.remove('posts', p.id); removeLocal('posts', p.id); } } });
 }
 
-function localInput(iso) {
+export function localInput(iso) {
   const d = iso ? new Date(iso) : new Date();
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().slice(0, 16);
@@ -806,6 +809,7 @@ function inboxRow(it, i, redrawList) {
         r.storage_path && el('button', { type: 'button', class: 'cl-glass sm', 'aria-label': 'Descargar', onclick: () => openFile(r.storage_path) }, icon('download')),
         url && el('a', { class: 'cl-glass sm', href: url, target: '_blank', rel: 'noopener', 'aria-label': 'Abrir' }, icon('external')),
         !r.storage_path && !url && r.body && el('button', { type: 'button', class: 'cl-glass sm', 'aria-label': 'Copiar', onclick: () => copyText(r.body) }, icon('copy')),
+        taskButton({ ref: `submission:${r.id}`, kind: 'submission', title: (r.body || r.file_name || r.url || 'Envío del cliente').split('\n')[0].slice(0, 120), description: [r.body, url, r.file_name && `Archivo: ${r.file_name}`].filter(Boolean).join('\n'), route: '#/' }),
         el('button', { type: 'button', class: 'cl-glass sm is-ok', 'aria-label': 'Visto', onclick: async () => {
           await app.backend.markSubmissionsSeen([r.id]);
           r.seen_at = new Date().toISOString();
@@ -820,21 +824,43 @@ function inboxRow(it, i, redrawList) {
     return el('div', base,
       el('span', { class: 'cl-inbox-ico is-task' }, icon('inbox')),
       el('div', { class: 'cl-inbox-main' }, el('b', { text: 'Petición enviada' }), el('p', { text: r.title }), r.client_note && el('small', { class: 'cl-inbox-note', text: r.client_note }), el('small', { text: ago(it.at) })),
-      el('div', { class: 'cl-inbox-actions' }, el('button', { type: 'button', class: 'cl-btn sm', onclick: async (e) => { await approveTask(r, e.currentTarget); redrawList(); } }, icon('check'), 'Dar por buena')),
+      el('div', { class: 'cl-inbox-actions' },
+        taskButton({ ref: `task:${r.id}`, kind: 'task', title: `Revisar: ${r.title}`, description: r.client_note || '', route: '#/peticiones/enviadas' }),
+        el('button', { type: 'button', class: 'cl-btn sm', onclick: async (e) => { await approveTask(r, e.currentTarget); redrawList(); } }, icon('check'), 'Dar por buena')),
+    );
+  }
+  if (it.kind === 'meeting') {
+    return el('div', base,
+      el('span', { class: 'cl-inbox-ico is-meeting' }, icon('calendar')),
+      el('div', { class: 'cl-inbox-main' },
+        el('b', { text: `${r.author || 'El cliente'} pide una reunión` }),
+        el('p', { text: r.topic }),
+        r.notes && el('small', { class: 'cl-inbox-note', text: r.notes }),
+        el('small', { text: `${plural(r.options?.length || 0, 'horario propuesto', 'horarios propuestos')} · ${ago(it.at)}` }),
+      ),
+      el('div', { class: 'cl-inbox-actions' },
+        taskButton({ ref: `meeting:${r.id}`, kind: 'meeting', title: `Reunión: ${r.topic}`, description: r.notes || '', route: '#/reuniones' }),
+        el('button', { type: 'button', class: 'cl-btn sm', onclick: () => openMeeting(r) }, icon('check'), 'Confirmar'),
+      ),
     );
   }
   if (it.kind === 'changes' || it.kind === 'rejected' || it.kind === 'idea') {
     const [label, ico] = it.kind === 'idea' ? ['Propone una publicación', 'sparkles'] : it.kind === 'rejected' ? [`${r.client_verdict_name || 'El cliente'} la rechazó`, 'x'] : [`${r.client_verdict_name || 'El cliente'} pide cambios`, 'edit'];
-    return el('a', { ...base, href: `#/marketing/pieza/${r.id}` },
-      el('span', { class: `cl-inbox-ico is-${it.kind}` }, icon(ico)),
-      el('div', { class: 'cl-inbox-main' }, el('b', { text: label }), el('p', { text: r.title }), r.client_note && el('small', { class: 'cl-inbox-note', text: `«${r.client_note}»` }), el('small', { text: ago(it.at) })),
-      icon('right', 'cl-set-chev'),
+    const verb = it.kind === 'idea' ? 'Idea del cliente' : it.kind === 'rejected' ? 'Rehacer' : 'Cambios';
+    return el('div', base,
+      el('a', { class: 'cl-inbox-link', href: `#/marketing/pieza/${r.id}` },
+        el('span', { class: `cl-inbox-ico is-${it.kind}` }, icon(ico)),
+        el('div', { class: 'cl-inbox-main' }, el('b', { text: label }), el('p', { text: r.title }), r.client_note && el('small', { class: 'cl-inbox-note', text: `«${r.client_note}»` }), el('small', { text: ago(it.at) })),
+      ),
+      el('div', { class: 'cl-inbox-actions' }, taskButton({ ref: `content:${r.id}:${it.kind}`, kind: it.kind, title: `${verb}: ${r.title}`, description: r.client_note || '', route: `#/marketing/pieza/${r.id}` })),
     );
   }
-  return el('a', { ...base, href: `#/hilo/${r.target}/${r.target_id}` },
-    el('span', { class: 'cl-inbox-ico is-comment' }, icon('chat')),
-    el('div', { class: 'cl-inbox-main' }, el('b', { text: `${r.author || 'El cliente'} comentó` }), el('p', { text: r.body }), el('small', { text: `En «${targetTitle(r.target, r.target_id)}» · ${ago(it.at)}` })),
-    icon('right', 'cl-set-chev'),
+  return el('div', base,
+    el('a', { class: 'cl-inbox-link', href: `#/hilo/${r.target}/${r.target_id}` },
+      el('span', { class: 'cl-inbox-ico is-comment' }, icon('chat')),
+      el('div', { class: 'cl-inbox-main' }, el('b', { text: `${r.author || 'El cliente'} comentó` }), el('p', { text: r.body }), el('small', { text: `En «${targetTitle(r.target, r.target_id)}» · ${ago(it.at)}` })),
+    ),
+    el('div', { class: 'cl-inbox-actions' }, taskButton({ ref: `comment:${r.id}`, kind: 'comment', title: `Responder: ${targetTitle(r.target, r.target_id)}`, description: r.body, route: `#/hilo/${r.target}/${r.target_id}` })),
   );
 }
 

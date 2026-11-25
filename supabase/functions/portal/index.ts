@@ -136,9 +136,10 @@ const PERM_KEYS = [
   'timeline.view', 'report.view', 'content.view', 'metrics.view', 'leads.view', 'resources.view', 'tasks.view',
   'content.approve', 'content.reject', 'content.propose', 'posts.create', 'tasks.submit', 'resources.upload',
   'leads.add', 'leads.edit', 'comment', 'send', 'business.edit',
+  'project.view', 'docs.view', 'meetings.request', 'rating.send',
 ];
 const roleAllows = (role: string, k: string) => (role === 'owner' ? true : role === 'member' ? k !== 'business.edit' : k.endsWith('.view'));
-const permDefault = (k: string) => k.endsWith('.view') || ['content.approve', 'content.reject', 'comment', 'tasks.submit', 'send', 'business.edit'].includes(k);
+const permDefault = (k: string) => k.endsWith('.view') || ['content.approve', 'content.reject', 'comment', 'tasks.submit', 'send', 'business.edit', 'meetings.request', 'rating.send'].includes(k);
 function memberCan(m: Row, portal: Row, k: string) {
   const section = PERM_SECTION[k];
   if (section && (portal?.hidden?.includes(section) || m.hidden?.includes(section))) return false;
@@ -166,6 +167,10 @@ const clip = (text: unknown, n = 140) => String(text ?? '').replace(/\s+/g, ' ')
 const KIND: Record<string, string> = { announcement: 'Anuncio', update: 'Avance', milestone: 'Hito', delivery: 'Entrega', report: 'Informe' };
 const SENT: Record<string, string> = { message: 'un mensaje', link: 'un enlace', file: 'un archivo', video: 'un vídeo' };
 const MONTH = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString('es', { month: 'long', year: 'numeric' });
+const DOC: Record<string, string> = { invoice: 'Factura', quote: 'Cotización', proposal: 'Propuesta', receipt: 'Recibo' };
+const moneyText = (n: unknown, cur: string) => `${cur} ${Number(n ?? 0).toLocaleString('es', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** Fecha y hora de una reunión, en la hora de Venezuela. */
+const WHEN = (iso: string) => new Date(iso).toLocaleString('es', { timeZone: 'America/Caracas', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false });
 
 async function clientName(id: string) {
   const [c] = await rest('portal_clients', `?id=eq.${id}&select=name`);
@@ -252,6 +257,46 @@ async function onEvent({ table, op, record: r, old, actor }: { table: string; op
       if (!byClient) return null;
       return toStudio({ title: `${await clientName(cid)} añadió un lead`, body: clip(r.name), url: appUrl(cid, 'marketing/leads'), tag: `lead-${r.id}` });
 
+    case 'portal_documents': {
+      if (!r.notify) return null;
+      const name = `${DOC[r.type] ?? 'Documento'}${r.number ? ` ${r.number}` : ''}`;
+      if (op === 'INSERT') {
+        const ask = r.type === 'invoice' ? `Por pagar: ${moneyText(r.total - r.paid, r.currency)}` : r.type === 'receipt' ? `Pago recibido: ${moneyText(r.total, r.currency)}` : 'Ábrela para revisarla y firmarla.';
+        return toClient(cid, 'avisos', { title: `${name} en tu portal`, body: ask, url: appUrl(cid, 'documentos'), tag: `doc-${r.id}` }, 'docs.view');
+      }
+      if (!changed('status')) return null;
+      if (r.status === 'paid') return toClient(cid, 'avisos', { title: '¡Pago recibido, gracias!', body: `${name} quedó pagada.`, url: appUrl(cid, 'documentos'), tag: `doc-${r.id}` }, 'docs.view');
+      // La firma o el rechazo los hizo el cliente en la página del documento: se entera el estudio.
+      if (r.status === 'accepted' || r.status === 'declined') {
+        return toStudio({ title: `${await clientName(cid)} ${r.status === 'accepted' ? 'firmó' : 'rechazó'} ${name.toLowerCase()}`, body: clip(r.title || r.number), url: appUrl(cid, 'documentos'), tag: `doc-${r.id}` });
+      }
+      return null;
+    }
+
+    case 'portal_meetings': {
+      const when = r.starts_at ? WHEN(r.starts_at) : '';
+      if (byClient && op === 'INSERT') {
+        return toStudio({ title: `${clip(r.author || (await clientName(cid)), 40)} pide una reunión`, body: clip(r.topic), url: appUrl(cid, 'reuniones'), tag: `meet-${r.id}` });
+      }
+      if (byClient && changed('status') && r.status === 'cancelled') {
+        return toStudio({ title: `${await clientName(cid)} canceló una reunión`, body: clip(r.topic), url: appUrl(cid, 'reuniones'), tag: `meet-${r.id}` });
+      }
+      if (byClient) return null;
+      if (r.status === 'confirmed' && (op === 'INSERT' || changed('status') || changed('starts_at'))) {
+        return toClient(cid, 'avisos', { title: changed('starts_at') && old?.status === 'confirmed' ? 'Reunión movida' : 'Reunión confirmada', body: `${clip(r.topic, 60)} · ${when}`, url: appUrl(cid, 'reuniones'), tag: `meet-${r.id}` });
+      }
+      if (changed('status') && r.status === 'declined') {
+        return toClient(cid, 'avisos', { title: 'Buscamos otra hora', body: clip(r.studio_note || r.topic), url: appUrl(cid, 'reuniones'), tag: `meet-${r.id}` });
+      }
+      return null;
+    }
+
+    case 'portal_ratings': {
+      if (!byClient) return null;
+      const stars = '★'.repeat(Math.max(1, Math.min(5, Number(r.score) || 1)));
+      return toStudio({ title: `${clip(r.author || (await clientName(cid)), 40)} valoró ${MONTH(r.month)}: ${stars}`, body: clip(r.comment || 'Sin comentario.'), url: appUrl(cid, ''), tag: `rating-${cid}-${r.month}-${r.user_id}` });
+    }
+
     case 'portal_metrics':
       if (byClient || r.channel !== 'total') return null;
       return toClient(cid, 'marketing', { title: `Resultados de ${MONTH(r.month)}`, body: 'Ya puedes ver cómo le fue a tu marca este mes.', url: appUrl(cid, 'marketing/rendimiento'), tag: `metrics-${cid}-${r.month}` }, 'metrics.view');
@@ -298,6 +343,32 @@ async function reminders() {
       tag: `approve-${cid}`,
     }, 'content.approve');
     sent += r.sent;
+  }
+
+  // Facturas que vencen hoy o mañana, o ya vencieron (si se publicaron en el portal). Las tablas
+  // de la migración v5 pueden no estar todavía: entonces no hay nada que recordar.
+  const docs = await rest('portal_documents', `?type=eq.invoice&status=in.(open,partial,viewed)&due_date=lte.${tomorrow}&select=client_id,number,due_date,total,paid,currency&order=due_date.asc`).catch(() => []);
+  const dueDocs = new Map<string, Row[]>();
+  for (const d of docs) dueDocs.set(d.client_id, [...(dueDocs.get(d.client_id) ?? []), d]);
+  for (const [cid, list] of dueDocs) {
+    const first = list[0];
+    const when = first.due_date < today ? 'venció' : first.due_date === today ? 'vence hoy' : 'vence mañana';
+    const r = await toClient(cid, 'avisos', {
+      title: list.length === 1 ? `Tu factura ${when}` : `${list.length} facturas por pagar`,
+      body: `${first.number ?? 'La factura'}: ${moneyText(first.total - first.paid, first.currency)}.`,
+      url: appUrl(cid, 'documentos'),
+      tag: `due-${cid}`,
+    }, 'docs.view');
+    sent += r.sent;
+  }
+
+  // Las reuniones de hoy: al cliente y al estudio.
+  const meetings = await rest('portal_meetings', `?status=eq.confirmed&starts_at=gte.${today}T00:00:00-04:00&starts_at=lt.${tomorrow}T00:00:00-04:00&select=client_id,topic,starts_at`).catch(() => []);
+  for (const m of meetings) {
+    const hour = new Date(m.starts_at).toLocaleTimeString('es', { timeZone: 'America/Caracas', hour: '2-digit', minute: '2-digit', hour12: false });
+    const r = await toClient(m.client_id, 'avisos', { title: `Hoy a las ${hour}: reunión`, body: clip(m.topic), url: appUrl(m.client_id, 'reuniones'), tag: `meet-today-${m.client_id}` });
+    sent += r.sent;
+    await toStudio({ title: `Hoy a las ${hour}: reunión con ${await clientName(m.client_id)}`, body: clip(m.topic), url: appUrl(m.client_id, 'reuniones'), tag: `meet-today-${m.client_id}` });
   }
 
   // Los lunes, la semana de cada cliente.

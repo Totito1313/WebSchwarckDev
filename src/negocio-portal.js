@@ -13,13 +13,18 @@
 // mismo sitio). La primera vez se crea desde aquí: el panel pide al Worker un pase de un
 // solo uso (prueba que tienes la sesión del panel) y la función `portal` crea la cuenta.
 
-import { state, el, icon, addIcons, empty, toast, qr, todayISO, find, dialog, confirmBox, field, input, select, seg, toggle, menu, avatar, chip, kpi, api, iconButton } from './negocio-core.js';
+import { state, el, icon, addIcons, empty, toast, qr, todayISO, find, put, dialog, confirmBox, field, input, select, seg, toggle, menu, avatar, chip, kpi, api, iconButton } from './negocio-core.js';
 import { head, go } from './negocio-views.js';
+import { newTask, taskKey } from './negocio-work.js';
 import { SUPABASE_URL, SUPABASE_KEY, FUNCTION_URL, BUCKET } from './portal/config.js';
 import { PERMS, ROLES, SECTION_PERM, FONTS, RADII, HEROES, THEMES, COLORS, brandOf, loadFont, memberCan, portalAllows, permDefault, roleAllows } from './portal/brand.js';
 import { claudeInstructions } from './portal/importers.js';
+import { sb, must, studioSession, friendly, sendWork, clientAsks, syncNow, syncState, settleField, ratingsByPortal, linkedPortals } from './negocio-puente.js';
 
 addIcons({
+  refresh: '<path d="M20 11a8 8 0 0 0-14.6-4.5M4 13a8 8 0 0 0 14.6 4.5"/><path d="M5 3v4h4M19 21v-4h-4"/>',
+  star: '<path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/>',
+  spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
   smartphone: '<rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M10.5 18.5h3"/>',
   key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5M16 7l2.5 2.5M14 9l2 2"/>',
   inbox: '<path d="M3 13.5 5.6 5.7A2 2 0 0 1 7.5 4.3h9a2 2 0 0 1 1.9 1.4L21 13.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/>',
@@ -28,27 +33,7 @@ addIcons({
 });
 
 // ── Supabase con la cuenta del estudio ──
-
-// Una sola instancia aunque la pidan a la vez la página y el número del riel.
-let client = null;
-function sb() {
-  client ||= import('@supabase/supabase-js').then(({ createClient }) => createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'portal:auth' } }));
-  return client;
-}
-const must = ({ data, error }) => {
-  if (error) throw new Error(friendly(error.message));
-  return data;
-};
-function friendly(message = '') {
-  if (/invalid login credentials/i.test(message)) return 'Correo o contraseña incorrectos.';
-  if (/failed to fetch|network/i.test(message)) return 'Sin conexión con Supabase.';
-  if (/row-level security|permission denied/i.test(message)) return 'Esta cuenta no tiene permiso: ¿es del estudio?';
-  return message || 'Algo salió mal.';
-}
-async function studioSession() {
-  const s = (await (await sb()).auth.getSession()).data.session;
-  return s ? { user: s.user, admin: s.user?.app_metadata?.role === 'admin', token: s.access_token } : null;
-}
+// La instancia vive en negocio-puente.js: la comparten esta página y la sincronización con los portales.
 async function fn(action, body = {}) {
   const s = await studioSession();
   const res = await fetch(FUNCTION_URL, { method: 'POST', headers: { 'content-type': 'application/json', apikey: SUPABASE_KEY, authorization: `Bearer ${s?.token}` }, body: JSON.stringify({ action, ...body }) });
@@ -262,7 +247,8 @@ function todayWork() {
   return [...byCustomer.values()];
 }
 
-function sendToPortal(group) {
+/** Abrir el envío en la app para editarlo antes (con quién lo manda, dificultades…). */
+function openInApp(group) {
   const items = group.items.map((it) => ({ ...it, customerId: group.customer.id, customerName: group.customer.name }));
   try {
     localStorage.setItem('portal:import', JSON.stringify({ at: Date.now(), items }));
@@ -273,27 +259,155 @@ function sendToPortal(group) {
   window.open('/cliente/#/importar', '_blank');
 }
 
+/** Mandar lo terminado hoy al reporte diario de su portal, directamente y sin repetir. */
+function sendToPortal(group, connected) {
+  if (!connected) return openInApp(group);
+  const items = group.items.map((it) => ({ ...it, on: true }));
+  ptDialog({
+    title: `Al reporte de ${group.customer.name}`,
+    body: el('div', { class: 'ng-form' },
+      el('p', { class: 'pt-hint', text: 'Entra en su reporte de hoy como hecho y le llega el aviso. Lo que ya esté en su reporte no se repite.' }),
+      el('div', { class: 'pt-send-list' }, items.map((it) => toggle(`${it.title}${it.minutes ? ` · ${minutesText(it.minutes)}` : ''}`, true, (v) => { it.on = v; }))),
+      el('button', { type: 'button', class: 'pill ghost', onclick: () => openInApp(group) }, icon('external'), 'Editarlo en la app antes'),
+    ),
+    submit: 'Mandar al reporte',
+    onSubmit: () => {
+      const chosen = items.filter((it) => it.on);
+      if (!chosen.length) {
+        toast('Elige al menos una línea.', 'error');
+        return false;
+      }
+      sendWork(group.customer.id, chosen)
+        .then(({ sent }) => toast(sent ? `${plural(sent, 'línea', 'líneas')} en su reporte de hoy.` : 'Eso ya estaba en su reporte.'))
+        .catch((err) => toast(err.message, 'error'));
+      return true;
+    },
+  });
+}
+
+// ── Lo que piden los clientes, y la sincronización con sus portales ──
+
+/** Convierte lo que pidió el cliente en una tarea de Negocio («Solicitud» de su proyecto). */
+function askToTask(item) {
+  const project = state.projects.find((p) => item.customerId && p.customerId === item.customerId && p.status !== 'completed');
+  const task = newTask({ projectId: project?.id || '', status: 'request' });
+  Object.assign(task, {
+    title: item.title.slice(0, 200),
+    description: [item.detail, `Desde el portal de ${item.client}: ${location.origin}/cliente/?p=${item.clientId}${item.route || ''}`].filter(Boolean).join('\n\n'),
+    priority: 'medium',
+    portal: { clientId: item.clientId, ref: item.ref, kind: item.ref.split(':')[0], at: new Date().toISOString() },
+    createdAt: new Date().toISOString(),
+  });
+  state.tasks.push(task);
+  put('tasks', task);
+  toast(`Tarea ${taskKey(task)} creada${project ? ` en ${project.name}` : ''}.`);
+  return task;
+}
+
+function asksCard() {
+  const box = el('div', { class: 'pt-asks' }, el('div', { class: 'pt-skel' }, el('i'), el('i')));
+  const draw = (items) => {
+    const open = items.filter((x) => !x.task);
+    box.replaceChildren(items.length
+      ? el('ul', { class: 'pt-ask-list' }, items.slice(0, 12).map((x) => el('li', { class: x.task ? 'is-linked' : '' },
+        el('span', { class: 'pt-ask-ico' }, icon(x.ico)),
+        el('div', { class: 'pt-ask-main' },
+          el('small', {}, el('b', { text: x.client }), ` · ${x.what} · ${ago(x.at)}`),
+          el('span', { text: x.title }),
+        ),
+        el('div', { class: 'pt-ask-actions' },
+          x.task
+            ? el('a', { class: 'pill sm ghost', href: `#/tareas/${taskKey(x.task)}` }, icon('check'), taskKey(x.task))
+            : el('button', { type: 'button', class: 'pill sm', onclick: () => { x.task = askToTask(x); draw(items); } }, icon('plus'), 'Crear tarea'),
+          el('a', { class: 'ng-ibtn', href: `/cliente/?p=${x.clientId}${x.route || ''}`, target: '_blank', 'aria-label': 'Abrir en la app', title: 'Abrir en la app' }, icon('external')),
+        ),
+      )))
+      : empty({ ico: 'inbox', title: 'Nada pendiente', text: 'Cuando un cliente te envíe algo, pida cambios, proponga una idea o pida una reunión, aparecerá aquí para convertirlo en tarea.' }));
+    head.querySelector('small').textContent = items.length ? `${plural(open.length, 'sin tarea', 'sin tarea')} de ${items.length}` : 'Envíos, cambios, ideas y reuniones de todos los portales.';
+  };
+  const head = el('header', { class: 'ng-card-head' }, el('div', {}, el('h2', { text: 'Lo que te piden tus clientes' }), el('small', { text: 'Cargando…' })));
+  clientAsks().then(draw).catch((err) => box.replaceChildren(empty({ ico: 'ban', title: 'No se pudo cargar', text: err.message })));
+  return el('section', { class: 'ng-card' }, head, box);
+}
+
+function syncCard() {
+  const status = el('small', { text: syncState.at ? `Última vez ${ago(new Date(syncState.at).toISOString())}` : 'Proyectos, documentos y datos de cada cliente.' });
+  const out = el('div', { class: 'pt-sync-out' });
+  const btn = el('button', { type: 'button', class: 'pill sm' }, icon('refresh'), 'Sincronizar ahora');
+  const run = async () => {
+    btn.disabled = true;
+    status.textContent = 'Sincronizando…';
+    try {
+      const r = await syncNow({ customers: true });
+      if (!r) throw new Error('Conecta la cuenta del estudio.');
+      if (syncState.error) throw new Error(syncState.error);
+      const p = r.projects || {};
+      const parts = [
+        p.projects ? plural(p.projects, 'proyecto al día', 'proyectos al día') : null,
+        p.milestones ? plural(p.milestones, 'hito nuevo', 'hitos nuevos') : null,
+        typeof r.docs === 'number' && r.docs ? plural(r.docs, 'documento al día', 'documentos al día') : null,
+        r.customers?.toPortal ? `datos a ${plural(r.customers.toPortal, 'portal', 'portales')}` : null,
+        r.customers?.toNegocio ? `datos de ${plural(r.customers.toNegocio, 'portal', 'portales')} a Negocio` : null,
+      ].filter(Boolean);
+      status.textContent = parts.length ? `Hecho: ${parts.join(' · ')}.` : 'Todo estaba al día.';
+      const differ = r.customers?.differ || [];
+      const LABEL = { email: 'Correo', phone: 'Teléfono', address: 'Dirección', website: 'Web' };
+      out.replaceChildren(...(differ.length ? [
+        el('p', { class: 'pt-hint', text: 'Estos datos son distintos en Negocio y en la app del cliente. Elige cuál vale:' }),
+        el('ul', { class: 'pt-differ' }, differ.map((d) => {
+          const li = el('li', {},
+            el('b', { text: `${d.customer.name} · ${LABEL[d.field]}` }),
+            el('button', { type: 'button', class: 'pill sm ghost', title: 'Usar el de Negocio en los dos', onclick: async () => { await settleField(d, 'negocio').catch((e) => toast(e.message, 'error')); li.remove(); } }, el('small', { text: 'Negocio: ' }), d.negocio),
+            el('button', { type: 'button', class: 'pill sm ghost', title: 'Usar el de la app en los dos', onclick: async () => { await settleField(d, 'app').catch((e) => toast(e.message, 'error')); li.remove(); } }, el('small', { text: 'App: ' }), d.app),
+          );
+          return li;
+        })),
+      ] : []));
+    } catch (err) {
+      status.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  };
+  btn.addEventListener('click', run);
+  return el('section', { class: 'ng-card pt-sync' },
+    el('header', { class: 'ng-card-head' }, el('div', {}, el('h2', { text: 'Al día con los portales' }), status), btn),
+    el('ul', { class: 'pt-sync-what' },
+      el('li', {}, icon('folder'), 'Proyectos: etapas, avance, horas y lo próximo; cada etapa completada llega como hito.'),
+      el('li', {}, icon('file'), 'Facturas y propuestas publicadas: pagos, aperturas y firmas.'),
+      el('li', {}, icon('users'), 'Datos del cliente: correo, teléfono, dirección y web, en los dos lados.'),
+    ),
+    out,
+  );
+}
+
 async function summary(connected = false) {
   const url = `${location.origin}/cliente/`;
   const groups = todayWork();
   let stats = null;
   if (connected) {
     const c = await sb();
-    const [clients, members, unseen, sent] = await Promise.all([
+    const [clients, members, unseen, sent, meetings, ratings] = await Promise.all([
       c.from('portal_clients').select('id, archived').then(must),
       c.from('portal_members').select('user_id').then(must),
       c.from('portal_submissions').select('id', { count: 'exact', head: true }).is('seen_at', null),
       c.from('portal_tasks').select('id', { count: 'exact', head: true }).eq('status', 'submitted'),
+      c.from('portal_meetings').select('id', { count: 'exact', head: true }).eq('status', 'requested').then((r) => (r.error ? null : r.count)),
+      ratingsByPortal().catch(() => []),
     ]);
+    const avg = ratings.length ? ratings.reduce((s, r) => s + r.avg, 0) / ratings.length : null;
     stats = el('div', { class: 'ng-kpis' },
       kpi({ label: 'Portales', value: String(clients.filter((x) => !x.archived).length), ico: 'smartphone', sub: plural(clients.filter((x) => x.archived).length, 'archivado', 'archivados') }),
       kpi({ label: 'Personas', value: String(new Set(members.map((m) => m.user_id)).size), ico: 'users', sub: 'Con acceso a algún portal' }),
       kpi({ label: 'Te enviaron', value: String(unseen.count || 0), ico: 'inbox', sub: 'Sin ver todavía' }),
       kpi({ label: 'Peticiones enviadas', value: String(sent.count || 0), ico: 'tasks', sub: 'Esperan tu revisión' }),
+      meetings != null && kpi({ label: 'Reuniones', value: String(meetings), ico: 'calendar', sub: 'Por confirmar' }),
+      avg != null && kpi({ label: 'Valoración', value: `${avg.toFixed(1).replace('.', ',')} ★`, ico: 'star', sub: `Media del último mes de ${plural(ratings.length, 'cliente', 'clientes')}` }),
     );
   }
   return el('div', { class: 'pt-stack' },
     stats,
+    connected && el('div', { class: 'pt-launch' }, asksCard(), syncCard()),
     el('div', { class: 'pt-launch' },
       el('section', { class: 'ng-card pt-qr' },
         el('div', { class: 'pt-qr-code' }, qr(url)),
@@ -308,7 +422,7 @@ async function summary(connected = false) {
         groups.length
           ? el('div', { class: 'pt-today' }, groups.map((g) => el('article', { class: 'pt-today-group' },
             el('header', {}, el('b', { text: g.customer.name }), el('small', { text: `${g.items.length} ${g.items.length === 1 ? 'cosa' : 'cosas'}` }),
-              el('button', { type: 'button', class: 'pill sm', onclick: () => sendToPortal(g) }, icon('send'), 'Mandar al portal')),
+              el('button', { type: 'button', class: 'pill sm', onclick: () => sendToPortal(g, connected) }, icon('send'), 'Mandar al portal')),
             el('ul', {}, g.items.map((it) => el('li', {}, icon('check'), el('span', { text: it.title }), it.minutes ? el('small', { text: minutesText(it.minutes) }) : null))),
           )))
           : empty({ ico: 'tasks', title: 'Hoy no hay nada terminado', text: 'Cuando marques tareas como hechas o apuntes horas en proyectos de un cliente, aparecerán aquí para mandarlas a su portal.' }),

@@ -13,7 +13,7 @@ import { initTheme } from './theme.js';
 import { createBackend } from './portal/data.js';
 import { el, fill, icon, toast, still, sheet, emptyBox, avatar, initials, plural } from './portal/kit.js';
 import { installTouchFeedback, react } from './portal/feel.js';
-import { app, setRedraw, unread, pendingTasks, collectPaths, signPaths, urlOf, can } from './portal/state.js';
+import { app, setRedraw, unread, pendingTasks, collectPaths, signPaths, urlOf, can, has } from './portal/state.js';
 import { isNexusReport, parseNexusReport } from './portal/importers.js';
 import { applyBrand, brandOf } from './portal/brand.js';
 import { tabIcon } from './portal/tab-icons.js';
@@ -22,6 +22,12 @@ import { marketingPage, openPiece } from './portal/marketing.js';
 import { profilePage, ensurePush, notificationOnboarding, notificationsCard } from './portal/profile.js';
 import { openThread } from './portal/threads.js';
 import * as studio from './portal/studio.js';
+import { meetingsPage } from './portal/meetings.js';
+import { documentsPage } from './portal/documents.js';
+import { projectPage } from './portal/project.js';
+import { reportPage } from './portal/report.js';
+import { openSearch } from './portal/search.js';
+import { warmLinks } from './portal/negocio-link.js';
 
 initTheme();
 installTouchFeedback();
@@ -62,6 +68,11 @@ function route() {
     case 'marketing': return a === 'pieza' ? { overlay: () => openPiece(b), base: '#/marketing' } : { tab: 'marketing', build: () => marketingPage(a, b, c) };
     case 'calendario': return { tab: 'marketing', build: () => marketingPage('calendario', a, b) };
     case 'recursos': return { tab: 'recursos', build: resourcesPage };
+    case 'documentos': return { tab: 'recursos', build: () => documentsPage(a) };
+    case 'reuniones': return { tab: 'inicio', build: meetingsPage };
+    case 'proyecto': return { tab: 'inicio', build: projectPage };
+    case 'informe': return { tab: 'cronologia', build: () => reportPage(a) };
+    case 'buscar': return { overlay: openSearch };
     case 'peticiones':
     case 'tareas': return { tab: 'peticiones', build: () => requestsPage(a) };
     case 'perfil': return { tab: 'perfil', build: profilePage };
@@ -73,8 +84,9 @@ function route() {
 }
 
 // Qué pestaña enseña cada sección (si todas las de una pestaña están ocultas, la pestaña se va).
-const TAB_SECTIONS = { cronologia: ['cronologia'], marketing: ['calendario', 'rendimiento', 'leads'], recursos: ['recursos'], peticiones: ['peticiones'] };
-const tabVisible = (tab) => app.studio || !TAB_SECTIONS[tab] || TAB_SECTIONS[tab].some(can);
+const TAB_SECTIONS = { cronologia: ['cronologia'], marketing: ['calendario', 'rendimiento', 'leads'], recursos: ['recursos', 'docs.view'], peticiones: ['peticiones'] };
+// Los documentos solo cuentan si la base ya los tiene (migración v5).
+const tabVisible = (tab) => app.studio || !TAB_SECTIONS[tab] || TAB_SECTIONS[tab].some((k) => (k === 'docs.view' ? has('documents') && can(k) : can(k)));
 
 function render({ keepScroll = false } = {}) {
   if (!app.data) return;
@@ -215,6 +227,9 @@ function syncChrome() {
 }
 document.querySelector('[data-bell]').addEventListener('animationend', (e) => e.currentTarget.classList.remove('is-ring'));
 document.querySelector('[data-bell]').addEventListener('click', () => (app.studio ? studio.inboxSheet() : bellSheet()));
+document.querySelector('[data-search]').addEventListener('click', openSearch);
+// Una tarea nueva en Negocio: los botones «Tarea» pasan a enseñar su clave.
+document.addEventListener('portal:linked', () => render({ keepScroll: true }));
 fab.addEventListener('click', () => (app.studio ? studio.createMenu() : sendSheet()));
 document.querySelector('[data-switch]').addEventListener('click', () => (app.studio || app.portals.length > 1 ? switchPortal() : (location.hash = '#/perfil')));
 document.addEventListener('portal:switch', () => switchPortal());
@@ -362,6 +377,8 @@ async function openPortal(p) {
   render();
   ensurePush();
   setTimeout(notificationOnboarding, 1400);
+  // En modo estudio, saber qué de lo que pidió el cliente ya tiene tarea en Negocio.
+  if (app.studio) warmLinks().then((any) => any && !document.querySelector('dialog[open]') && render({ keepScroll: true })).catch(() => {});
 }
 
 // ── Entrar ──

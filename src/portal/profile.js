@@ -7,9 +7,12 @@ import {
 } from './kit.js';
 import { react, feel } from './feel.js';
 import { safeName } from './data.js';
-import { app, redraw, isStudio, urlOf, signPaths, isOwner } from './state.js';
+import { app, redraw, isStudio, urlOf, signPaths, isOwner, has, can as canDo, pendingDocs, nextMeeting } from './state.js';
 import * as studio from './studio.js';
 import { setTheme } from '../theme.js';
+import { requestMeeting, canRequest } from './meetings.js';
+import { rateSheet, ratingMonth, canRate, ratingsSheet } from './rating.js';
+import { defaultReportMonth } from './report.js';
 
 // ── Instalar la app ──
 
@@ -226,6 +229,15 @@ export function profilePage() {
         rowLink('Nombre', { ico: 'user', tone: 'var(--cf-blue)', value: m.name || 'Añadir', onClick: () => editField('Tu nombre', m.name, (v) => saveSelf({ name: v }), { max: 120 }) }),
         rowLink('Cargo', { ico: 'store', tone: 'var(--cf-purple)', value: m.position || 'Añadir', onClick: () => editField('Tu cargo', m.position, (v) => saveSelf({ position: v }), { max: 80, placeholder: 'Dueña, marketing, encargado…' }) }),
         rowLink('Teléfono', { ico: 'call', tone: 'var(--cf-income)', value: m.phone || 'Añadir', onClick: () => editField('Tu teléfono', m.phone, (v) => saveSelf({ phone: v }), { max: 40, type: 'tel', placeholder: '+58 412 000 0000' }) }),
+      ),
+      group(isStudio() ? `El proyecto de ${c.name}` : 'Tu proyecto',
+        has('projects') && canDo('project.view') && rowLink('Proyecto', { ico: 'folder', tone: 'var(--cf-blue)', value: app.data.projects[0]?.name ? '' : 'Sin proyecto', href: '#/proyecto' }),
+        has('documents') && canDo('docs.view') && rowLink('Facturas y documentos', { ico: 'file', tone: 'var(--cf-orange)', value: pendingDocs().length ? `${pendingDocs().length} pendientes` : '', href: '#/documentos' }),
+        has('meetings') && rowLink('Reuniones', { ico: 'calendar', tone: '#22c9a6', value: nextMeeting() ? 'Hay una próxima' : '', href: '#/reuniones' }),
+        canRequest() && rowLink('Pedir una reunión', { ico: 'plus', tone: '#22c9a6', onClick: requestMeeting }),
+        rowLink('Informe del mes', { ico: 'chart', tone: 'var(--cf-purple)', href: `#/informe/${defaultReportMonth()}` }),
+        canRate() && ratingMonth() && rowLink('Valorar el mes', { ico: 'star', tone: '#f5b800', onClick: () => rateSheet() }),
+        isStudio() && has('ratings') && rowLink('Valoraciones', { ico: 'heart', tone: 'var(--cf-expense)', value: app.data.ratings.length ? String(app.data.ratings.length) : '', onClick: ratingsSheet }),
       ),
       group(isStudio() ? `Negocio de ${c.name}` : 'Tu negocio',
         businessRow('Sector', 'industry', 'store', 'var(--cf-orange)', { max: 80 }),

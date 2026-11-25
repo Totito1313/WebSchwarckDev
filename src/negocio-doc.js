@@ -890,6 +890,50 @@ export function docEditor(id, { backTo } = {}) {
     else aside.replaceChildren(el('header', {}, el('h2', {}, icon('wallet'), 'Pagos'), close), payPanel());
   }
 
+  /** En la app de su cliente: publicarla allí (con su estado al día) o quitarla. */
+  function portalBlock() {
+    const box = el('div', { class: 'ng-portal-pub' }, el('p', { class: 'ng-hint', text: 'Mirando su portal…' }));
+    const draw = async () => {
+      try {
+        const { linkedPortals, portalOfCustomer, docInPortal, publishDoc, unpublishDoc, studioSession } = await import('./negocio-puente.js');
+        const s = await studioSession().catch(() => null);
+        if (!s?.admin) {
+          box.replaceChildren(el('p', { class: 'ng-hint' }, el('span', {}, 'Para publicarla en la app del cliente, conecta la cuenta del estudio en ', el('a', { href: '#/portal', text: 'Portal de clientes' }), '.')));
+          return;
+        }
+        const portal = portalOfCustomer(await linkedPortals(), doc.customerId);
+        if (!portal) {
+          box.replaceChildren(el('p', { class: 'ng-hint' }, el('span', {}, 'Este cliente no tiene portal. Créalo en ', el('a', { href: '#/portal/clientes', text: 'Portal de clientes' }), ' y podrás publicarla en su app.')));
+          return;
+        }
+        const row = await docInPortal(doc);
+        const go = (fn, done) => async (e) => {
+          e.currentTarget.disabled = true;
+          try {
+            await fn(doc);
+            toast(done);
+          } catch (err) {
+            toast(err.message, 'error');
+          }
+          draw();
+        };
+        box.replaceChildren(
+          el('div', { class: 'ng-portal-pub-head' }, icon('smartphone'), el('div', {},
+            el('b', { text: row ? `En el portal de ${portal.name}` : `Portal de ${portal.name}` }),
+            el('small', { text: row ? 'La ve en su app, con su estado al día: pagos, aperturas y firmas.' : `Publícala en su app: le llega el aviso y la ${isSignable(doc) ? 'firma' : 'paga'} desde ahí.` }),
+          )),
+          row
+            ? el('button', { type: 'button', class: 'pill ghost', onclick: go(unpublishDoc, 'Quitada de su portal.') }, icon('ban'), 'Quitar de su portal')
+            : el('button', { type: 'button', class: 'pill', onclick: go(publishDoc, `Publicada en el portal de ${portal.name}.`) }, icon('send'), 'Publicar en su portal'),
+        );
+      } catch (err) {
+        box.replaceChildren(el('p', { class: 'ng-hint', text: err.message }));
+      }
+    };
+    draw();
+    return box;
+  }
+
   /** El enlace público: crearlo (con contraseña y caducidad opcionales), copiarlo, ver quién lo abrió y desactivarlo. */
   function sharePanel() {
     const box = el('div', { class: 'ng-drawer-body' });
@@ -923,7 +967,8 @@ export function docEditor(id, { backTo } = {}) {
           el('li', {}, icon('clock'), s.expiresAt ? `Caduca el ${dateText(new Date(s.expiresAt).toLocaleDateString('en-CA'))}` : 'No caduca'),
           el('li', {}, icon('eye'), views ? `Abierto ${views} ${views === 1 ? 'vez' : 'veces'}; la última, el ${stampText(new Date(pub.lastViewAt || pub.viewedAt).toISOString())}` : 'Todavía no lo ha abierto nadie'),
         ),
-        isSignable(doc) && (acceptance(pub, pub?.mode === 'drawn' ? `/api/admin/crm/signature/${doc.id}` : '') || el('p', { class: 'ng-hint', text: 'Esperando respuesta del cliente.' })),
+        ...(isSignable(doc) ? [acceptance(pub, pub?.mode === 'drawn' ? `/api/admin/crm/signature/${doc.id}` : '') || el('p', { class: 'ng-hint', text: 'Esperando respuesta del cliente.' })] : []),
+        portalBlock(),
         el('button', {
           type: 'button',
           class: 'pill ghost danger',

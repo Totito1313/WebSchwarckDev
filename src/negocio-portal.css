@@ -60,6 +60,38 @@
 .pt-today-group li span { flex: 1; }
 .pt-today-group li small { color: var(--body); }
 
+/* Lo que piden los clientes y la sincronización con sus portales */
+.pt-asks { display: grid; }
+.pt-ask-list { display: grid; gap: 8px; }
+.pt-ask-list li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 18px; background: var(--paper); animation: fx-rise 0.45s var(--ease) both; }
+.pt-ask-list li.is-linked { opacity: 0.72; }
+.pt-ask-ico { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: color-mix(in srgb, var(--violet) 14%, transparent); color: var(--violet); }
+.pt-ask-ico .ic { width: 17px; height: 17px; }
+.pt-ask-main { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.pt-ask-main small { overflow: hidden; color: var(--body); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.pt-ask-main small b { color: var(--ink); }
+.pt-ask-main span { overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.pt-ask-actions { display: flex; flex: none; align-items: center; gap: 6px; }
+.pt-sync { display: grid; align-content: start; gap: 14px; }
+.pt-sync .ng-card-head { align-items: flex-start; }
+.pt-sync-what { display: grid; gap: 8px; }
+.pt-sync-what li { display: flex; align-items: flex-start; gap: 10px; color: var(--body); font-size: 14px; line-height: 1.45; }
+.pt-sync-what .ic { flex: none; width: 18px; height: 18px; margin-top: 1px; color: var(--blue); }
+.pt-sync-out { display: grid; gap: 8px; }
+.pt-differ { display: grid; gap: 8px; }
+.pt-differ li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 12px; border-radius: 16px; background: var(--paper); }
+.pt-differ b { width: 100%; font-size: 13px; }
+.pt-differ .pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-differ .pill small { color: var(--body); }
+.pt-send-list { display: grid; gap: 6px; max-height: 50vh; overflow: auto; }
+
+/* El documento en la app de su cliente (panel «Compartir» del editor) */
+.ng-portal-pub { display: grid; gap: 10px; padding: 14px; border-radius: 18px; background: var(--paper); }
+.ng-portal-pub-head { display: flex; align-items: flex-start; gap: 10px; }
+.ng-portal-pub-head .ic { flex: none; width: 22px; height: 22px; color: var(--blue); }
+.ng-portal-pub-head div { display: grid; gap: 2px; }
+.ng-portal-pub-head small { color: var(--body); font-size: 13px; line-height: 1.4; }
+
 /* Logo de un portal: su imagen o sus iniciales sobre su color */
 .pt-logo { display: grid; flex: none; place-items: center; width: 52px; height: 52px; overflow: hidden; border-radius: 16px; background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #1b66b8)); color: #fff; font-size: 18px; font-weight: 750; letter-spacing: -0.02em; }
 .pt-logo img { width: 100%; height: 100%; object-fit: cover; }
