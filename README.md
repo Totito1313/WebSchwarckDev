@@ -384,7 +384,7 @@ Falta, una sola vez (además de la **v5**, abajo):
 
 2. En Authentication › Sign In / Providers, desactiva «Allow new users to sign up» (las cuentas las crea el estudio) y activa la protección de contraseñas filtradas. En URL Configuration, pon `https://schwarckdev.com/cliente/` como Site URL (lo usan los enlaces de acceso de un solo uso).
 
-**La v5** (proyecto, documentos, reuniones y valoraciones) necesita dos pasos en Supabase: aplicar `supabase/migrations/20261125120000_portal_v5_negocio.sql` y volver a desplegar la función `portal` (para los avisos y recordatorios nuevos). Con el conector de Supabase activo en una sesión de Claude Code se hace desde ahí; si no, pegando el SQL en el editor SQL del proyecto y con `supabase functions deploy portal`.
+**La v5** (proyecto, documentos, reuniones y valoraciones) ya está en Supabase: la migración `20261125120000_portal_v5_negocio.sql` aplicada (como `portal_v5_negocio`) y la función `portal` desplegada con los avisos y recordatorios nuevos (versión 4, `verify_jwt` desactivado como antes). Sus reglas se probaron en la base real dentro de una transacción deshecha: el cliente no puede fijarse una hora ni confirmar su reunión, solo cancelar la suya; su valoración queda a su nombre y solo del mes que corre o el anterior; no crea documentos ni proyectos; nadie ve la valoración de otro; un hito no se repite.
 
 `/cliente/?demo` enseña la app del cliente con datos de ejemplo (también lo de la v5), y `/cliente/?demo=estudio`, el modo estudio.
 
