@@ -408,7 +408,7 @@ html.motion .road:not(.in) li > :not(.dot) { opacity: 0; translate: 0 14px; }
 .faq-a p { max-width: 38em; padding: 0 48px 26px 34px; color: var(--body); }
 .faq-a a { color: var(--ink); text-underline-offset: 3px; }
 
-/* ══ [07] Contacto ══ */
+/* ══ [08] Contacto ══ */
 .contact { position: relative; padding: clamp(48px, 8vw, 104px); overflow: hidden; border: 1px solid var(--line); border-radius: 36px; background: var(--surface); }
 .contact::before { background: radial-gradient(560px circle at var(--sx, 70%) var(--sy, 40%), var(--spot), transparent 65%); }
 .contact-mark { position: absolute; z-index: -1; right: clamp(-90px, -4vw, -20px); bottom: clamp(-110px, -6vw, -40px); width: clamp(260px, 36vw, 470px); height: auto; overflow: visible; rotate: var(--mr, -8deg); transition: rotate 1.2s var(--ease); }
@@ -427,6 +427,28 @@ html.motion .contact:not(.in) .contact-mark path { stroke-dashoffset: 1; fill-op
 .copy[data-state='done'] [data-when='done'], .copy[data-state='fail'] [data-when='fail'] { opacity: 1; translate: 0 0; }
 .copy[data-state='done'] { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); color: var(--accent-ink); }
 
+
+/* ══ [07] Quién está detrás: la persona, su papel y cómo contactarla ══ */
+.founder { display: grid; grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr); gap: clamp(28px, 5vw, 64px); align-items: center; padding: clamp(14px, 2vw, 22px); border: 1px solid var(--line); border-radius: 36px; background: var(--surface); }
+.founder-photo { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 5; overflow: hidden; border-radius: 26px; background: radial-gradient(90% 70% at 25% 15%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%), repeating-linear-gradient(-45deg, transparent 0 10px, var(--grid) 10px 11px), var(--surface-2); }
+.founder-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; transition: scale 0.9s var(--ease); }
+.founder:hover .founder-photo img { scale: 1.03; }
+.founder-initials { font-size: clamp(110px, 15vw, 200px); font-weight: 600; line-height: 1; letter-spacing: -0.08em; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; transition: scale 0.9s var(--ease); }
+.founder:hover .founder-initials { scale: 1.05; }
+.founder-tag { position: absolute; left: 16px; bottom: 16px; display: inline-flex; align-items: center; gap: 9px; padding: 7px 13px; border-radius: 999px; background: var(--glass); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: var(--glass-shadow); color: var(--ink); }
+.founder-body { padding-block: clamp(6px, 2vw, 24px); padding-right: clamp(4px, 3vw, 40px); }
+.founder-role { color: var(--accent-ink); }
+.founder h3 { margin-top: 14px; font-size: clamp(32px, 3.8vw, 50px); font-weight: 500; line-height: 1.04; letter-spacing: -0.045em; text-wrap: balance; }
+.founder-body > p { max-width: 34em; margin-top: 18px; color: var(--body); font-size: 17px; }
+.founder-data { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; margin-top: 34px; border-top: 1px solid var(--line); }
+.founder-data > div { min-width: 0; padding: 15px 0; border-bottom: 1px solid var(--line); }
+.founder-data .wide { grid-column: 1 / -1; }
+.founder-data dt { color: var(--dim); }
+.founder-data dd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 3px; overflow-wrap: anywhere; }
+.founder-data dd > a:not(.founder-wa) { color: var(--ink); text-decoration: none; background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat; transition: background-size 0.35s var(--ease), color 0.2s; }
+.founder-data dd > a:not(.founder-wa):hover { color: var(--accent-ink); background-size: 100% 1px; }
+.founder-wa { padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--body); font-size: 13px; text-decoration: none; transition: border-color 0.2s, color 0.2s; }
+.founder-wa:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); color: var(--accent-ink); }
 
 /* ══ Índice lateral: dónde estás en la página ══ */
 .rail { position: fixed; z-index: 50; top: 50%; right: 22px; display: none; gap: 4px; translate: 12px -50%; opacity: 0; pointer-events: none; transition: opacity 0.4s, translate 0.5s var(--ease); }
@@ -478,6 +500,9 @@ html.motion .principles li[data-reveal].in .fill { opacity: 1; }
   .road li { padding: 0 0 0 38px; }
   .faq { gap: 40px; }
   .faq .sec-head { position: static; }
+  .founder { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .founder-photo { aspect-ratio: 5 / 4; }
+  .founder-body { padding: 0 clamp(6px, 2vw, 18px) 10px; }
 
   /* Proceso: el teléfono arriba, fijo y sobre el fondo; los pasos pasan por debajo. */
   .story-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
@@ -526,6 +551,10 @@ html.motion .principles li[data-reveal].in .fill { opacity: 1; }
   .stat > span { font-size: 14.5px; }
   .faq-q { gap: 14px; padding: 22px 0; font-size: 16.5px; }
   .faq-a p { padding: 0 0 22px 30px; }
+  .founder { border-radius: 30px; }
+  .founder-photo { aspect-ratio: 1; border-radius: 20px; }
+  .founder-body > p { font-size: 16px; }
+  .founder-data { grid-template-columns: minmax(0, 1fr); }
   .contact { border-radius: 30px; }
   .contact .btn { width: 100%; justify-content: center; }
   .contact .btn.primary { font-size: 14px; }
