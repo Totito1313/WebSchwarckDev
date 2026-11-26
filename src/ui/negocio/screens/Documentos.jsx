@@ -1,8 +1,7 @@
 // Facturas, cotizaciones y propuestas: la lista con su estado (que sale de los
 // pagos, las fechas y lo que hizo el cliente en el enlace) y la ficha de cada una.
-// Cobrar, convertir en factura y anular se hacen aquí; el editor de la hoja (líneas,
-// diseño y enlace para el cliente) todavía es el de siempre: «Abrir en el editor»
-// lleva a él con el mismo documento.
+// Cobrar, convertir en factura y anular se hacen aquí; la hoja (líneas, diseño,
+// enlace para el cliente e imprimir) se edita en el editor nuevo (editor/Editor.jsx).
 import { useMemo, useState } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowUpRightFromSquare, ChevronDown, CircleCheck, CircleDollar, Copy, Eye, FileText, Folder, Plus, Xmark } from '@gravity-ui/icons';
 import { Button, ButtonGroup, Card, Chip, Description, Dropdown, Label, Link, Separator, Table, Tabs, toast } from '@heroui/react';
@@ -13,12 +12,12 @@ import { DataGrid, Timeline } from '../../pro/index.js';
 import { ConfirmDialog } from '../fields.jsx';
 import { go, useCrm } from '../store.js';
 import { PaymentForm, setDocStatus, toInvoice } from '../payments.jsx';
+import { NewProposal, editorHash } from '../editor/Editor.jsx';
 import { DOC_STATUS, DOC_WORD, base, customerName, dateText, docStatus, fmt, money, shortDate, sumBase, totals } from '../domain.js';
 
 const PLURAL = { invoice: 'Facturas', quote: 'Cotizaciones', proposal: 'Propuestas' };
 const NEW_WORD = { invoice: 'Nueva factura', quote: 'Nueva cotización', proposal: 'Nueva propuesta' };
 const LIST_HASH = { invoice: '#/facturas', quote: '#/cotizaciones', proposal: '#/propuestas' };
-const OLD_EDITOR = (id) => `/admin/negocio/#/doc/${id}`;
 const plain = (s = '') => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 const FILTERS = {
@@ -39,22 +38,18 @@ const FILTERS = {
 };
 FILTERS.proposal = FILTERS.quote;
 
-/** Crea el borrador y lo abre en el editor de siempre (las propuestas eligen antes su plantilla allí). */
+/** Crea el borrador y lo abre en el editor (las propuestas eligen antes su plantilla). */
 export async function createAndEdit(type) {
   if (type === 'proposal') {
-    location.href = '/admin/negocio/#/propuestas';
+    go('#/propuestas/nueva');
     return;
   }
   const doc = newDoc(type);
-  try {
-    await put('docs', doc, { now: true });
-    location.href = OLD_EDITOR(doc.id);
-  } catch (err) {
-    toast.danger('No se pudo crear', { description: err.message });
-  }
+  put('docs', doc, { now: true })?.catch((err) => toast.danger('No se pudo guardar', { description: err.message }));
+  go(editorHash(doc.id));
 }
 
-export function Documentos({ type }) {
+export function Documentos({ type, isNew = false }) {
   const [state, v] = useCrm();
   const [filter, setFilter] = useState('all');
   const [paying, setPaying] = useState(null);
@@ -78,7 +73,7 @@ export function Documentos({ type }) {
 
   const rowMenu = ({ d, s, t }) => [
     { id: 'open', label: 'Abrir la ficha', icon: FileText },
-    { id: 'edit', label: 'Abrir en el editor', icon: ArrowUpRightFromSquare },
+    { id: 'edit', label: 'Editar', icon: ArrowUpRightFromSquare },
     isInvoice && t.due > 0.004 && d.status !== 'void' && { id: 'pay', label: 'Registrar pago', icon: CircleDollar },
     !isInvoice && !['void', 'declined', 'expired', 'accepted'].includes(s) && { id: 'convert', label: 'Convertir en factura', icon: FileText },
     { id: 'number', label: 'Copiar el número', icon: Copy, isDisabled: !d.number },
@@ -87,7 +82,7 @@ export function Documentos({ type }) {
   ].filter(Boolean);
   const onRowMenu = async (id, { d }) => {
     if (id === 'open') go(`#/documentos/${d.id}`);
-    if (id === 'edit') location.href = OLD_EDITOR(d.id);
+    if (id === 'edit') go(editorHash(d.id));
     if (id === 'pay') setPaying(d);
     if (id === 'convert') go(`#/documentos/${toInvoice(d).id}`);
     if (id === 'number' && (await copyText(d.number))) toast(`${d.number} copiado`);
@@ -216,6 +211,7 @@ export function Documentos({ type }) {
           />
         </>
       )}
+      {isNew && type === 'proposal' && <NewProposal onClose={() => go('#/propuestas')} />}
     </div>
   );
 }
@@ -250,14 +246,14 @@ function DocHistory({ d, pub, linked }) {
 /** La acción principal de cada documento según lo que le toca, y el resto en la flecha. */
 function DocActions({ d, s, t, linked }) {
   const [paying, setPaying] = useState(false);
-  const editor = () => (location.href = OLD_EDITOR(d.id));
+  const editor = () => go(editorHash(d.id));
   const isInvoice = d.type === 'invoice';
   const signable = d.type === 'quote' || d.type === 'proposal';
   let main;
   if (isInvoice && t.due > 0.004 && d.status !== 'void') main = ['pay', 'Registrar pago', CircleDollar];
   else if (signable && linked) main = ['invoice', 'Ver la factura', FileText];
   else if (signable && !['void', 'declined', 'expired'].includes(s)) main = ['convert', 'Convertir en factura', FileText];
-  else main = ['edit', 'Abrir en el editor', ArrowUpRightFromSquare];
+  else main = ['edit', 'Editar', ArrowUpRightFromSquare];
   const run = (k) => {
     if (k === 'pay') setPaying(true);
     if (k === 'edit') editor();
@@ -279,7 +275,7 @@ function DocActions({ d, s, t, linked }) {
   };
   const Icon = main[2];
   const more = [
-    main[0] !== 'edit' && ['edit', 'Abrir en el editor', 'Líneas, diseño, enlace para el cliente e imprimir'],
+    main[0] !== 'edit' && ['edit', 'Editar', 'Líneas, diseño, enlace para el cliente e imprimir'],
     signable && !linked && main[0] === 'convert' && ['convert-project', 'Factura y proyecto', 'Crea también el proyecto con su presupuesto'],
     signable && d.status !== 'declined' && d.status !== 'void' && !linked && ['declined', 'Marcar como rechazada', ''],
     d.status !== 'void' && d.type !== 'receipt' && ['void', 'Anular', 'Deja de contar en las cifras'],

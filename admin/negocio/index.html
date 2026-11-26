@@ -2,86 +2,19 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Negocio | Schwarck</title>
   <meta name="robots" content="noindex, nofollow">
-  <meta name="theme-color" content="#f1f2f3" data-light="#f1f2f3" data-dark="#000000">
-  <script>try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <!-- useTheme de HeroUI guarda el tema en «heroui-theme»; esto lo aplica antes del primer pintado. -->
+  <script>try{var t=localStorage.getItem('heroui-theme')||'system';if(t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);document.documentElement.classList.add(t)}catch(e){}</script>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Allura&family=Anton&family=DM+Sans:wght@400;500;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="/src/negocio.css">
-  <link rel="stylesheet" href="/src/negocio-gastos.css">
-  <link rel="stylesheet" href="/src/negocio-trabajo.css">
-  <link rel="stylesheet" href="/src/negocio-marketing.css">
-  <link rel="stylesheet" href="/src/negocio-propuesta.css">
-  <link rel="stylesheet" href="/src/negocio-paginas.css">
-  <link rel="stylesheet" href="/src/negocio-leads.css">
-  <link rel="stylesheet" href="/src/negocio-portal.css">
-  <link rel="stylesheet" href="/src/panel.css">
-  <link rel="stylesheet" href="/src/negocio-fx.css">
 </head>
-<body class="ng">
-
-<nav class="ng-rail" aria-label="Negocio" data-rail hidden>
-  <a class="ng-logo" href="/admin/" title="Volver al panel" aria-label="Volver al panel"><img src="/favicon.svg" alt="" width="26" height="26"></a>
-  <button class="ng-rail-new" type="button" aria-label="Crear" title="Crear" data-new><span data-icon="plus"></span></button>
-  <button class="ng-rail-search" type="button" aria-label="Buscar (Ctrl K)" data-cmdk><span data-icon="search"></span><span class="ng-tip" aria-hidden="true">Buscar · Ctrl K</span></button>
-  <button class="ng-rail-timer" type="button" aria-label="Temporizador" data-timer><span data-icon="timer"></span><span class="ng-rail-time" data-elapsed></span><span class="ng-tip" aria-hidden="true">Temporizador</span></button>
-  <a href="#/" data-nav="inicio" aria-label="Inicio"><span data-icon="home"></span><span class="ng-tip" aria-hidden="true">Inicio</span></a>
-  <a href="#/proyectos" data-nav="proyectos" aria-label="Proyectos"><span data-icon="folder"></span><span class="ng-tip" aria-hidden="true">Proyectos</span></a>
-  <a href="#/tareas" data-nav="tareas" aria-label="Tareas"><span data-icon="tasks"></span><span class="ng-tip" aria-hidden="true">Tareas</span></a>
-  <a href="#/paginas" data-nav="paginas" aria-label="Páginas"><span data-icon="page"></span><span class="ng-tip" aria-hidden="true">Páginas</span></a>
-  <a href="#/horas" data-nav="horas" aria-label="Horas"><span data-icon="clock"></span><span class="ng-tip" aria-hidden="true">Horas</span></a>
-  <a href="#/facturas" data-nav="facturas" aria-label="Facturas"><span data-icon="file"></span><span class="ng-tip" aria-hidden="true">Facturas</span></a>
-  <a href="#/cotizaciones" data-nav="cotizaciones" aria-label="Cotizaciones"><span data-icon="quote"></span><span class="ng-tip" aria-hidden="true">Cotizaciones</span></a>
-  <a href="#/propuestas" data-nav="propuestas" aria-label="Propuestas"><span data-icon="send"></span><span class="ng-tip" aria-hidden="true">Propuestas</span></a>
-  <a href="#/leads" data-nav="leads" aria-label="Leads"><span data-icon="funnel"></span><span class="ng-tip" aria-hidden="true">Leads</span></a>
-  <a href="#/clientes" data-nav="clientes" aria-label="Clientes"><span data-icon="users"></span><span class="ng-tip" aria-hidden="true">Clientes</span></a>
-  <a href="#/portal" data-nav="portal" aria-label="Portal de clientes"><span data-icon="smartphone"></span><span class="ng-tip" aria-hidden="true">Portal de clientes</span></a>
-  <a href="#/gastos" data-nav="gastos" aria-label="Gastos"><span data-icon="wallet"></span><span class="ng-tip" aria-hidden="true">Gastos</span></a>
-  <a href="#/catalogo" data-nav="catalogo" aria-label="Catálogo"><span data-icon="box"></span><span class="ng-tip" aria-hidden="true">Catálogo</span></a>
-  <a href="#/marketing" data-nav="marketing" aria-label="Marketing"><span data-icon="megaphone"></span><span class="ng-tip" aria-hidden="true">Marketing</span></a>
-  <span class="ng-rail-gap"></span>
-  <a href="#/ajustes" data-nav="ajustes" aria-label="Ajustes"><span data-icon="sliders"></span><span class="ng-tip" aria-hidden="true">Ajustes</span></a>
-  <button class="theme-btn" type="button" data-theme-toggle hidden><svg class="moon" viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 11.6A6.5 6.5 0 0 1 8.4 3.5a6.5 6.5 0 1 0 8.1 8.1Z"/></svg><svg class="sun" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.4"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7 6 6M14 14l1.3 1.3M4.7 15.3 6 14M14 6l1.3-1.3"/></svg></button>
-  <button type="button" aria-label="Salir" data-logout><span data-icon="logout"></span><span class="ng-tip" aria-hidden="true">Salir</span></button>
-</nav>
-
-<main class="ng-main">
-  <noscript><p class="ng-note">El negocio necesita JavaScript.</p></noscript>
-
-  <section class="ng-gate" data-view="loading"><p class="ng-note">Cargando…</p></section>
-
-  <section class="ng-gate" data-view="setup" hidden>
-    <div class="ng-gate-card">
-      <img src="/favicon.svg" alt="" width="40" height="40">
-      <h1>Falta un paso</h1>
-      <p data-setup-why></p>
-      <a class="pill" href="/apps/">Ver cómo ponerla</a>
-    </div>
-  </section>
-
-  <section class="ng-gate" data-view="login" hidden>
-    <form class="ng-gate-card">
-      <img src="/favicon.svg" alt="" width="40" height="40">
-      <h1>Negocio</h1>
-      <p>Clientes, facturas y cobros. Entra con la contraseña del panel.</p>
-      <label class="ng-field"><span>Contraseña</span>
-        <input type="password" name="password" autocomplete="current-password" required>
-      </label>
-      <button class="pill lg" type="submit">Entrar</button>
-      <p class="ng-msg" role="status" data-login-msg></p>
-    </form>
-  </section>
-
-  <div data-view="app" hidden></div>
-</main>
-
-<div class="ng-toast" role="status" aria-live="polite" data-toast></div>
-
-<script type="module" src="/src/negocio.js"></script>
-<script type="module" src="/src/panel-motion.js"></script>
+<body class="bg-background text-foreground">
+  <noscript>Negocio necesita JavaScript.</noscript>
+  <div id="root"></div>
+  <script type="module" src="/src/ui/negocio/main.jsx"></script>
 </body>
 </html>

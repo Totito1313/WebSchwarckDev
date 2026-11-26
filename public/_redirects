@@ -1,3 +1,7 @@
 # Las herramientas de las apps salieron de /admin/ a /apps/ («Mis apps»).
 /admin/tienda/  /apps/tienda/  301
 /admin/tienda   /apps/tienda/  301
+
+# Negocio nuevo pasó a ser Negocio: la dirección de pruebas lleva a la de siempre (el #/… se conserva).
+/admin/negocio-nuevo/  /admin/negocio/  301
+/admin/negocio-nuevo   /admin/negocio/  301

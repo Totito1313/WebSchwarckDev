@@ -18,7 +18,7 @@ addIcons({
   drag: '<circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/>',
 });
 
-const TOKENS = new RegExp([
+export const TOKENS = new RegExp([
   '(?<code>`[^`\\n]+`)',
   '(?<mdlink>\\[[^\\]\\n]+\\]\\(https?:\\/\\/[^\\s)]+\\))',
   '(?<page>\\[\\[[^\\]\\n]{1,120}\\]\\])',
@@ -255,7 +255,7 @@ export function richArea({ value = '', placeholder = '', onInput, cls = '', maxL
 // ── Portadas ──
 
 export const COVERS = ['sky', '#1d2126', '#00b8d4', '#0071bc', '#1f9d46', '#8e5bd6', '#f97316', '#d9a406', '#e0352b'];
-const coverBg = (c) => (c === 'sky' ? 'linear-gradient(160deg, #cfe9f8 0%, #e6f3fb 55%, #fff6e6 100%)' : `linear-gradient(140deg, ${c}, color-mix(in srgb, ${c} 62%, #000))`);
+export const coverBg = (c) => (c === 'sky' ? 'linear-gradient(160deg, #cfe9f8 0%, #e6f3fb 55%, #fff6e6 100%)' : `linear-gradient(140deg, ${c}, color-mix(in srgb, ${c} 62%, #000))`);
 
 /** La portada: una imagen o un color. */
 export function coverNode(cover, cls = '') {

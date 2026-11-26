@@ -4,7 +4,7 @@
 // para revisar se aprueba o se piden cambios desde ahí.
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, CircleCheck, Copy, Pencil, Xmark } from '@gravity-ui/icons';
-import { Button, Card, Chip, Form, Label, Meter, Sheet, Tabs, TextArea, TextField, toast } from '@heroui/react';
+import { Button, Card, Chip, Form, Label, Meter, ScrollShadow, Sheet, Tabs, TextArea, TextField, toast } from '@heroui/react';
 import { BarsChart } from '../../kit/BarsChart.jsx';
 import { Empty, Panel, Stat } from '../../kit/parts.jsx';
 import { cap, compact, dayDate, fDay, fMonth, fMonthShort, money, num, todayKey } from '../../../portal/kit.js';
@@ -245,7 +245,7 @@ function Pieza({ id }) {
               </span>
             </Sheet.Header>
             <Sheet.Body className="flex flex-col gap-4 overflow-y-auto pb-2">
-              <div className="-mx-1 overflow-x-auto px-1">
+              <ScrollShadow orientation="horizontal" hideScrollBar className="-mx-1 px-1">
                 <Stepper
                   orientation="horizontal"
                   numbered={false}
@@ -254,7 +254,7 @@ function Pieza({ id }) {
                   current={c.status === STATUS_ORDER[STATUS_ORDER.length - 1] ? STATUS_ORDER.length : Math.max(0, at)}
                   steps={STATUS_ORDER.map((k) => ({ id: k, title: CONTENT_STATUS[k][0] }))}
                 />
-              </div>
+              </ScrollShadow>
               {canDecide && !asking && (
                 <ApprovalCard
                   title="¿Apruebas esta pieza?"

@@ -48,7 +48,8 @@ import { Empty, PageHeader } from '../../kit/parts.jsx';
 import { useOpenAfterGesture } from '../../kit/hooks.js';
 import { go, routeQuery, useCrm } from '../store.js';
 import { AmountField, ConfirmButton, DateInput, SelectField } from '../fields.jsx';
-import { ChatMessage, ChatThread, Kanban, KanbanCard, RichText } from '../../pro/index.js';
+import { Kanban, KanbanCard } from '../../pro/index.js';
+import { Tarea } from './Tarea.jsx';
 
 const COLOR = { request: 'accent', todo: 'default', doing: 'accent', review: 'warning', done: 'success' };
 const PRIO_COLOR = { low: 'default', medium: 'warning', high: 'danger' };
@@ -183,265 +184,6 @@ function List({ tasks }) {
 }
 
 /** La ficha de la tarea. Cada cambio se guarda solo. */
-function TaskDrawer({ id, onClose }) {
-  const [state, v] = useCrm();
-  const ready = useOpenAfterGesture();
-  const [check, setCheck] = useState('');
-  const [comment, setComment] = useState('');
-  const t = find('tasks', id);
-  if (!t) return null;
-  const save = (patch) => {
-    Object.assign(t, patch);
-    put('tasks', t);
-  };
-  const running = runningEntry();
-  const timingThis = running?.taskId === t.id;
-  const subs = subtasksOf(t.id);
-  const cur = taskCurrency(t);
-
-  return (
-    <Drawer isOpen={ready} onOpenChange={(o) => ready && !o && onClose()}>
-      <Drawer.Backdrop>
-        <Drawer.Content placement="right">
-          <Drawer.Dialog className="h-full w-full sm:max-w-[560px]" data-v={v}>
-            <Drawer.CloseTrigger />
-            <Drawer.Header className="flex flex-col items-start gap-1">
-              <span className="font-mono text-xs text-muted">
-                {taskKey(t)} · {projectName(t.projectId) || 'Sin proyecto'}
-              </span>
-              <Drawer.Heading className="sr-only">{titleOf(t)}</Drawer.Heading>
-            </Drawer.Header>
-            <Drawer.Body className="flex flex-col gap-5">
-              <TextField aria-label="Título" defaultValue={t.title} onChange={(x) => save({ title: x })} maxLength={200} autoFocus={!t.title}>
-                <Input className="text-lg font-semibold" placeholder="¿Qué hay que hacer?" />
-              </TextField>
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusMenu
-                  task={t}
-                  trigger={
-                    <Button size="sm" variant="secondary">
-                      <Chip size="sm" variant="soft" color={COLOR[t.status]}>
-                        {TASK_STATUS[t.status]?.[0]}
-                      </Chip>
-                      <ChevronDown />
-                    </Button>
-                  }
-                />
-                {t.status !== 'done' && (
-                  <Button
-                    size="sm"
-                    variant="tertiary"
-                    onPress={() => {
-                      setTaskStatus(t, 'done');
-                      put('tasks', t);
-                      toast.success(`${taskKey(t)} hecha`);
-                    }}
-                  >
-                    <CircleCheck />
-                    Marcar hecha
-                  </Button>
-                )}
-                <ButtonGroup size="sm" variant="secondary">
-                  <Button
-                    onPress={() => {
-                      if (timingThis) {
-                        const saved = stopTimer({ quiet: true });
-                        toast(saved ? `Guardado: ${durationText(saved.minutes)}` : 'Menos de un minuto: no se guardó.');
-                      } else {
-                        if (running) stopTimer({ quiet: true });
-                        startTimer({ projectId: t.projectId, taskId: t.id });
-                        toast('Temporizador en marcha');
-                      }
-                    }}
-                  >
-                    <Play />
-                    {timingThis ? 'Parar el temporizador' : 'Iniciar temporizador'}
-                  </Button>
-                  <Button onPress={() => go(`#/horas/nueva?t=${t.id}`)}>
-                    <ButtonGroup.Separator />
-                    Registrar horas
-                  </Button>
-                </ButtonGroup>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <SelectField
-                  label="Proyecto"
-                  value={t.projectId || '_none'}
-                  onChange={(pid) => moveTask(t, pid === '_none' ? '' : pid)}
-                  options={[['_none', 'Sin proyecto'], ...state.projects.map((p) => [p.id, p.name || 'Sin nombre'])]}
-                />
-                <SelectField
-                  label="Prioridad"
-                  value={t.priority || '_none'}
-                  onChange={(k) => save({ priority: k === '_none' ? '' : k })}
-                  options={[['_none', 'Sin prioridad'], ...Object.entries(PRIORITY).map(([k, [label]]) => [k, label])]}
-                />
-                <DateInput label="Empieza" value={t.startDate} onChange={(d) => save({ startDate: d })} />
-                <DateInput label="Vence" value={t.dueDate} onChange={(d) => save({ dueDate: d })} />
-                <AmountField label={`Valor fijo (${cur})`} value={t.value} onChange={(n) => save({ value: n })} description="Si tiene valor, se cobra por él y sus horas no suman dinero." />
-                <AmountField
-                  label={`Tarifa por hora (${cur})`}
-                  value={t.rate ?? 0}
-                  onChange={(n) => save({ rate: n || null })}
-                  description={isFixed(t) ? 'No cuenta: tiene valor fijo.' : 'Vacía: la del proyecto o la de Ajustes.'}
-                />
-              </div>
-              <p className="text-sm text-muted">
-                {durationText(taskMinutes(t.id))} registradas · vale {money(taskValue(t), cur)}
-              </p>
-
-              <div className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium">Descripción</span>
-                <RichText
-                  key={t.id}
-                  value={t.description || ''}
-                  onChange={(md) => save({ description: md.slice(0, 8000) })}
-                  label="Descripción"
-                  minHeight={110}
-                  footer={false}
-                  placeholder="Escribe la clave de otra tarea (WEB-3) o [[una página]] para enlazarla."
-                  className="shadow-none ring-1 ring-separator"
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <span className="sw-eyebrow">
-                  Checklist {(t.checklist || []).length ? `· ${(t.checklist || []).filter((c) => c.done).length}/${t.checklist.length}` : ''}
-                </span>
-                {(t.checklist || []).map((c) => (
-                  <div key={c.id} className="flex items-center gap-2">
-                    <Checkbox
-                      isSelected={c.done}
-                      onChange={(on) => {
-                        c.done = on;
-                        put('tasks', t);
-                      }}
-                    >
-                      <Checkbox.Content>
-                        <Checkbox.Control>
-                          <Checkbox.Indicator />
-                        </Checkbox.Control>
-                        <span className={c.done ? 'text-muted line-through' : ''}>{c.text}</span>
-                      </Checkbox.Content>
-                    </Checkbox>
-                    <span className="flex-1" />
-                    <Button isIconOnly size="sm" variant="ghost" aria-label="Quitar" onPress={() => save({ checklist: t.checklist.filter((x) => x !== c) })}>
-                      <Xmark />
-                    </Button>
-                  </div>
-                ))}
-                <Form
-                  className="flex gap-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!check.trim()) return;
-                    save({ checklist: [...(t.checklist || []), { id: uid(), text: check.trim(), done: false }] });
-                    setCheck('');
-                  }}
-                >
-                  <TextField aria-label="Nuevo punto" value={check} onChange={setCheck} className="flex-1" maxLength={300}>
-                    <Input placeholder="Añadir un punto…" variant="secondary" />
-                  </TextField>
-                  <Button type="submit" size="sm" variant="tertiary" isDisabled={!check.trim()}>
-                    Añadir
-                  </Button>
-                </Form>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="sw-eyebrow">Subtareas {subs.length ? `· ${subs.length}` : ''}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onPress={() => {
-                      const st = newTask({ projectId: t.projectId, parentId: t.id });
-                      put('tasks', st);
-                      go(`#/tareas/${st.id}`);
-                    }}
-                  >
-                    <Plus />
-                    Subtarea
-                  </Button>
-                </div>
-                {subs.map((st) => (
-                  <a key={st.id} href={`#/tareas/${st.id}`} className="flex items-center gap-2 rounded-xl bg-surface-secondary px-3 py-2 text-sm">
-                    {st.status === 'done' ? <CircleCheck className="text-success" /> : <span className="size-3.5 rounded-full border border-border" />}
-                    <span className="font-mono text-xs text-muted">{taskKey(st)}</span>
-                    <span className="truncate">{titleOf(st)}</span>
-                  </a>
-                ))}
-              </div>
-
-              <Separator />
-              <div className="flex flex-col gap-2">
-                <span className="sw-eyebrow">Comentarios {(t.comments || []).length ? `· ${t.comments.length}` : ''}</span>
-                {(t.comments || []).length > 0 && (
-                  <ChatThread label="Comentarios">
-                    {t.comments.map((c) => {
-                      const who = c.author || c.by || c.name;
-                      return (
-                        <ChatMessage
-                          key={c.id}
-                          mine={!who}
-                          author={who}
-                          time={c.at ? new Date(c.at).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
-                          text={c.text}
-                          actions={[
-                            {
-                              id: 'del',
-                              label: 'Quitar el comentario',
-                              icon: TrashBin,
-                              onPress: () => save({ comments: t.comments.filter((x) => x.id !== c.id) }),
-                            },
-                          ]}
-                        />
-                      );
-                    })}
-                  </ChatThread>
-                )}
-                <Form
-                  className="flex flex-col gap-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!comment.trim()) return;
-                    save({ comments: [...(t.comments || []), { id: uid(), text: comment.trim(), at: nowISO() }] });
-                    setComment('');
-                  }}
-                >
-                  <TextField aria-label="Comentario" value={comment} onChange={setComment} maxLength={4000}>
-                    <TextArea rows={2} placeholder="Escribe un comentario…" />
-                  </TextField>
-                  <Button type="submit" size="sm" variant="secondary" className="w-fit" isDisabled={!comment.trim()}>
-                    Comentar
-                  </Button>
-                </Form>
-              </div>
-            </Drawer.Body>
-            <Drawer.Footer className="justify-between">
-              <ConfirmButton
-                title={`¿Eliminar ${taskKey(t)}?`}
-                text={subs.length ? 'Se borran también sus subtareas. Sus horas se quedan, sin tarea.' : 'Sus horas se quedan, sin tarea.'}
-                onConfirm={() => {
-                  removeTask(t);
-                  onClose();
-                }}
-              >
-                <TrashBin />
-                Eliminar
-              </ConfirmButton>
-              <Button slot="close" variant="secondary">
-                Listo
-              </Button>
-            </Drawer.Footer>
-          </Drawer.Dialog>
-        </Drawer.Content>
-      </Drawer.Backdrop>
-    </Drawer>
-  );
-}
-
 export function Tareas({ open }) {
   const [state, v] = useCrm();
   const q0 = routeQuery();
@@ -475,6 +217,9 @@ export function Tareas({ open }) {
         (!t || plain(`${taskKey(k)} ${k.title} ${k.description}`).includes(t)),
     );
   }, [state, v, project, query, hideDone]);
+
+  // Una tarea abierta ocupa la página entera (ya no es un panel lateral).
+  if (openTask) return <Tarea key={openTask.id} id={openTask.id} backTo={project !== 'all' ? `#/tareas?p=${project}` : '#/tareas'} />;
 
   const add = (status) => {
     const t = newTask({ projectId: project !== 'all' && project !== '_none' ? project : '', status });
@@ -545,7 +290,6 @@ export function Tareas({ open }) {
       ) : (
         <List tasks={tasks} />
       )}
-      {openTask && <TaskDrawer key={openTask.id} id={openTask.id} onClose={() => go(project !== 'all' ? `#/tareas?p=${project}` : '#/tareas')} />}
     </div>
   );
 }

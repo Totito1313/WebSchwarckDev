@@ -5,7 +5,7 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Xmark } from '@gravity-ui/icons';
-import { Button, Separator, Tooltip } from '@heroui/react';
+import { Button, ScrollShadow, Separator, Tooltip } from '@heroui/react';
 
 /**
  * count: cuántos hay seleccionados (con 0 no se muestra).
@@ -37,7 +37,7 @@ export function ActionBar({ count, actions, onAction, onClear, label: labelProp 
       </span>
       <span className="sr-only">{label}</span>
       <Separator orientation="vertical" className="mx-1 h-5" />
-      <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none]">
+      <ScrollShadow orientation="horizontal" hideScrollBar size={24} className="flex min-w-0 items-center gap-0.5">
         {actions.map(({ id, label: text, icon: Icon, danger, isDisabled }) => (
           <Button
             key={id}
@@ -51,7 +51,7 @@ export function ActionBar({ count, actions, onAction, onClear, label: labelProp 
             {text}
           </Button>
         ))}
-      </div>
+      </ScrollShadow>
       <Tooltip delay={300}>
         <Button isIconOnly size="sm" variant="ghost" aria-label="Soltar la selección" onPress={onClear}>
           <Xmark className="size-4" />

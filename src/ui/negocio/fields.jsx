@@ -3,6 +3,7 @@
 // pantalla escribe solo lo suyo y todas se ven y se comportan igual.
 import { useState } from 'react';
 import { parseDate } from '@internationalized/date';
+import { FormContext } from 'react-aria-components';
 import {
   AlertDialog,
   Button,
@@ -27,9 +28,14 @@ export function FormModal({ title, isOpen = true, onClose, onSubmit, submit = 'G
         <Modal.Container>
           <Modal.Dialog className={size}>
             {({ close }) => (
+              // El Form de React Aria hereda por contexto las props del Form de fuera y
+              // encadena sus onSubmit: sin cortar ese contexto, guardar un diálogo abierto
+              // desde otro enviaría (y cerraría) también el de fuera.
+              <FormContext.Provider value={null}>
               <Form
                 onSubmit={async (e) => {
                   e.preventDefault();
+                  e.stopPropagation();
                   setBusy(true);
                   try {
                     const ok = await onSubmit(Object.fromEntries(new FormData(e.currentTarget)));
@@ -55,6 +61,7 @@ export function FormModal({ title, isOpen = true, onClose, onSubmit, submit = 'G
                   </Button>
                 </Modal.Footer>
               </Form>
+              </FormContext.Provider>
             )}
           </Modal.Dialog>
         </Modal.Container>

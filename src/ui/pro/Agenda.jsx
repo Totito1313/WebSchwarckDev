@@ -5,7 +5,7 @@
 // crear uno a esa hora (si se pasa onCreate).
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from '@gravity-ui/icons';
-import { Button, ButtonGroup, Tabs } from '@heroui/react';
+import { Button, ButtonGroup, ScrollShadow, Tabs } from '@heroui/react';
 
 const HOUR = 48; // alto de una hora, en px
 const DAY_MS = 86400000;
@@ -155,7 +155,7 @@ function TimeGrid({ days, events, now, onOpen, onCreate, scroller, startHour, en
 
   return (
     <div className="overflow-hidden rounded-3xl bg-surface shadow-[var(--surface-shadow)]">
-      <div className="overflow-x-auto">
+      <ScrollShadow orientation="horizontal" hideScrollBar>
         <div style={{ minWidth: days.length > 1 ? 56 + days.length * 104 : undefined }}>
           {/* Cabecera de días */}
           <div className="grid border-b border-separator" style={{ gridTemplateColumns: cols }}>
@@ -271,7 +271,7 @@ function TimeGrid({ days, events, now, onOpen, onCreate, scroller, startHour, en
             </div>
           </div>
         </div>
-      </div>
+      </ScrollShadow>
     </div>
   );
 }

@@ -8,7 +8,7 @@
 //    menú «⋮» (o clic derecho, o la tecla de menú) tiene «Mover a…».
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { EllipsisVertical } from '@gravity-ui/icons';
-import { Avatar, AvatarGroup, Button, Chip, Dropdown, ProgressBar } from '@heroui/react';
+import { Avatar, AvatarGroup, Button, Chip, Dropdown, ProgressBar, ScrollShadow } from '@heroui/react';
 import { PointMenu, menuNodes, pointFrom } from './ContextMenu.jsx';
 
 const HOLD_MS = 220;
@@ -73,7 +73,8 @@ export function Kanban({ columns, items, getKey = (i) => i.id, getColumn, render
   );
 
   const autoScroll = (x, y) => {
-    const b = board.current;
+    // El que se desliza es el ScrollShadow que envuelve al tablero.
+    const b = board.current?.parentElement;
     if (!b) return;
     const r = b.getBoundingClientRect();
     const edge = 56;
@@ -192,7 +193,11 @@ export function Kanban({ columns, items, getKey = (i) => i.id, getColumn, render
   const dragged = drag && find(drag.key);
 
   return (
-    <div ref={board} role="group" aria-label={label} className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-3 [scrollbar-width:thin]">
+    <>
+    {/* El tablero se desliza de lado dentro de un ScrollShadow: los bordes se
+        difuminan cuando hay más columnas a la izquierda o a la derecha. */}
+    <ScrollShadow orientation="horizontal" size={48} className="-mx-1 pb-3 [scrollbar-width:thin]">
+    <div ref={board} role="group" aria-label={label} className="flex w-max gap-3 px-1">
       {columns.map((col) => {
         const list = byCol(col.id);
         const Icon = col.icon;
@@ -257,6 +262,8 @@ export function Kanban({ columns, items, getKey = (i) => i.id, getColumn, render
           </section>
         );
       })}
+    </div>
+    </ScrollShadow>
 
       {drag && dragged && (
         <div className="sw-drag-ghost rounded-[1.25rem] bg-surface" style={{ width: drag.w, left: drag.x - drag.dx, top: drag.y - drag.dy }} aria-hidden>
@@ -265,7 +272,7 @@ export function Kanban({ columns, items, getKey = (i) => i.id, getColumn, render
       )}
 
       <PointMenu at={menu?.at} items={menu ? fullMenu(menu.item) : []} onClose={() => setMenu(null)} onAction={(id) => menu && runMenu(id, menu.item)} label="Acciones de la tarjeta" />
-    </div>
+    </>
   );
 }
 

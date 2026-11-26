@@ -1,11 +1,11 @@
 // Crecer › Portal de clientes: lo que piden tus clientes (convertible en tarea),
 // la sincronización de proyectos, documentos y datos con sus portales, el trabajo
-// de hoy listo para su reporte, y la lista de portales. Usa la cuenta del estudio
-// en Supabase (la misma sesión que la app /cliente/). Accesos, permisos e
-// identidad se siguen llevando en la versión de siempre.
+// de hoy listo para su reporte, los portales, las cuentas con sus permisos (Accesos)
+// y la identidad de cada app (PortalAdmin.jsx). Usa la cuenta del estudio en Supabase
+// (la misma sesión que la app /cliente/).
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { encode } from 'uqr';
-import { ArrowRotateRight, ArrowUpRightFromSquare, CircleCheck, Persons, Plus, Shield, Smartphone, Star, Tray } from '@gravity-ui/icons';
+import { Archive, ArrowRotateRight, ArrowUpRightFromSquare, CircleCheck, EllipsisVertical, Key, Link as LinkIcon, Palette, Persons, Plus, Shield, Smartphone, Star, TrashBin, Tray } from '@gravity-ui/icons';
 import {
   Avatar,
   AvatarGroup,
@@ -15,6 +15,7 @@ import {
   Checkbox,
   Chip,
   Description,
+  Dropdown,
   FieldError,
   Form,
   Input,
@@ -31,7 +32,9 @@ import { clientAsks, must, ratingsByPortal, sb, sendWork, settleField, studioSes
 import { BUCKET, FUNCTION_URL, SUPABASE_KEY } from '../../../portal/config.js';
 import { Empty, PageHeader, Panel, Stat } from '../../kit/parts.jsx';
 import { go, useCrm } from '../store.js';
-import { FormModal } from '../fields.jsx';
+import { ConfirmDialog, FormModal } from '../fields.jsx';
+import { Segment } from '../../kit/Segment.jsx';
+import { Accesos, ClaudeDialog, Identidad, NewPortalDialog, PermsDialog, PortalLogo, changedPerms, loadPortals } from './PortalAdmin.jsx';
 import { ApprovalCard } from '../../pro/index.js';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -502,21 +505,10 @@ function Summary() {
 function Portales() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [dialog, setDialog] = useState(null); // { kind: 'new' | 'perms' | 'claude' | 'delete', p? }
   const load = useCallback(async () => {
     try {
-      const c = await sb();
-      const [clients, members] = await Promise.all([
-        c.from('portal_clients').select('*').order('archived').order('name').then(must),
-        c.from('portal_members').select('client_id,user_id,name,email').then(must),
-      ]);
-      const logos = Object.fromEntries(
-        await Promise.all(
-          clients
-            .filter((x) => x.logo_url)
-            .map(async (x) => [x.id, /^https?:/.test(x.logo_url) ? x.logo_url : (await c.storage.from(BUCKET).createSignedUrl(x.logo_url, 3600)).data?.signedUrl]),
-        ),
-      );
-      setData({ clients, members, logos });
+      setData(await loadPortals());
     } catch (err) {
       setError(err.message);
     }
@@ -524,15 +516,24 @@ function Portales() {
   useEffect(() => {
     load();
   }, [load]);
-  const archive = async (p) => {
+  const safely = (task) => async (...args) => {
     try {
-      must(await (await sb()).from('portal_clients').update({ archived: !p.archived }).eq('id', p.id));
-      toast(p.archived ? 'Activo otra vez' : 'Archivado: su gente ya no lo ve');
+      await task(...args);
       load();
     } catch (err) {
       toast.danger(err.message);
     }
   };
+  const archive = (p) =>
+    safely(async () => {
+      must(await (await sb()).from('portal_clients').update({ archived: !p.archived }).eq('id', p.id));
+      toast(p.archived ? 'Activo otra vez' : 'Archivado: su gente ya no lo ve');
+    })();
+  const savePerms = (p) =>
+    safely(async (perms) => {
+      must(await (await sb()).from('portal_clients').update({ perms, hidden: [] }).eq('id', p.id));
+      toast.success('Permisos guardados');
+    });
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!data)
     return (
@@ -545,33 +546,84 @@ function Portales() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap justify-end gap-2">
-        <Button variant="secondary" onPress={() => (location.href = '/admin/negocio/#/portal/accesos')}>
+        <Button variant="secondary" onPress={() => go('#/portal/accesos')}>
+          <Persons />
           Accesos y permisos
-          <ArrowUpRightFromSquare />
         </Button>
-        <Button onPress={() => (location.href = '/admin/negocio/#/portal/clientes')}>
+        <Button onPress={() => setDialog({ kind: 'new' })}>
           <Plus />
           Nuevo portal
         </Button>
       </div>
       {data.clients.length === 0 ? (
-        <Empty icon={Smartphone} title="Todavía no hay portales" text="Crea uno por cliente; luego le das acceso a su gente y le pones su identidad." />
+        <Empty
+          icon={Smartphone}
+          title="Todavía no hay portales"
+          text="Crea uno por cliente; luego le das acceso a su gente y le pones su identidad."
+          action={
+            <Button onPress={() => setDialog({ kind: 'new' })}>
+              <Plus />
+              Nuevo portal
+            </Button>
+          }
+        />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {data.clients.map((p) => {
             const people = data.members.filter((m) => m.client_id === p.id);
             const customer = p.crm_customer_id && find('customers', p.crm_customer_id);
+            const changed = changedPerms(p);
             return (
-              <Card key={p.id} className={`gap-3 p-4 ${p.archived ? 'opacity-60' : ''}`}>
+              <Card key={p.id} className={`relative gap-3 overflow-hidden p-4 ${p.archived ? 'opacity-60' : ''}`}>
+                <span aria-hidden className="absolute inset-x-0 top-0 h-1" style={{ background: p.accent || 'var(--accent)' }} />
                 <div className="flex items-center gap-3">
-                  <Avatar size="md">
-                    {data.logos[p.id] && <Avatar.Image alt="" src={data.logos[p.id]} />}
-                    <Avatar.Fallback style={{ background: p.accent || 'var(--accent)', color: '#fff' }}>{(p.name || '?').slice(0, 1)}</Avatar.Fallback>
-                  </Avatar>
-                  <div className="flex min-w-0 flex-col">
+                  <PortalLogo p={p} logos={data.logos} size="size-11" />
+                  <div className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate font-semibold">{p.name}</span>
                     <span className="truncate text-xs text-muted">{[p.archived && 'Archivado', customer ? `Cliente: ${customer.name}` : p.industry || 'Sin ficha en Negocio'].filter(Boolean).join(' · ')}</span>
                   </div>
+                  <Dropdown>
+                    <Button isIconOnly size="sm" variant="ghost" aria-label={`Opciones de ${p.name}`}>
+                      <EllipsisVertical className="size-4" />
+                    </Button>
+                    <Dropdown.Popover placement="bottom end" className="min-w-60">
+                      <Dropdown.Menu
+                        aria-label={`Opciones de ${p.name}`}
+                        onAction={(k) => {
+                          if (k === 'open') window.open(`/cliente/?p=${p.id}`, '_blank', 'noopener');
+                          if (k === 'perms' || k === 'claude' || k === 'delete') setDialog({ kind: k, p });
+                          if (k === 'archive') archive(p);
+                        }}
+                      >
+                        <Dropdown.Item id="open" textValue="Abrir su app">
+                          <ArrowUpRightFromSquare className="size-4" />
+                          <Label>Abrir su app</Label>
+                        </Dropdown.Item>
+                        <Dropdown.Item id="perms" textValue="Permisos">
+                          <Key className="size-4" />
+                          <div className="flex flex-col">
+                            <Label>Permisos</Label>
+                            <span className="text-xs text-muted">Qué puede ver y hacer su gente</span>
+                          </div>
+                        </Dropdown.Item>
+                        <Dropdown.Item id="claude" textValue="Conectar Claude">
+                          <LinkIcon className="size-4" />
+                          <div className="flex flex-col">
+                            <Label>Conectar Claude</Label>
+                            <span className="text-xs text-muted">Que cargue su calendario</span>
+                          </div>
+                        </Dropdown.Item>
+                        <Dropdown.Item id="archive" textValue={p.archived ? 'Reactivar' : 'Archivar'}>
+                          <Archive className="size-4" />
+                          <Label>{p.archived ? 'Reactivar' : 'Archivar'}</Label>
+                        </Dropdown.Item>
+                        <Dropdown.Item id="delete" textValue="Borrar portal" variant="danger">
+                          <TrashBin className="size-4" />
+                          <Label>Borrar portal</Label>
+                        </Dropdown.Item>
+                      </Dropdown.Menu>
+                    </Dropdown.Popover>
+                  </Dropdown>
                 </div>
                 <div className="flex items-center gap-2">
                   {people.length ? (
@@ -585,20 +637,23 @@ function Portales() {
                   ) : (
                     <span className="text-xs text-muted">Nadie con acceso</span>
                   )}
-                  <span className="text-xs text-muted">{plural(people.length, 'persona', 'personas')}</span>
+                  <span className="flex-1" />
+                  {changed > 0 && (
+                    <Button size="sm" variant="ghost" className="text-xs" onPress={() => setDialog({ kind: 'perms', p })}>
+                      <Key className="size-3.5" />
+                      {plural(changed, 'permiso cambiado', 'permisos cambiados')}
+                    </Button>
+                  )}
                 </div>
-                <ButtonGroup size="sm" variant="secondary" className="mt-auto">
-                  <Button onPress={() => window.open(`/cliente/?p=${p.id}`, '_blank', 'noopener')}>
-                    <ArrowUpRightFromSquare />
-                    Abrir su app
-                  </Button>
-                  <Button onPress={() => (location.href = `/admin/negocio/#/portal/identidad/${p.id}`)}>
-                    <ButtonGroup.Separator />
+                <ButtonGroup size="sm" variant="secondary" className="mt-auto self-start">
+                  <Button onPress={() => go(`#/portal/identidad/${p.id}`)}>
+                    <Palette />
                     Identidad
                   </Button>
-                  <Button onPress={() => archive(p)}>
+                  <Button onPress={() => go(`#/portal/accesos/${p.id}`)}>
                     <ButtonGroup.Separator />
-                    {p.archived ? 'Reactivar' : 'Archivar'}
+                    <Persons />
+                    Personas · {people.length}
                   </Button>
                 </ButtonGroup>
               </Card>
@@ -606,11 +661,32 @@ function Portales() {
           })}
         </div>
       )}
+      {dialog?.kind === 'new' && <NewPortalDialog onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'perms' && <PermsDialog title={`Permisos de ${dialog.p.name}`} portal={dialog.p} onSave={savePerms(dialog.p)} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'claude' && <ClaudeDialog p={dialog.p} onClose={() => setDialog(null)} />}
+      <ConfirmDialog
+        open={dialog?.kind === 'delete'}
+        title={dialog?.p ? `¿Borrar el portal de ${dialog.p.name}?` : ''}
+        text="Se borra con todo lo publicado, lo recibido y sus accesos. No se puede deshacer."
+        confirm="Borrar todo"
+        onClose={() => setDialog(null)}
+        onConfirm={safely(async () => {
+          must(await (await sb()).from('portal_clients').delete().eq('id', dialog.p.id));
+          toast('Portal borrado');
+        })}
+      />
     </div>
   );
 }
 
-export function Portal({ tab }) {
+const PORTAL_TABS = [
+  { id: 'resumen', label: 'Resumen', href: '#/portal', icon: Tray },
+  { id: 'clientes', label: 'Portales', href: '#/portal/clientes', icon: Smartphone },
+  { id: 'accesos', label: 'Accesos', href: '#/portal/accesos', icon: Persons },
+  { id: 'identidad', label: 'Identidad', href: '#/portal/identidad', icon: Palette },
+];
+
+export function Portal({ tab, arg }) {
   const [session, setSession] = useState(undefined);
   const check = useCallback(() => {
     studioSession()
@@ -618,14 +694,14 @@ export function Portal({ tab }) {
       .catch(() => setSession(null));
   }, []);
   useEffect(() => check(), [check]);
-  const view = tab === 'clientes' ? 'clientes' : 'resumen';
+  const view = PORTAL_TABS.some((t) => t.id === tab) ? tab : 'resumen';
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Crecer"
         title="Portal de clientes"
-        description="La app de cada cliente. El día a día lo llevas desde la app, en modo estudio."
+        description="La app de cada cliente: quién entra, qué puede hacer, cómo se ve y lo que te piden."
         actions={
           <ButtonGroup variant="secondary">
             <Button onPress={() => window.open('/cliente/?demo=estudio', '_blank', 'noopener')}>Demo del estudio</Button>
@@ -648,20 +724,7 @@ export function Portal({ tab }) {
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Tabs selectedKey={view} onSelectionChange={(k) => go(k === 'resumen' ? '#/portal' : `#/portal/${k}`)}>
-              <Tabs.ListContainer>
-                <Tabs.List aria-label="Portal">
-                  <Tabs.Tab id="resumen">
-                    Resumen
-                    <Tabs.Indicator />
-                  </Tabs.Tab>
-                  <Tabs.Tab id="clientes">
-                    Portales
-                    <Tabs.Indicator />
-                  </Tabs.Tab>
-                </Tabs.List>
-              </Tabs.ListContainer>
-            </Tabs>
+            <Segment items={PORTAL_TABS} value={view} label="Portal de clientes" />
             <span className="flex items-center gap-2 text-xs text-muted">
               <Chip size="sm" variant="soft" color="success">
                 Conectado
@@ -680,10 +743,17 @@ export function Portal({ tab }) {
               </Button>
             </span>
           </div>
-          {view === 'clientes' ? <Portales /> : <Summary />}
+          {view === 'clientes' ? (
+            <Portales />
+          ) : view === 'accesos' ? (
+            <Accesos key={arg || 'todos'} session={session} presetFilter={arg || 'todos'} />
+          ) : view === 'identidad' ? (
+            <Identidad id={arg} />
+          ) : (
+            <Summary />
+          )}
         </>
       )}
-      <Description className="text-xs">Accesos, permisos de cada persona, identidad de cada app y «Conectar Claude» se llevan, por ahora, en la versión de siempre.</Description>
     </div>
   );
 }

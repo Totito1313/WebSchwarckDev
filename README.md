@@ -13,7 +13,7 @@ Cada `git push` a `main` se publica solo en Cloudflare.
 | `/cerofiao/privacidad/` | `cerofiao/privacidad/index.html` | Política de privacidad (la URL que pide Play Console) |
 | `/lionfitness/` | `lionfitness/index.html` | Marcador |
 | `/admin/` | `admin/index.html` | Panel: la entrada a todo lo de abajo (se llega desde el icono de la barra de la portada) |
-| `/admin/negocio/` | `admin/negocio/index.html` | Negocio: clientes, leads, facturas, proyectos, tareas, páginas y marketing (y la entrada al portal de clientes) |
+| `/admin/negocio/` | `admin/negocio/index.html` | Negocio, hecho con React y HeroUI: clientes, leads, facturas, proyectos, tareas, páginas, marketing y el portal de clientes (`/admin/negocio-nuevo/` redirige aquí) |
 | `/admin/perfil/` | `admin/perfil/index.html` | Perfil público: la foto del titular que sale en la portada (`/#fundador`) |
 | `/apps/` | `apps/index.html` | Mis apps: novedades, reseñas y botón de descarga de CeroFiao |
 | `/apps/tienda/` | `apps/tienda/index.html` | Estudio de gráficos para la ficha de Google Play (antes `/admin/tienda/`, que redirige aquí) |
@@ -21,7 +21,7 @@ Cada `git push` a `main` se publica solo en Cloudflare.
 | `/documento/#…` | `documento/index.html` | Lo que abre el cliente con un enlace: ver, pagar o firmar |
 | `/api/*` | `worker/index.js` | La API que usan la página y el panel |
 
-Son páginas HTML con CSS y un poco de JavaScript, construidas con Vite. No hay framework, salvo en lo que se está rehaciendo con React y HeroUI: el catálogo (`/admin/ui/`), Negocio nuevo (`/admin/negocio-nuevo/`) y el portal nuevo (`/cliente-nuevo/`). Ver «HeroUI» más abajo.
+Son páginas HTML con CSS y un poco de JavaScript, construidas con Vite. No hay framework, salvo en lo que se está rehaciendo con React y HeroUI: el catálogo (`/admin/ui/`), Negocio (`/admin/negocio/`) y el portal nuevo (`/cliente-nuevo/`). Ver «HeroUI» más abajo.
 
 ### La portada del estudio
 
@@ -81,12 +81,12 @@ npx wrangler dev
 
 ### HeroUI (React 19 y Tailwind CSS 4)
 
-Negocio y el portal se están rehaciendo con [HeroUI v3](https://heroui.com/docs/react/getting-started), para que las dos apps tengan las mismas piezas y se vean igual. Las versiones nuevas viven **al lado** de las de siempre, con los mismos datos, hasta que las sustituyan:
+Negocio y el portal se rehacen con [HeroUI v3](https://heroui.com/docs/react/getting-started), para que las dos apps tengan las mismas piezas y se vean igual. Negocio ya sustituyó a su versión vieja (misma dirección, mismos datos, todas sus funciones); el portal nuevo vive todavía **al lado** del de siempre:
 
 | Ruta | Qué es |
 |---|---|
 | `/admin/ui/` | El catálogo: los 73 componentes de HeroUI con el tema de Schwarck, agrupados como en su documentación y con ejemplos del negocio (clientes, facturas, leads, publicaciones). Buscador y cambio de tema arriba. |
-| `/admin/negocio-nuevo/` | Negocio rehecho, con todas sus secciones. Arriba, una isla flotante con seis zonas y, debajo, las secciones de la zona abierta en un segmento con iconos (ver «Negocio nuevo» más abajo). El editor de la hoja de un documento (líneas, diseño, enlace para el cliente, imprimir) sigue siendo el de siempre: «Abrir en el editor». |
+| `/admin/negocio/` | Negocio, con todas sus secciones. Arriba, una isla flotante con seis zonas y, debajo, las secciones de la zona abierta en un segmento con iconos (ver «Negocio: cómo está organizado» más abajo). La versión vieja ya no se sirve: `/admin/negocio-nuevo/` redirige aquí (`public/_redirects`) y los enlaces de siempre (`#/doc/…`, `#/tareas/CF-12`, `#/portal/identidad/…`) abren su pantalla nueva. |
 | `/cliente-nuevo/` | El portal del cliente rehecho: Inicio, Cronología, Marketing (calendario, rendimiento, leads y la ficha de cada publicación con aprobar, pedir cambios o rechazar), Recursos con facturas y documentos, Peticiones («Ya lo envié») y Perfil. `/cliente-nuevo/?demo` enseña la demostración. El modo estudio, el proyecto, las reuniones y el informe siguen en `/cliente/`. |
 
 Cómo está montado:
@@ -97,15 +97,15 @@ Cómo está montado:
 - Los gráficos (`src/ui/kit/BarsChart.jsx`) usan un azul verdoso y un naranja (`--sw-chart-in` y `--sw-chart-out`) que se distinguen también con daltonismo, en claro y en oscuro; tienen globo al pasar y «Ver como tabla».
 - `src/ui/kit/`: lo que comparten las tres páginas: el arranque (`mount.jsx`: idioma `es-VE` y avisos), el cambio de tema (`ThemeSwitch.jsx`, con `useTheme` de HeroUI, que guarda la elección en `heroui-theme`) y las piezas comunes (`parts.jsx`: cabecera de página, tarjeta de cifra con su variación, bloque con título, vacío, persona).
 - `src/ui/pro/`: nuestros componentes «Pro», inspirados en las demos de HeroUI Pro (sin copiar su código; Pro es de pago) y hechos con HeroUI libre y el tema. Se ven todos con datos de ejemplo en `/admin/ui/`, en las secciones «Pro». Son: `TrendChip`, `Widget`, `Kpi` y `KpiGroup` (cifras con tendencia); `ComposedChart` (barras, área y línea en **un solo eje**), `DonutChart` (hasta cinco partes y «Otras», con sus cifras al lado) y `Sparkline`; `DataGrid` (buscar, filtros, orden, columnas, selección, menú por fila y clic derecho) con `ActionBar` (acciones con lo seleccionado; Esc la cierra); `ListView`; `ContextMenu` y `PointMenu`; `Kanban` (arrastrar con ratón, dedo —mantener pulsado— o teclado: Alt + flechas) y `KanbanCard`; `Agenda` (día, semana y mes); `Timeline` y `TimelineCard`; `Stepper`; `NumberStepper`; `RichText` y `RichView` (guardan **Markdown** legible, para que la versión de siempre lo siga mostrando bien; ver `markdown.js`); `Loader` y `ShimmerText`; `ChatMessage`; `ApprovalCard` (Esc rechaza, Ctrl+Intro aprueba) y `QuestionCard`. Los colores del gráfico circular (`--sw-cat-1…5`) están validados con daltonismo en claro y en oscuro.
-- Dónde se usan en Negocio nuevo: Inicio es un tablero de widgets (cifras con tendencia, entradas y salidas con el beneficio encima, gastos por categoría, «Para hoy», «Por cobrar» y la actividad como línea de tiempo); el embudo de Leads, el tablero de Tareas y el de Marketing son `Kanban` con arrastrar; Facturas, Cotizaciones, Propuestas y Clientes son `DataGrid` (exportar CSV, copiar números o correos, anular en bloque con confirmación); la ficha de un documento tiene su historial; el proyecto, sus etapas como pasos y su actividad; la tarea, su descripción con formato y los comentarios como conversación; Marketing tiene una vista «Agenda» por horas (clic en un hueco crea la pieza a esa hora); Ajustes usa `NumberStepper`; y en Portal, la primera petición sin tarea sale como tarjeta para decidir. En el portal nuevo, la Cronología es una línea de tiempo y cada pieza muestra sus etapas y la tarjeta para aprobar.
+- Dónde se usan en Negocio: Inicio es un tablero de widgets (cifras con tendencia, entradas y salidas con el beneficio encima, gastos por categoría, «Para hoy», «Por cobrar» y la actividad como línea de tiempo); el embudo de Leads, el tablero de Tareas y el de Marketing son `Kanban` con arrastrar; Facturas, Cotizaciones, Propuestas y Clientes son `DataGrid` (exportar CSV, copiar números o correos, anular en bloque con confirmación); la ficha de un documento tiene su historial; el proyecto, sus etapas como pasos y su actividad; la tarea, su descripción con formato y los comentarios como conversación; Marketing tiene una vista «Agenda» por horas (clic en un hueco crea la pieza a esa hora); Ajustes usa `NumberStepper`; y en Portal, la primera petición sin tarea sale como tarjeta para decidir. En el portal nuevo, la Cronología es una línea de tiempo y cada pieza muestra sus etapas y la tarjeta para aprobar.
 - Interruptores (`Switch`): como en la documentación de HeroUI, el riel (`Switch.Control`) va **dentro** de `Switch.Content`, junto al texto, y la descripción fuera, debajo. Si el riel queda fuera, se apila encima de la etiqueta. Para no equivocarse, `src/ui/kit/SwitchField.jsx` lo arma siempre bien. Además, HeroUI pinta la bolita del interruptor encendido, el punto del botón de opción y la perilla del deslizador con `--accent-foreground`, que en nuestro tema es casi negro (el texto negro se lee mejor sobre el cian); `theme.css` los vuelve a poner en blanco, como en HeroUI.
 - En Horas y Gastos cada día o mes es una `ListView` con casillas: tocar la fila la abre para editar; marcar casillas (o Espacio) elige varias, y la `ActionBar` deja marcarlas como facturables o no, exportarlas a CSV, cambiarles la categoría o borrarlas (con confirmación; las horas ya facturadas no se tocan). Al perder un lead, la pregunta del motivo es una `QuestionCard`.
 - Grupos de botones (`ButtonGroup`): el botón que va dentro de un `Dropdown` no hereda el tamaño ni el estilo del grupo, así que se le pone a mano (`size`, `variant`); y cada botón menos el primero lleva `<ButtonGroup.Separator />`, también el de `ConfirmButton`.
 - `Segment.jsx` es el segmento con iconos de las secciones de cada zona (y, en su versión `bare`, la píldora de la isla de arriba, que también se desliza): una bandeja en píldora con un indicador que se desliza hasta la sección abierta. La idea viene del «Segment» de HeroUI Pro, pero está hecho desde cero con el tema: bandeja `--default`, indicador `--segment` (los colores de las pestañas de HeroUI) y estilos `.sw-segment` en `theme.css`. Son enlaces (`aria-current="page"` en la activa); en el teléfono la tira se desliza y la sección abierta se trae a la vista.
 - `src/ui/catalog/`: el catálogo, una parte por grupo.
-- `src/ui/negocio/`: Negocio nuevo. No tiene datos propios: `store.js` usa `negocio-core.js` (la misma carga, la misma fila de guardado y la misma sesión del panel) y `domain.js` reúne las cuentas (las de `negocio-core.js`, `negocio-gastos.js` y, sin su interfaz, las de leads y clientes). Las reglas de proyectos, tareas, horas, gastos, marketing y portal se importan tal cual de sus módulos de siempre (`negocio-work.js`, `negocio-gastos.js`, `negocio-contenido.js`, `negocio-paginas.js`, `negocio-puente.js`).
+- `src/ui/negocio/`: Negocio. No tiene datos propios: `store.js` usa `negocio-core.js` (la misma carga, la misma fila de guardado y la misma sesión del panel) y `domain.js` reúne las cuentas (las de `negocio-core.js`, `negocio-gastos.js` y, sin su interfaz, las de leads y clientes). Las reglas de proyectos, tareas, horas, gastos, marketing y portal se importan tal cual de sus módulos de siempre (`negocio-work.js`, `negocio-gastos.js`, `negocio-contenido.js`, `negocio-paginas.js`, `negocio-puente.js`).
 
-#### Negocio nuevo: cómo está organizado
+#### Negocio: cómo está organizado
 
 Seis zonas, cada una con sus secciones en el orden en que se trabajan (`src/ui/negocio/nav.js`). Cada zona recuerda la última sección abierta; en el teléfono, la zona abre un menú con todas.
 
@@ -115,15 +115,23 @@ Seis zonas, cada una con sus secciones en el orden en que se trabajan (`src/ui/n
 | Ventas | Leads → Clientes → Propuestas → Cotizaciones → Facturas → Catálogo (el camino de un cliente, y lo que se vende) |
 | Trabajo | Proyectos → Tareas → Horas → Páginas |
 | Dinero | Cobros (por cobrar, con «Registrar» en cada factura, e historial con la tasa de cada pago) y Gastos (con categorías) |
-| Crecer | Marketing (calendario, tablero, copias, campañas y marcas) y Portal de clientes (lo que piden, sincronizar, trabajo de hoy y portales) |
+| Crecer | Marketing (calendario, agenda, tablero, campañas con su ficha, resultados, copias, feed y marcas con su ficha) y Portal de clientes (resumen, portales, accesos e identidad) |
 | Negocio | Mi negocio, Formas de cobro, Biblioteca y Copia de seguridad |
 
 Botones agrupados (`ButtonGroup`) donde hay una acción principal y otras relacionadas: «Crear» (la de la sección abierta y, en la flecha, todo lo demás por zona), el temporizador en la isla (pausar y parar), cada documento (Registrar pago o Convertir en factura, y en la flecha Factura y proyecto, rechazar, anular o abrir en el editor), cada proyecto (Nueva tarea, y Editar, Registrar horas y Facturar horas), «Nueva página» con sus plantillas, y los navegadores de mes.
 
-Siguen en la versión de siempre: el editor de la hoja de los documentos, los bloques de enlace de las páginas, las imágenes y pautas de cada marca, y en el portal los accesos, los permisos, la identidad de cada app y «Conectar Claude».
+Crear y editar ya no es siempre un panel lateral: lo que tiene mucho que hacer se abre como página entera.
+
+- **Documento** (`src/ui/negocio/editor/`): la hoja de verdad a la izquierda (se dibuja con `renderSheet` de `negocio-sheet.js`, se escala para caber y se imprime a tamaño real) y a la derecha sus pestañas: Contenido (cliente, proyecto, moneda, fechas, líneas con imagen y catálogo, descuento, impuesto, retención, otros cargos, equivalencia, forma de pago, nota y secciones; en una propuesta, sus bloques con plantillas y biblioteca), Diseño, Enlace para el cliente (contraseña, caducidad, publicarlo en su portal) y Pagos. `#/documentos/<id>/editar`; «Nueva propuesta» elige plantilla en `#/propuestas/nueva`.
+- **Tarea** (`Tarea.jsx`) y **publicación** (`Pieza.jsx`, con la vista previa en un teléfono).
+- **Páginas** (`Paginas.jsx`): árbol plegable con favoritas, portada, icono y bloques (texto, títulos, listas, pendientes, citas, destacados, código, separadores, imágenes, enlaces a tareas, páginas o documentos y subpáginas). «/» elige el tipo de bloque (`kit/PointPicker.jsx`), «[[» busca qué enlazar, los atajos de Markdown convierten la línea, se arrastran los bloques por su asa y se sueltan o pegan imágenes; Mover a…, Duplicar, Copiar como Markdown, Imprimir y «La mencionan». Las fichas de cliente y proyecto muestran sus páginas.
+- **Marketing** (`MarketingMas.jsx`): resultados del periodo (por papel en el embudo y por formato), el feed simulado de una marca (arrastrar una casilla sobre otra intercambia sus fechas), la ficha de cada campaña (cifras, publicaciones y leads) y la de cada marca (identidad, estrategia, imágenes y logos en SVG).
+- **Portal** (`PortalAdmin.jsx`): crear portales, permisos de un portal o de una persona, «Conectar Claude», las cuentas (Accesos: crear, rol, portales, contraseña nueva, enlace de acceso, borrar) y la identidad de cada app con la app de verdad al lado.
+
+Un diálogo abierto desde otro (por ejemplo, los permisos desde la ficha de una persona) funciona porque `FormModal` corta el contexto del `Form` de React Aria: sin eso, el formulario de dentro hereda el `onSubmit` del de fuera y guardar uno cerraba los dos.
 - `src/ui/portal/`: el portal nuevo. `store.js` arranca con `src/portal/data.js` (Supabase o la demostración) y deriva todo con `src/portal/state.js`, así que las reglas y los permisos son los mismos.
 
-Para probar Negocio nuevo en local hace falta la API: `npm run build` y luego `npx wrangler dev --local` (la configuración «api-local» de `.claude/launch.json`; `--local` evita que pida la cuenta de Cloudflare por el modelo de IA). Se abre en `http://localhost:8787/admin/negocio-nuevo/`. Desde `npm run dev` (puerto 5173) la entrada falla con «Origen no permitido»: el Worker solo acepta su propio origen. El catálogo y el portal en demostración sí se ven con `npm run dev`.
+Para probar Negocio en local hace falta la API: `npm run build` y luego `npx wrangler dev --local` (la configuración «api-local» de `.claude/launch.json`; `--local` evita que pida la cuenta de Cloudflare por el modelo de IA). Se abre en `http://localhost:8787/admin/negocio/`. Desde `npm run dev` (puerto 5173) la entrada falla con «Origen no permitido»: el Worker solo acepta su propio origen. El catálogo y el portal en demostración sí se ven con `npm run dev`.
 
 La documentación de la versión instalada está en `node_modules/@heroui/react/docs/` (índice en `llms.txt`). La fuente de verdad para instalar y para la API de cada componente es el servidor MCP de HeroUI (`@heroui/react-mcp`).
 
@@ -187,7 +195,7 @@ Para añadir una captura nueva, guárdala en `public/img/cerofiao/store/` como `
 
 ### Negocio
 
-En `/admin/negocio/` se llevan los clientes y se emiten facturas, cotizaciones y recibos, con la estética de CeroFiao. Entra con la misma contraseña del panel.
+En `/admin/negocio/` se llevan los clientes y se emiten facturas, cotizaciones y recibos. Entra con la misma contraseña del panel.
 
 - **Facturas y cotizaciones**: se editan sobre la hoja misma. Llevan descuento, impuesto, retención, otros cargos y una equivalencia en otra moneda con su tasa (BCV, paralelo…). Se numeran solas por tipo y año (`FAC-2026-0001`, `COT-…`, `REC-…`) y se imprimen o guardan en PDF desde el navegador.
 - **Cobros**: cada factura admite pagos parciales; cada pago puede generar su recibo. Una cotización aceptada se convierte en factura con un clic.

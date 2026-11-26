@@ -18,6 +18,7 @@ import {
   ProgressBar,
   Radio,
   RadioGroup,
+  ScrollShadow,
   Tabs,
   TextArea,
   TextField,
@@ -47,6 +48,7 @@ import { go, useCrm } from '../store.js';
 import { DOC_STATUS, DOC_WORD, docStatus, totals } from '../domain.js';
 import { AmountField, ConfirmButton, DateInput, FormModal, SelectField, currencyOptions } from '../fields.jsx';
 import { RichView, Stepper, Timeline } from '../../pro/index.js';
+import { PagesPanel } from './Paginas.jsx';
 
 const STATUS_COLOR = { pending: 'warning', active: 'accent', paused: 'default', completed: 'success' };
 const TASK_COLOR = { request: 'accent', todo: 'default', doing: 'accent', review: 'warning', done: 'success' };
@@ -411,7 +413,7 @@ export function Proyecto({ id }) {
 
       {(p.stages || []).length > 0 && (
         <Panel title="Etapas" description="Toca una etapa para marcarla hecha (y las de antes); toca una hecha para volver a ella.">
-          <div className="-mx-1 overflow-x-auto px-1 pb-1">
+          <ScrollShadow orientation="horizontal" hideScrollBar className="-mx-1 px-1 pb-1">
             <Stepper
               orientation="horizontal"
               label="Etapas del proyecto"
@@ -427,7 +429,7 @@ export function Proyecto({ id }) {
                 put('projects', p);
               }}
             />
-          </div>
+          </ScrollShadow>
         </Panel>
       )}
 
@@ -484,6 +486,7 @@ export function Proyecto({ id }) {
             <p className="text-sm text-muted">Sin documentos. En una factura, el chip «Proyecto» la enlaza aquí.</p>
           )}
         </Panel>
+        <PagesPanel projectId={p.id} />
         <Panel title="Actividad">
           <ProjectActivity p={p} tasks={s.tasks} docs={s.docs} />
         </Panel>

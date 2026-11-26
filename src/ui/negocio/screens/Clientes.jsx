@@ -26,6 +26,7 @@ import { Empty, PageHeader, Panel, Person, Stat, StatusChip } from '../../kit/pa
 import { go, useCrm } from '../store.js';
 import { copyText, downloadCsv } from '../../kit/csv.js';
 import { DataGrid } from '../../pro/index.js';
+import { PagesPanel } from './Paginas.jsx';
 import { DOC_STATUS, DOC_WORD, base, customerStats, docStatus, fmt, money, shortDate, totals } from '../domain.js';
 
 const plain = (s = '') => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -371,6 +372,7 @@ export function Cliente({ id }) {
             <p className="text-sm text-muted">Todavía no tiene documentos.</p>
           )}
         </Panel>
+        <PagesPanel customerId={c.id} className="lg:col-span-3" />
       </div>
       {editing && <CustomerForm customer={c} isOpen onOpenChange={setEditing} />}
     </div>

@@ -1,6 +1,6 @@
-// Negocio nuevo (/admin/negocio-nuevo/): el mismo negocio de /admin/negocio/,
-// rehecho con HeroUI. Usa la misma sesión del panel y los mismos datos: lo que se
-// cambia aquí se ve allí y al revés.
+// Negocio (/admin/negocio/), hecho con HeroUI. Usa la sesión del panel y los datos de
+// siempre (negocio-core.js y compañía): sustituye a la versión vieja, de la que conserva
+// todas las funciones. /admin/negocio-nuevo/ redirige aquí.
 //
 // Navegación: una isla flotante arriba con las seis zonas (Inicio, Ventas,
 // Trabajo, Dinero, Crecer y Negocio), el buscador, el temporizador, «Crear» y la
@@ -57,18 +57,19 @@ import { Inicio } from './screens/Inicio.jsx';
 import { Cliente, Clientes, CustomerForm } from './screens/Clientes.jsx';
 import { Leads } from './screens/Leads.jsx';
 import { Documento, Documentos, createAndEdit } from './screens/Documentos.jsx';
+import { DocEditor } from './editor/Editor.jsx';
 import { Catalogo } from './screens/Catalogo.jsx';
 import { Proyecto, Proyectos } from './screens/Proyectos.jsx';
 import { Tareas } from './screens/Tareas.jsx';
 import { Horas } from './screens/Horas.jsx';
-import { Paginas, newPageAndOpen } from './screens/Paginas.jsx';
+import { Paginas } from './screens/Paginas.jsx';
+import { createPage } from '../../negocio-paginas.js';
 import { Cobros } from './screens/Cobros.jsx';
 import { Gastos } from './screens/Gastos.jsx';
 import { Marketing } from './screens/Marketing.jsx';
 import { Portal } from './screens/Portal.jsx';
 import { Ajustes } from './screens/Ajustes.jsx';
 
-const OLD = '/admin/negocio/';
 const LIST_OF = { invoice: 'facturas', quote: 'cotizaciones', proposal: 'propuestas', receipt: 'facturas' };
 
 // Lo que se puede crear, por zona. La de la sección abierta es el botón principal de «Crear».
@@ -255,9 +256,9 @@ function Account({ onLogout }) {
             <ThemeSwitch />
           </div>
           <Separator />
-          <a href={OLD} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm hover:bg-default">
+          <a href="/admin/" className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm hover:bg-default">
             <ArrowUpRightFromSquare className="size-4" />
-            Versión de siempre
+            Volver al panel
           </a>
           <a href="/admin/ui/" className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm hover:bg-default">
             <ArrowUpRightFromSquare className="size-4" />
@@ -286,10 +287,10 @@ function Island({ area, section, onSearch, onCreate, onLogout }) {
           <img src="/favicon.svg" alt="" width="30" height="30" />
         </a>
 
-        {/* Escritorio: las seis zonas a la vista. La píldora de la zona abierta se
-            desliza al cambiar, como en las secciones. */}
+        {/* Escritorio: las seis zonas a la vista, en el mismo segmento de bandeja que
+            las secciones; el indicador se desliza a la zona abierta. */}
         <div className="hidden lg:block">
-          <Segment variant="bare" scroll={false} current="true" label="Zonas de trabajo" value={area} items={zoneItems} />
+          <Segment scroll={false} current="true" label="Zonas de trabajo" value={area} items={zoneItems} />
         </div>
 
         {/* Teléfono y tableta: la zona actual abre un menú con todas y sus secciones. */}
@@ -432,9 +433,12 @@ function Screen({ route }) {
     case 'cotizaciones':
       return <Documentos type="quote" />;
     case 'propuestas':
-      return <Documentos type="proposal" />;
+      return <Documentos type="proposal" isNew={id === 'nueva'} />;
     case 'documentos':
-      return <Documento id={id} />;
+      return sub === 'editar' ? <DocEditor key={id} id={id} /> : <Documento id={id} />;
+    case 'doc':
+      // Enlaces de la versión vieja (#/doc/…): abren el editor nuevo.
+      return <DocEditor key={id} id={id} />;
     case 'catalogo':
       return <Catalogo isNew={id === 'nuevo'} />;
     case 'proyectos':
@@ -452,7 +456,7 @@ function Screen({ route }) {
     case 'marketing':
       return <Marketing tab={id} arg={sub} />;
     case 'portal':
-      return <Portal tab={id} />;
+      return <Portal tab={id} arg={sub} />;
     case 'ajustes':
     case 'formas-de-cobro':
     case 'biblioteca':
@@ -470,7 +474,7 @@ function Shell({ onLogout }) {
   useLifecycle(true);
   useCrm();
 
-  const section = route[0] === 'documentos' ? LIST_OF[find('docs', route[1])?.type] || 'facturas' : sectionOf(route[0] || 'inicio')?.id || 'inicio';
+  const section = route[0] === 'documentos' || route[0] === 'doc' ? LIST_OF[find('docs', route[1])?.type] || 'facturas' : sectionOf(route[0] || 'inicio')?.id || 'inicio';
   const area = areaOf(section).id;
   useEffect(() => rememberSection(section), [section]);
 
@@ -511,7 +515,7 @@ function Shell({ onLogout }) {
     if (key === 'factura') return createAndEdit('invoice');
     if (key === 'cotizacion') return createAndEdit('quote');
     if (key === 'propuesta') return createAndEdit('proposal');
-    if (key === 'pagina') return newPageAndOpen();
+    if (key === 'pagina') return createPage({ template: 'blank' });
     return undefined;
   };
 

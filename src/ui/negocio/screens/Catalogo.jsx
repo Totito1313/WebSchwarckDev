@@ -12,8 +12,9 @@ import { UploadButton } from '../upload.jsx';
 
 const plain = (s = '') => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-export function ServiceForm({ item, onClose }) {
-  const [it] = useState(() => (item ? { ...item } : { id: uid(), name: '', description: '', price: 0, currency: base(), image: '' }));
+/** prefill: datos de partida para uno nuevo (por ejemplo, una línea de factura); onSaved(servicio). */
+export function ServiceForm({ item, prefill, onClose, onSaved }) {
+  const [it] = useState(() => (item ? { ...item } : { id: uid(), name: '', description: '', price: 0, currency: base(), image: '', ...prefill }));
   const [price, setPrice] = useState(Number(it.price) || 0);
   const [currency, setCurrency] = useState(it.currency || base());
   const [image, setImage] = useState(it.image || '');
@@ -25,8 +26,10 @@ export function ServiceForm({ item, onClose }) {
       onSubmit={(f) => {
         const name = String(f.name || '').trim();
         if (!name) return false;
-        put('catalog', { ...it, name, description: String(f.description || '').trim(), price, currency, image });
+        const saved = { ...it, name, description: String(f.description || '').trim(), price, currency, image };
+        put('catalog', saved);
         toast.success(item ? 'Servicio guardado' : `${name} está en el catálogo`);
+        onSaved?.(saved);
         return true;
       }}
     >
