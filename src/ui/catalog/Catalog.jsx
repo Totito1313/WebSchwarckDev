@@ -10,10 +10,13 @@ import { ACCIONES } from './acciones.jsx';
 import { FORMULARIOS } from './formularios.jsx';
 import { DATOS } from './datos.jsx';
 import { NAVEGACION } from './navegacion.jsx';
+import { PRO } from './pro.jsx';
 
-const GROUPS = [...ACCIONES, ...FORMULARIOS, ...DATOS, ...NAVEGACION];
+const HEROUI = [...ACCIONES, ...FORMULARIOS, ...DATOS, ...NAVEGACION];
+const GROUPS = [...HEROUI, ...PRO];
+const OWN = PRO.reduce((n, g) => n + g.items.length, 0);
 const namesOf = (item) => [...item.name.split(' + '), ...(item.also || [])];
-const TOTAL = new Set(GROUPS.flatMap((g) => g.items.flatMap(namesOf)).filter((n) => n !== 'EmptyState' && n !== 'FieldGroup' && n !== 'SwitchGroup')).size;
+const TOTAL = new Set(HEROUI.flatMap((g) => g.items.flatMap(namesOf)).filter((n) => n !== 'EmptyState' && n !== 'FieldGroup' && n !== 'SwitchGroup')).size;
 const plain = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function Demo({ item }) {
@@ -27,12 +30,12 @@ function Demo({ item }) {
         </div>
         <Link
           className="shrink-0 text-xs text-muted"
-          href={`https://heroui.com/docs/react/components/${item.doc}`}
+          href={item.inspired ? `https://heroui.pro/docs/react/demos/${item.inspired}` : `https://heroui.com/docs/react/components/${item.doc}`}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Documentación de ${item.name}`}
+          aria-label={item.inspired ? `Demo de HeroUI Pro en la que se inspira ${item.name}` : `Documentación de ${item.name}`}
         >
-          Docs
+          {item.inspired ? 'Inspiración' : 'Docs'}
           <ArrowUpRightFromSquare className="size-3" />
         </Link>
       </Card.Header>
@@ -63,6 +66,9 @@ export function Catalog() {
             <h1 className="truncate text-lg font-semibold tracking-tight">Componentes</h1>
             <Chip size="sm" variant="soft" color="accent">
               {TOTAL} de HeroUI
+            </Chip>
+            <Chip size="sm" variant="soft">
+              {OWN} propios
             </Chip>
           </div>
           <SearchField aria-label="Buscar un componente" value={query} onChange={setQuery} className="w-full sm:w-64">

@@ -6,10 +6,11 @@ import { useMemo } from 'react';
 import { CircleCheck, Clock, Thunderbolt } from '@gravity-ui/icons';
 import { Card, Chip, Disclosure, Tabs } from '@heroui/react';
 import { Empty } from '../../kit/parts.jsx';
-import { dayLabel, localDay, minutesText } from '../../../portal/kit.js';
+import { ago, dayLabel, localDay, minutesText } from '../../../portal/kit.js';
 import { feed, unread } from '../../../portal/state.js';
 import { go, usePortal } from '../store.js';
-import { FeedRow } from './Inicio.jsx';
+import { Timeline } from '../../pro/index.js';
+import { Ico } from '../ui.jsx';
 
 const FILTERS = [
   ['todo', 'Todo'],
@@ -125,13 +126,38 @@ export function Cronologia({ filter = 'todo' }) {
         <Empty icon={Clock} title="Nada por aquí todavía" text="Lo que vaya pasando aparecerá en esta lista." />
       ) : (
         days.map(([day, items]) => (
-          <section key={day} className="flex flex-col gap-2" aria-label={dayLabel(day)}>
+          <section key={day} className="flex flex-col gap-3" aria-label={dayLabel(day)}>
             <h2 className="sw-eyebrow sticky top-14 z-10 -mx-1 bg-background/90 px-1 py-1 backdrop-blur">{dayLabel(day)}</h2>
-            <ul className="flex flex-col gap-1">
-              {items.map((it) => (
-                <li key={it.id}>{it.report ? <Report item={it} fresh={fresh.has(it.id)} /> : <FeedRow item={it} fresh={fresh.has(it.id)} />}</li>
-              ))}
-            </ul>
+            <Timeline
+              label={`Lo que pasó el ${dayLabel(day)}`}
+              items={items.map((it) => {
+                const Icon = (p) => <Ico name={it.ico} className={p.className} />;
+                const isNew = fresh.has(it.id);
+                if (it.report)
+                  return {
+                    id: it.id,
+                    title: it.title || 'Informe',
+                    marker: { icon: Icon, color: it.color },
+                    badge: isNew ? { label: 'Nuevo', color: 'accent' } : undefined,
+                    trailing: ago(it.at),
+                    children: <Report item={it} fresh={isNew} />,
+                  };
+                return {
+                  id: it.id,
+                  title: it.go ? (
+                    <a href={it.go} className="hover:underline">
+                      {it.title}
+                    </a>
+                  ) : (
+                    it.title
+                  ),
+                  marker: { icon: Icon, color: it.color },
+                  badge: isNew ? { label: 'Nuevo', color: 'accent' } : it.label ? { label: it.label } : undefined,
+                  trailing: ago(it.at),
+                  description: it.body ? <span className="line-clamp-3">{it.body}</span> : undefined,
+                };
+              })}
+            />
           </section>
         ))
       )}

@@ -364,15 +364,17 @@ function SliderDemo() {
   );
 }
 
+// Como en la documentación de HeroUI: el riel dentro de Switch.Content, junto al
+// texto; la descripción fuera, debajo (ver kit/SwitchField.jsx).
 const Toggle = ({ children, desc, ...props }) => (
   <Switch {...props}>
-    <Switch.Control>
-      <Switch.Thumb />
-    </Switch.Control>
     <Switch.Content>
-      <Label>{children}</Label>
-      {desc && <Description>{desc}</Description>}
+      <Switch.Control>
+        <Switch.Thumb />
+      </Switch.Control>
+      {children}
     </Switch.Content>
+    {desc && <Description>{desc}</Description>}
   </Switch>
 );
 

@@ -6,8 +6,10 @@ import { ArrowDown, ArrowDownToLine, ArrowUp, BookOpen, CreditCard, Pencil, Plus
 import { Button, ButtonGroup, Card, Chip, Description, Input, Label, Switch, TextArea, TextField, toast } from '@heroui/react';
 import { CURRENCIES, METHODS, methodLabel, put, remove, safeLink, state as crm, todayISO, uid } from '../../../negocio-core.js';
 import { Empty, PageHeader, Panel } from '../../kit/parts.jsx';
+import { SwitchField } from '../../kit/SwitchField.jsx';
 import { useCrm } from '../store.js';
 import { AmountField, ConfirmButton, FormModal, SelectField, currencyOptions } from '../fields.jsx';
+import { NumberStepper } from '../../pro/index.js';
 
 async function readLogo(file) {
   if (file.type === 'image/svg+xml' && file.size < 120_000) {
@@ -95,9 +97,31 @@ function MiNegocio() {
       <Panel title="Facturación" description="Lo que se propone al crear cada documento.">
         <div className="grid gap-4 sm:grid-cols-3">
           <SelectField label="Moneda principal" value={s.currency} onChange={(c) => setSetting('currency', c)} options={currencyOptions(CURRENCIES)} description="Las cifras de los listados van en esta moneda." />
-          <AmountField label="Días para pagar una factura" value={Number(s.dueDays) || 0} onChange={(n) => setSetting('dueDays', Math.round(n))} step={1} />
-          <AmountField label="Días de validez de una cotización" value={Number(s.quoteDays) || 0} onChange={(n) => setSetting('quoteDays', Math.round(n))} step={1} />
-          <AmountField label={`Tarifa por hora (${s.currency})`} value={Number(s.hourlyRate) || 0} onChange={(n) => setSetting('hourlyRate', n)} description="La de los proyectos nuevos y las horas sin proyecto." />
+          <NumberStepper
+            label="Días para pagar una factura"
+            value={Number(s.dueDays) || 0}
+            onChange={(n) => setSetting('dueDays', Math.round(n))}
+            min={0}
+            max={365}
+            formatOptions={{ style: 'unit', unit: 'day', unitDisplay: 'long' }}
+          />
+          <NumberStepper
+            label="Validez de una cotización"
+            value={Number(s.quoteDays) || 0}
+            onChange={(n) => setSetting('quoteDays', Math.round(n))}
+            min={0}
+            max={365}
+            formatOptions={{ style: 'unit', unit: 'day', unitDisplay: 'long' }}
+          />
+          <NumberStepper
+            label="Tarifa por hora"
+            value={Number(s.hourlyRate) || 0}
+            onChange={(n) => setSetting('hourlyRate', n)}
+            min={0}
+            step={5}
+            formatOptions={CURRENCIES[s.currency] && /^[A-Z]{3}$/.test(s.currency) && s.currency !== 'USDT' ? { style: 'currency', currency: s.currency } : { maximumFractionDigits: 2 }}
+            description="La de los proyectos nuevos y las horas sin proyecto."
+          />
           <Text k="notes" label="Nota al pie por defecto" area={2} max={2000} className="sm:col-span-3" />
           <Text k="terms" label="Términos y condiciones por defecto" area={4} max={8000} placeholder="Se añaden a cada documento nuevo. Vacío: no se añaden." className="sm:col-span-3" />
         </div>
@@ -182,14 +206,7 @@ function PayForm({ template, onClose }) {
         <Input placeholder="https://…" />
         <Description>Sale en la factura como botón y como código QR.</Description>
       </TextField>
-      <Switch isSelected={isDefault} onChange={setIsDefault} className="sm:col-span-2">
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-        <Switch.Content>
-          <Label>Usar por defecto en las facturas nuevas</Label>
-        </Switch.Content>
-      </Switch>
+      <SwitchField isSelected={isDefault} onChange={setIsDefault} className="sm:col-span-2" label="Usar por defecto en las facturas nuevas" />
       {error && <p className="text-sm text-danger sm:col-span-2">{error}</p>}
     </FormModal>
   );
@@ -236,6 +253,7 @@ function FormasDeCobro() {
                     <Pencil />
                   </Button>
                   <ConfirmButton title={`¿Eliminar ${t.name || methodLabel(t.method)}?`} text="Las facturas que ya la llevan no cambian." onConfirm={() => remove('paytemplates', t.id)} variant="ghost" isIconOnly ariaLabel="Eliminar">
+                    <ButtonGroup.Separator />
                     <TrashBin />
                   </ConfirmButton>
                 </ButtonGroup>
@@ -319,6 +337,7 @@ function Biblioteca() {
                   <ArrowUp />
                 </Button>
                 <Button isIconOnly aria-label="Bajar" isDisabled={i === sections.length - 1} onPress={() => move(i, 1)}>
+                  <ButtonGroup.Separator />
                   <ArrowDown />
                 </Button>
                 <ConfirmButton
@@ -330,6 +349,7 @@ function Biblioteca() {
                   isIconOnly
                   ariaLabel="Quitar"
                 >
+                  <ButtonGroup.Separator />
                   <TrashBin />
                 </ConfirmButton>
               </ButtonGroup>

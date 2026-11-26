@@ -2,7 +2,7 @@
 // cada tarjeta), lista ordenable, análisis y la ficha con el siguiente paso, lo
 // hablado y «Pasar a cliente». Las reglas son las del panel de siempre.
 import { useMemo, useState } from 'react';
-import { ArrowRightArrowLeft, CircleCheck, Clock, EllipsisVertical, Funnel, PersonPlus, Plus, TrashBin } from '@gravity-ui/icons';
+import { ArrowRightArrowLeft, Circle, CircleCheck, CircleXmark, Clock, Comment, EllipsisVertical, Envelope, FileText, Funnel, Handset, PersonPlus, Persons, Plus, TrashBin } from '@gravity-ui/icons';
 import { getLocalTimeZone, parseDate, today as todayDate } from '@internationalized/date';
 import {
   AlertDialog,
@@ -40,6 +40,7 @@ import { addDays, find, put, remove } from '../../../negocio-core.js';
 import { Empty, PageHeader, Panel, Person, Stat } from '../../kit/parts.jsx';
 import { go, useCrm } from '../store.js';
 import { useOpenAfterGesture } from '../../kit/hooks.js';
+import { Kanban, QuestionCard, Timeline } from '../../pro/index.js';
 import {
   ACTIVITIES,
   LEAD_STAGES,
@@ -100,54 +101,39 @@ function FollowChip({ lead }) {
 
 /** Pide el motivo antes de marcar un lead como perdido. */
 function LostDialog({ lead, onClose }) {
-  const [reason, setReason] = useState(LOST_REASONS[0]);
+  const [other, setOther] = useState('');
   return (
     <Modal isOpen onOpenChange={(open) => !open && onClose()}>
       <Modal.Backdrop>
         <Modal.Container>
-          <Modal.Dialog className="sm:max-w-[420px]">
+          {/* La tarjeta de preguntas hace de diálogo: una pregunta, sus opciones y «Marcar como perdido». */}
+          <Modal.Dialog aria-label={`¿Por qué se perdió ${leadName(lead)}?`} className="bg-transparent p-0 shadow-none sm:max-w-[440px]">
             {({ close }) => (
-              <Form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const other = String(new FormData(e.currentTarget).get('other') || '').trim();
-                  setLeadStage(lead, 'lost', reason === 'Otro' && other ? other : reason);
+              <QuestionCard
+                question={`¿Por qué se perdió ${leadName(lead)}?`}
+                description="Saldrá en el análisis de los leads perdidos."
+                options={LOST_REASONS.map((r) => [r, r])}
+                defaultValue={LOST_REASONS[0]}
+                continueLabel="Marcar como perdido"
+                continueVariant="danger"
+                onClose={close}
+                onContinue={(reason) => {
+                  const text = other.trim();
+                  if (reason === 'Otro' && !text) return toast.warning('Cuenta el motivo en pocas palabras.');
+                  setLeadStage(lead, 'lost', reason === 'Otro' ? text : reason);
                   toast(`${leadName(lead)} pasó a «Perdido»`);
-                  close();
+                  return close();
                 }}
               >
-                <Modal.Header>
-                  <Modal.Heading>¿Por qué se perdió {leadName(lead)}?</Modal.Heading>
-                </Modal.Header>
-                <Modal.Body className="flex flex-col gap-4">
-                  <RadioGroup value={reason} onChange={setReason} aria-label="Motivo">
-                    {LOST_REASONS.map((r) => (
-                      <Radio key={r} value={r}>
-                        <Radio.Content>
-                          <Radio.Control>
-                            <Radio.Indicator />
-                          </Radio.Control>
-                          {r}
-                        </Radio.Content>
-                      </Radio>
-                    ))}
-                  </RadioGroup>
-                  {reason === 'Otro' && (
-                    <TextField name="other" maxLength={120} autoFocus>
+                {(reason) =>
+                  reason === 'Otro' && (
+                    <TextField value={other} onChange={setOther} maxLength={120} autoFocus>
                       <Label>Otro motivo</Label>
                       <Input placeholder="Cuéntalo en pocas palabras" />
                     </TextField>
-                  )}
-                </Modal.Body>
-                <Modal.Footer>
-                  <Button slot="close" variant="secondary">
-                    Cancelar
-                  </Button>
-                  <Button type="submit" variant="danger">
-                    Marcar como perdido
-                  </Button>
-                </Modal.Footer>
-              </Form>
+                  )
+                }
+              </QuestionCard>
             )}
           </Modal.Dialog>
         </Modal.Container>
@@ -186,27 +172,16 @@ function StageMenu({ lead, onLost, trigger }) {
   );
 }
 
-function LeadCard({ lead, onLost }) {
+function LeadCard({ lead }) {
   const value = leadValue(lead);
   return (
-    <Card variant="default" className="gap-2 p-3">
-      <div className="flex items-start gap-2">
-        <a href={`#/leads/${lead.id}`} className="flex min-w-0 flex-1 items-center gap-2">
-          <Person name={leadName(lead)} />
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate text-sm font-medium">{leadName(lead)}</span>
-            <span className="truncate text-xs text-muted">{lead.interest || SOURCES[lead.source] || '—'}</span>
-          </span>
-        </a>
-        <StageMenu
-          lead={lead}
-          onLost={onLost}
-          trigger={
-            <Button isIconOnly size="sm" variant="ghost" aria-label={`Mover ${leadName(lead)}`}>
-              <EllipsisVertical />
-            </Button>
-          }
-        />
+    <div className="flex flex-col gap-2 p-3">
+      <div className="flex min-w-0 items-center gap-2 pe-6">
+        <Person name={leadName(lead)} />
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-sm font-medium">{leadName(lead)}</span>
+          <span className="truncate text-xs text-muted">{lead.interest || SOURCES[lead.source] || '—'}</span>
+        </span>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         {value ? <span className="text-xs font-medium tabular-nums">{money(value, lead.currency || base())}</span> : null}
@@ -215,38 +190,45 @@ function LeadCard({ lead, onLost }) {
         </Chip>
         <FollowChip lead={lead} />
       </div>
-    </Card>
+    </div>
   );
 }
 
+const STAGE_ICON = { won: CircleCheck, lost: CircleXmark };
+const ACTIVITY_ICON = { message: Comment, call: Handset, email: Envelope, meeting: Persons, note: FileText, stage: ArrowRightArrowLeft };
+const colorVar = (c) => (c && c !== 'default' ? `var(--${c})` : 'var(--muted)');
+
+/** Embudo: una columna por etapa; se arrastra una tarjeta para cambiarla de etapa. */
 function Board({ leads, onLost }) {
+  const columns = STAGE_ORDER.map((s) => {
+    const { sum } = sumLeads(leads.filter((l) => l.stage === s));
+    return { id: s, title: LEAD_STAGES[s][0], icon: STAGE_ICON[s] || Circle, color: colorVar(LEAD_STAGES[s][1]), meta: sum ? fmt(sum) : '' };
+  });
+  const move = (key, stage) => {
+    const lead = leads.find((l) => l.id === key);
+    if (!lead || stage === lead.stage) return;
+    if (stage === 'lost') return onLost(lead);
+    setLeadStage(lead, stage);
+    toast(stage === 'won' ? '¡Ganado! Pásalo a cliente desde su ficha.' : `${leadName(lead)} → ${LEAD_STAGES[stage][0]}`);
+  };
   return (
-    <ScrollShadow orientation="horizontal" className="-mx-1 pb-2">
-      <div className="flex w-max gap-3 px-1">
-        {STAGE_ORDER.map((s) => {
-          const items = leads.filter((l) => l.stage === s);
-          const { sum } = sumLeads(items);
-          return (
-            <section key={s} className="flex w-64 shrink-0 flex-col gap-2 rounded-3xl bg-surface-secondary p-2" aria-label={LEAD_STAGES[s][0]}>
-              <header className="flex items-center justify-between px-2 pt-1">
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <Chip size="sm" variant="soft" color={LEAD_STAGES[s][1]}>
-                    {items.length}
-                  </Chip>
-                  {LEAD_STAGES[s][0]}
-                </span>
-                <span className="text-xs tabular-nums text-muted">{sum ? fmt(sum) : ''}</span>
-              </header>
-              {items.length ? (
-                items.map((l) => <LeadCard key={l.id} lead={l} onLost={onLost} />)
-              ) : (
-                <p className="px-2 py-4 text-center text-xs text-muted">Vacía</p>
-              )}
-            </section>
-          );
-        })}
-      </div>
-    </ScrollShadow>
+    <Kanban
+      label="Embudo de leads"
+      columns={columns}
+      items={leads}
+      getColumn={(l) => l.stage}
+      onMove={move}
+      onOpen={(l) => go(`#/leads/${l.id}`)}
+      cardMenu={(l) => (l.stage === 'won' && !l.customerId ? [{ id: 'customer', label: 'Pasar a cliente', icon: PersonPlus }] : [])}
+      onCardMenu={(id, l) => {
+        if (id === 'customer') {
+          const [c, isNew] = leadToCustomer(l);
+          toast(isNew ? `${c.name} ya es cliente` : `Vinculado a ${c.name}`);
+        }
+      }}
+      columnWidth={264}
+      renderCard={(l) => <LeadCard lead={l} />}
+    />
   );
 }
 
@@ -600,17 +582,18 @@ function LeadDrawer({ id, onLost }) {
                     Anotar
                   </Button>
                 </Form>
-                <ol className="flex flex-col gap-2">
-                  {(l.activities || []).map((a) => (
-                    <li key={a.id} className="rounded-2xl bg-surface-secondary px-3 py-2 text-sm">
-                      <span className="flex items-center justify-between gap-2 text-xs text-muted">
-                        <span>{a.type === 'stage' ? 'Etapa' : ACTIVITIES[a.type] || 'Nota'}</span>
-                        <span>{new Date(a.at).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                      </span>
-                      <span className="whitespace-pre-line">{a.text}</span>
-                    </li>
-                  ))}
-                </ol>
+                {(l.activities || []).length > 0 && (
+                  <Timeline
+                    label="Lo hablado"
+                    items={l.activities.map((a) => ({
+                      id: a.id,
+                      title: a.type === 'stage' ? 'Cambio de etapa' : ACTIVITIES[a.type] || 'Nota',
+                      marker: { icon: ACTIVITY_ICON[a.type] || Comment, color: a.type === 'stage' ? 'var(--accent)' : undefined },
+                      trailing: new Date(a.at).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+                      description: <span className="whitespace-pre-line text-foreground">{a.text}</span>,
+                    }))}
+                  />
+                )}
               </div>
             </Drawer.Body>
             <Drawer.Footer className="justify-between">

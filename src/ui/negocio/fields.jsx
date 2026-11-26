@@ -185,5 +185,39 @@ export function ConfirmButton({ title, text, confirm = 'Eliminar', onConfirm, ch
   );
 }
 
+/** La misma confirmación, abierta desde código (por ejemplo, desde la barra de acciones). */
+export function ConfirmDialog({ open, title, text, confirm = 'Eliminar', onConfirm, onClose, status = 'danger' }) {
+  return (
+    <AlertDialog isOpen={open} onOpenChange={(o) => !o && onClose?.()}>
+      <AlertDialog.Backdrop>
+        <AlertDialog.Container>
+          <AlertDialog.Dialog className="sm:max-w-[420px]">
+            <AlertDialog.Header>
+              <AlertDialog.Icon status={status} />
+              <AlertDialog.Heading>{title}</AlertDialog.Heading>
+            </AlertDialog.Header>
+            {text && <AlertDialog.Body>{text}</AlertDialog.Body>}
+            <AlertDialog.Footer>
+              <Button slot="close" variant="tertiary">
+                Cancelar
+              </Button>
+              <Button
+                slot="close"
+                variant={status === 'danger' ? 'danger' : 'primary'}
+                onPress={() => {
+                  onConfirm?.();
+                  onClose?.();
+                }}
+              >
+                {confirm}
+              </Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
+    </AlertDialog>
+  );
+}
+
 /** Opciones de moneda para SelectField. */
 export const currencyOptions = (CURRENCIES) => Object.entries(CURRENCIES).map(([k, c]) => [k, `${k} · ${c.label}`]);

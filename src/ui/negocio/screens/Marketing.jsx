@@ -3,7 +3,7 @@
 // las marcas. Cada publicación se abre en un panel con todo lo suyo y sus
 // resultados. Las reglas son las de negocio-contenido.js.
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Copy, Flag, Megaphone, Plus, TrashBin } from '@gravity-ui/icons';
+import { Bulb, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, Copy, Flag, Megaphone, Palette, PaperPlane, PencilToSquare, Plus, TrashBin } from '@gravity-ui/icons';
 import {
   Button,
   ButtonGroup,
@@ -57,11 +57,13 @@ import { useOpenAfterGesture } from '../../kit/hooks.js';
 import { go, useCrm } from '../store.js';
 import { fmt, money } from '../domain.js';
 import { AmountField, ConfirmButton, DateInput, FormModal, SelectField } from '../fields.jsx';
+import { Agenda, Kanban } from '../../pro/index.js';
 
 const ROLE_HEX = { tof: '#00b8d4', mof: '#8e5bd6', bof: '#34c759', com: '#f97316' };
 const STATUS_COLOR = { idea: 'default', guion: 'accent', diseno: 'accent', aprobado: 'success', programado: 'warning', publicado: 'success' };
 const TABS = [
   ['calendario', 'Calendario'],
+  ['agenda', 'Agenda'],
   ['tablero', 'Tablero'],
   ['copias', 'Copias'],
   ['campanas', 'Campañas'],
@@ -185,37 +187,84 @@ function Calendario({ posts, ym, setYm }) {
   );
 }
 
+const POST_ICON = { idea: Bulb, guion: PencilToSquare, diseno: Palette, aprobado: CircleCheck, programado: Clock, publicado: PaperPlane };
+const statusVar = (c) => (c && c !== 'default' ? `var(--${c})` : 'var(--muted)');
+
+/** Tablero editorial: se arrastra una pieza para cambiarla de etapa. */
 function Tablero({ posts }) {
+  const sorted = [...posts].sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
   return (
-    <ScrollShadow orientation="horizontal" className="-mx-1 pb-2">
-      <div className="flex w-max gap-3 px-1">
-        {STATUS_ORDER.map((s) => {
-          const items = posts.filter((p) => p.status === s).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
-          return (
-            <section key={s} className="flex w-64 shrink-0 flex-col gap-2 rounded-3xl bg-surface-secondary p-2" aria-label={POST_STATUS[s][0]}>
-              <header className="flex items-center gap-2 px-2 pt-1 text-sm font-medium">
-                <Chip size="sm" variant="soft" color={STATUS_COLOR[s]}>
-                  {items.length}
-                </Chip>
-                {POST_STATUS[s][0]}
-              </header>
-              {items.map((p) => (
-                <a key={p.id} href={`#/marketing/pieza/${p.id}`} className="flex flex-col gap-1 rounded-2xl bg-surface p-3 shadow-[var(--surface-shadow)] hover:bg-surface-hover">
-                  <span className="flex items-center gap-2 text-sm font-medium">
-                    <BrandDot post={p} />
-                    <span className="truncate">{p.title || 'Sin título'}</span>
-                  </span>
-                  <span className="text-xs text-muted">
-                    {p.date} · {FORMATS[p.format]?.[0] || p.format} · {ROLES[p.role]?.[0]}
-                  </span>
-                </a>
-              ))}
-              {!items.length && <p className="px-2 py-4 text-center text-xs text-muted">Vacía</p>}
-            </section>
-          );
-        })}
-      </div>
-    </ScrollShadow>
+    <Kanban
+      label="Tablero editorial"
+      columns={STATUS_ORDER.map((s) => ({ id: s, title: POST_STATUS[s][0], icon: POST_ICON[s] || Flag, color: statusVar(STATUS_COLOR[s]) }))}
+      items={sorted}
+      getColumn={(p) => p.status}
+      onMove={(key, status) => {
+        const p = find('posts', key);
+        if (!p || p.status === status) return;
+        put('posts', { ...p, status });
+        toast(`${p.title || 'La pieza'} → ${POST_STATUS[status][0]}`);
+      }}
+      onOpen={(p) => go(`#/marketing/pieza/${p.id}`)}
+      cardMenu={() => [{ id: 'dup', label: 'Duplicar a la semana siguiente', icon: Copy }]}
+      onCardMenu={(id, p) => {
+        if (id !== 'dup') return;
+        const copyOf = { ...structuredClone(p), id: newPost().id, status: 'idea', date: p.date ? addDays(p.date, 7) : p.date, metrics: {} };
+        put('posts', copyOf);
+        toast('Duplicada una semana después');
+      }}
+      columnWidth={256}
+      renderCard={(p) => (
+        <div className="flex flex-col gap-1.5 p-3">
+          <span className="flex items-center gap-2 pe-6 text-sm font-semibold">
+            <BrandDot post={p} />
+            <span className="truncate">{p.title || 'Sin título'}</span>
+          </span>
+          <span className="text-xs text-muted">
+            {p.date ? new Date(`${p.date}T12:00:00`).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }) : 'Sin fecha'}
+            {p.time ? ` · ${p.time}` : ''}
+          </span>
+          <div className="flex flex-wrap gap-1">
+            <Chip size="sm" variant="tertiary">
+              {FORMATS[p.format]?.[0] || p.format || 'Formato'}
+            </Chip>
+            {ROLES[p.role] && (
+              <Chip size="sm" variant="soft">
+                <span className="size-1.5 rounded-full" style={{ background: ROLE_HEX[p.role] }} aria-hidden />
+                <Chip.Label>{ROLES[p.role][0]}</Chip.Label>
+              </Chip>
+            )}
+          </div>
+        </div>
+      )}
+    />
+  );
+}
+
+/** Agenda por horas: cada pieza en su día y su hora (media hora), del color de su marca. */
+function AgendaView({ posts }) {
+  const events = posts
+    .filter((p) => p.date)
+    .map((p) => {
+      const b = p.brandId && find('brands', p.brandId);
+      const start = new Date(`${p.date}T${p.time || '09:00'}:00`);
+      return {
+        id: p.id,
+        title: p.title || 'Sin título',
+        start,
+        end: new Date(start.getTime() + 45 * 60000),
+        allDay: !p.time,
+        color: brandColor(b) || 'var(--accent)',
+      };
+    });
+  return (
+    <Agenda
+      events={events}
+      onOpen={(e) => go(`#/marketing/pieza/${e.id}`)}
+      onCreate={(d) => go(`#/marketing/nueva?d=${d.toLocaleDateString('en-CA')}&t=${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)}
+      defaultView="week"
+      height={600}
+    />
   );
 }
 
@@ -477,7 +526,11 @@ function PostDrawer({ id, onClose }) {
                   <Label>Copy de Instagram</Label>
                   <ButtonGroup size="sm" variant="ghost">
                     <Dropdown>
-                      <Button>Plantilla</Button>
+                      {/* Dentro de un Dropdown el botón no hereda el estilo del grupo: va explícito. */}
+                      <Button size="sm" variant="ghost">
+                        Plantilla
+                        <ChevronDown className="size-3.5" />
+                      </Button>
                       <Dropdown.Popover placement="bottom end">
                         <Dropdown.Menu aria-label="Plantillas de copy" onAction={(k) => {
                           save({ copyIg: template(String(k), p, b) });
@@ -605,9 +658,11 @@ export function Marketing({ tab, arg }) {
   // #/marketing/nueva crea una publicación (en el día de ?d= si viene) y la abre.
   useEffect(() => {
     if (tab !== 'nueva') return;
-    const d = new URLSearchParams(location.hash.split('?')[1] || '').get('d');
+    const q = new URLSearchParams(location.hash.split('?')[1] || '');
+    const d = q.get('d');
+    const t = q.get('t');
     const b = [...brand][0];
-    const p = newPost({ ...(d ? { date: d } : {}), ...(b && b !== 'all' ? { brandId: b } : {}) });
+    const p = newPost({ ...(d ? { date: d } : {}), ...(t && /^\d\d:\d\d$/.test(t) ? { time: t } : {}), ...(b && b !== 'all' ? { brandId: b } : {}) });
     put('posts', p);
     go(`#/marketing/pieza/${p.id}`);
   }, [tab]);
@@ -671,6 +726,7 @@ export function Marketing({ tab, arg }) {
         )}
       </div>
       {view === 'calendario' && <Calendario posts={posts} ym={ym} setYm={setYm} />}
+      {view === 'agenda' && <AgendaView posts={posts} />}
       {view === 'tablero' && <Tablero posts={posts} />}
       {view === 'copias' && <Copias posts={posts} />}
       {view === 'campanas' && <Campanas />}

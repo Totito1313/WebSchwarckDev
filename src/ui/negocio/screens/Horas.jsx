@@ -2,7 +2,7 @@
 // recargar) y el registro a mano. La tarifa sale de la entrada, la tarea, el
 // proyecto o Ajustes, en ese orden. Las cuentas son las de negocio-work.js.
 import { useEffect, useMemo, useState } from 'react';
-import { Clock, Pause, Pencil, Play, Plus, Square, TrashBin } from '@gravity-ui/icons';
+import { ArrowDownToLine, CircleCheck, CircleXmark, Clock, Pause, Pencil, Play, Plus, Square, TrashBin } from '@gravity-ui/icons';
 import { Button, ButtonGroup, Card, Chip, Input, Label, Switch, TextField, toast } from '@heroui/react';
 import { addDays, clockText, dateText, durationText, find, money, parseDuration, put, remove, todayISO } from '../../../negocio-core.js';
 import {
@@ -23,9 +23,12 @@ import {
   taskKey,
 } from '../../../negocio-work.js';
 import { Empty, PageHeader, Panel, Stat } from '../../kit/parts.jsx';
+import { SwitchField } from '../../kit/SwitchField.jsx';
 import { go, routeQuery, useCrm } from '../store.js';
 import { base, fmt } from '../domain.js';
-import { AmountField, ConfirmButton, DateInput, FormModal, SelectField } from '../fields.jsx';
+import { AmountField, ConfirmButton, ConfirmDialog, DateInput, FormModal, SelectField } from '../fields.jsx';
+import { downloadCsv } from '../../kit/csv.js';
+import { ActionBar, ListView } from '../../pro/index.js';
 
 function useTick(on) {
   const [, set] = useState(0);
@@ -171,14 +174,7 @@ function EntryForm({ entry, onClose }) {
         <Input placeholder="Qué hiciste" />
       </TextField>
       <AmountField label={`Tarifa propia (${base()})`} value={rate} onChange={setRate} description="Vacía: la de la tarea, el proyecto o Ajustes." />
-      <Switch isSelected={billable} onChange={setBillable} className="self-end">
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-        <Switch.Content>
-          <Label>Facturable</Label>
-        </Switch.Content>
-      </Switch>
+      <SwitchField isSelected={billable} onChange={setBillable} className="self-end pb-2" label="Facturable" />
       {error && <p className="text-sm text-danger sm:col-span-2">{error}</p>}
     </FormModal>
   );
@@ -188,6 +184,9 @@ export function Horas({ isNew }) {
   const [state, v] = useCrm();
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [picked, setPicked] = useState(() => new Set());
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const selectedEntries = state.time.filter((e) => picked.has(e.id) && !e.running);
   const today = todayISO();
   const weekStart = (() => {
     const d = new Date(`${today}T12:00:00`);
@@ -243,44 +242,95 @@ export function Horas({ isNew }) {
       {data.days.length === 0 ? (
         <Empty icon={Clock} title="Todavía no hay horas" text="Inicia el temporizador o registra horas a mano." />
       ) : (
-        data.days.map(([day, list]) => (
-          <Panel key={day} title={day === today ? 'Hoy' : day === addDays(today, -1) ? 'Ayer' : dateText(day)} description={durationText(list.reduce((s, e) => s + entryMinutes(e), 0))}>
-            <ul className="flex flex-col">
-              {list.map((e) => {
-                const task = e.taskId && find('tasks', e.taskId);
-                const billed = billedDocOf(e);
-                return (
-                  <li key={e.id} className="flex items-center gap-3 rounded-2xl px-2 py-2 hover:bg-surface-secondary">
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-sm font-medium">{task ? `${taskKey(task)} ${task.title}` : e.note || 'Sin tarea'}</span>
-                      <span className="truncate text-xs text-muted">{[projectName(e.projectId), task && e.note].filter(Boolean).join(' · ') || '—'}</span>
-                    </span>
-                    {billed ? (
-                      <Chip size="sm" variant="soft" color="success">
-                        Facturada
-                      </Chip>
-                    ) : e.billable === false ? (
-                      <Chip size="sm" variant="tertiary">
-                        No facturable
-                      </Chip>
-                    ) : null}
-                    <span className="w-20 text-end text-sm tabular-nums">{durationText(entryMinutes(e))}</span>
-                    <span className="hidden w-24 text-end text-sm tabular-nums text-muted sm:block">{money(entryValue(e), entryCurrency(e))}</span>
-                    <ButtonGroup size="sm" variant="ghost">
-                      <Button isIconOnly aria-label="Editar" onPress={() => setEditing(e)}>
-                        <Pencil />
-                      </Button>
-                      <ConfirmButton title="¿Borrar este registro?" onConfirm={() => remove('time', e.id)} variant="ghost" isIconOnly ariaLabel="Borrar">
-                        <TrashBin />
-                      </ConfirmButton>
-                    </ButtonGroup>
-                  </li>
-                );
-              })}
-            </ul>
-          </Panel>
-        ))
+        <>
+          <p className="-mb-3 text-xs text-muted">Toca un registro para editarlo; marca su casilla (o pulsa Espacio) para elegir varios y actuar sobre todos.</p>
+          {data.days.map(([day, list]) => (
+            <Panel key={day} title={day === today ? 'Hoy' : day === addDays(today, -1) ? 'Ayer' : dateText(day)} description={durationText(list.reduce((s, e) => s + entryMinutes(e), 0))}>
+              <ListView
+                label={`Horas del ${dateText(day)}`}
+                selectionMode="multiple"
+                selectedKeys={new Set(list.filter((e) => picked.has(e.id)).map((e) => e.id))}
+                onSelectionChange={(keys) => {
+                  const inDay = new Set(list.map((e) => e.id));
+                  const chosen = keys === 'all' ? inDay : new Set([...keys].map(String));
+                  setPicked((p) => new Set([...[...p].filter((k) => !inDay.has(k)), ...chosen]));
+                }}
+                onAction={(k) => setEditing(find('time', String(k)))}
+                bare
+                className="-mx-2"
+                items={list.map((e) => {
+                  const task = e.taskId && find('tasks', e.taskId);
+                  const billed = billedDocOf(e);
+                  return {
+                    id: e.id,
+                    title: task ? `${taskKey(task)} ${task.title}` : e.note || 'Sin tarea',
+                    description: [projectName(e.projectId), task && e.note].filter(Boolean).join(' · ') || '—',
+                    end: (
+                      <>
+                        {billed ? (
+                          <Chip size="sm" variant="soft" color="success">
+                            Facturada
+                          </Chip>
+                        ) : e.billable === false ? (
+                          <Chip size="sm" variant="tertiary">
+                            No facturable
+                          </Chip>
+                        ) : null}
+                        <span className="w-16 text-end tabular-nums">{durationText(entryMinutes(e))}</span>
+                        <span className="hidden w-24 text-end tabular-nums text-muted sm:block">{money(entryValue(e), entryCurrency(e))}</span>
+                      </>
+                    ),
+                  };
+                })}
+              />
+            </Panel>
+          ))}
+        </>
       )}
+      <ActionBar
+        count={selectedEntries.length}
+        label={selectedEntries.length === 1 ? 'registro elegido' : 'registros elegidos'}
+        onClear={() => setPicked(new Set())}
+        actions={[
+          { id: 'billable', label: 'Facturables', icon: CircleCheck, isDisabled: !selectedEntries.some((e) => !billedDocOf(e) && e.billable === false) },
+          { id: 'nobill', label: 'No facturables', icon: CircleXmark, isDisabled: !selectedEntries.some((e) => !billedDocOf(e) && e.billable !== false) },
+          { id: 'csv', label: 'Exportar CSV', icon: ArrowDownToLine },
+          { id: 'delete', label: 'Borrar', icon: TrashBin, danger: true, isDisabled: !selectedEntries.some((e) => !billedDocOf(e)) },
+        ]}
+        onAction={(id) => {
+          const free = selectedEntries.filter((e) => !billedDocOf(e));
+          if (id === 'billable' || id === 'nobill') {
+            const want = id === 'billable';
+            const list = free.filter((e) => (e.billable !== false) !== want);
+            list.forEach((e) => put('time', { ...e, billable: want }));
+            toast(`${list.length} ${want ? 'ahora cuentan para facturar' : 'ya no se facturan'}${selectedEntries.length > free.length ? ' (las facturadas no cambian)' : ''}`);
+          }
+          if (id === 'csv') {
+            downloadCsv(`horas-${today}`, [
+              ['Fecha', 'Tarea', 'Proyecto', 'Nota', 'Minutos', 'Horas', 'Valor', 'Moneda', 'Facturable', 'Facturada'],
+              ...selectedEntries.map((e) => {
+                const task = e.taskId && find('tasks', e.taskId);
+                const m = entryMinutes(e);
+                return [e.date, task ? `${taskKey(task)} ${task.title}` : '', projectName(e.projectId) || '', e.note || '', m, (m / 60).toFixed(2).replace('.', ','), entryValue(e), entryCurrency(e), e.billable === false ? 'No' : 'Sí', billedDocOf(e)?.number || ''];
+              }),
+            ]);
+            toast(`${selectedEntries.length} en el archivo`);
+          }
+          if (id === 'delete') setConfirmDelete(free);
+        }}
+      />
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={confirmDelete?.length === 1 ? '¿Borrar este registro?' : `¿Borrar ${confirmDelete?.length || 0} registros?`}
+        text={selectedEntries.length > (confirmDelete?.length || 0) ? 'Los que ya están en una factura no se borran.' : 'Sus horas dejan de contar.'}
+        confirm="Borrar"
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          confirmDelete.forEach((e) => remove('time', e.id));
+          toast(confirmDelete.length === 1 ? 'Borrado.' : `${confirmDelete.length} borrados.`);
+          setPicked(new Set());
+        }}
+      />
       {(adding || isNew || editing) && <EntryForm key={editing?.id || 'new'} entry={editing} onClose={closeForm} />}
     </div>
   );

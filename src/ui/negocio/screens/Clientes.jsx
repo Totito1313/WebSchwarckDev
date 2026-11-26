@@ -2,7 +2,7 @@
 // ficha y el formulario para crear o editar. Editar un cliente no cambia lo ya
 // emitido: cada documento guarda su propia copia de sus datos.
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Envelope, Globe, Handset, MapPin, Pencil, PersonPlus, Persons, TrashBin } from '@gravity-ui/icons';
+import { ArrowDownToLine, ArrowLeft, Envelope, Globe, Handset, MapPin, Pencil, PersonPlus, Persons, TrashBin } from '@gravity-ui/icons';
 import {
   AlertDialog,
   Button,
@@ -24,6 +24,8 @@ import {
 import { CURRENCIES, CURRENCY_CODES, find, put, remove, uid } from '../../../negocio-core.js';
 import { Empty, PageHeader, Panel, Person, Stat, StatusChip } from '../../kit/parts.jsx';
 import { go, useCrm } from '../store.js';
+import { copyText, downloadCsv } from '../../kit/csv.js';
+import { DataGrid } from '../../pro/index.js';
 import { DOC_STATUS, DOC_WORD, base, customerStats, docStatus, fmt, money, shortDate, totals } from '../domain.js';
 
 const plain = (s = '') => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -128,30 +130,17 @@ export function CustomerForm({ customer, isOpen, onOpenChange, onSaved }) {
 
 export function Clientes() {
   const [state, v] = useCrm();
-  const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
-  const [sort, setSort] = useState({ column: 'name', direction: 'ascending' });
+  const [editing, setEditing] = useState(null);
 
-  const rows = useMemo(() => {
-    const q = plain(query.trim());
-    const list = state.customers
-      .filter((c) => !q || plain(`${c.name} ${c.company} ${c.email} ${c.phone}`).includes(q))
-      .map((c) => ({ c, s: customerStats(c.id) }));
-    const val = (r) => (sort.column === 'name' ? plain(r.c.name) : sort.column === 'billed' ? r.s.billed : sort.column === 'due' ? r.s.due : r.s.projects.length);
-    list.sort((a, b) => {
-      const x = val(a);
-      const y = val(b);
-      const cmp = typeof x === 'number' ? x - y : x.localeCompare(y);
-      return sort.direction === 'descending' ? -cmp : cmp;
-    });
-    return list;
-  }, [state, v, query, sort]);
+  const rows = useMemo(() => state.customers.map((c) => ({ id: c.id, c, s: customerStats(c.id) })), [state, v]);
+  const currencies = [...new Set(state.customers.map((c) => c.currency).filter(Boolean))];
 
-  const col = (id, label, cls = '') => (
-    <Table.Column allowsSorting id={id} className={cls} isRowHeader={id === 'name'}>
-      {({ sortDirection }) => <Table.SortableColumnHeader sortDirection={sortDirection}>{label}</Table.SortableColumnHeader>}
-    </Table.Column>
-  );
+  const exportCsv = (list) =>
+    downloadCsv(`clientes-${new Date().toLocaleDateString('en-CA')}`, [
+      ['Nombre', 'Empresa', 'Correo', 'Teléfono', 'Identificación fiscal', 'Moneda', 'Facturado', 'Por cobrar', 'Proyectos'],
+      ...list.map(({ c, s }) => [c.name, c.company || '', c.email || '', c.phone || '', c.taxId || '', c.currency || '', s.billed, s.due, s.projects.length]),
+    ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -169,53 +158,85 @@ export function Clientes() {
       {state.customers.length === 0 ? (
         <Empty icon={Persons} title="Todavía no hay clientes" text="Guarda el primero y sus datos se rellenarán solos en cada factura." action={<Button onPress={() => setCreating(true)}>Nuevo cliente</Button>} />
       ) : (
-        <>
-          <SearchField aria-label="Buscar clientes" value={query} onChange={setQuery} className="w-full sm:max-w-sm">
-            <SearchField.Group>
-              <SearchField.SearchIcon />
-              <SearchField.Input placeholder="Nombre, empresa, correo o teléfono" />
-              <SearchField.ClearButton />
-            </SearchField.Group>
-          </SearchField>
-          <Table>
-            <Table.ScrollContainer>
-              <Table.Content aria-label="Clientes" className="min-w-[640px]" sortDescriptor={sort} onSortChange={setSort} onRowAction={(id) => go(`#/clientes/${id}`)}>
-                <Table.Header>
-                  {col('name', 'Cliente')}
-                  {col('billed', 'Facturado', 'text-end')}
-                  {col('due', 'Por cobrar', 'text-end')}
-                  {col('projects', 'Proyectos', 'text-end')}
-                </Table.Header>
-                <Table.Body renderEmptyState={() => <p className="p-6 text-center text-sm text-muted">Nadie coincide con «{query}».</p>}>
-                  {rows.map(({ c, s }) => (
-                    <Table.Row key={c.id} id={c.id} className="cursor-pointer">
-                      <Table.Cell>
-                        <span className="flex items-center gap-3">
-                          <Person name={c.name} />
-                          <span className="flex min-w-0 flex-col">
-                            <span className="truncate font-medium">{c.name}</span>
-                            <span className="truncate text-xs text-muted">{c.company || c.email || c.phone || '—'}</span>
-                          </span>
-                        </span>
-                      </Table.Cell>
-                      <Table.Cell className="text-end tabular-nums">{fmt(s.billed)}</Table.Cell>
-                      <Table.Cell className="text-end tabular-nums">
-                        {s.due > 0 ? (
-                          <span className={s.overdue ? 'text-danger' : ''}>{fmt(s.due)}</span>
-                        ) : (
-                          <span className="text-muted">—</span>
-                        )}
-                      </Table.Cell>
-                      <Table.Cell className="text-end tabular-nums">{s.projects.length || <span className="text-muted">—</span>}</Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Content>
-            </Table.ScrollContainer>
-          </Table>
-        </>
+        <DataGrid
+          label="Clientes"
+          rows={rows}
+          search={({ c }, q) => plain(`${c.name} ${c.company} ${c.email} ${c.phone}`).includes(plain(q))}
+          searchPlaceholder="Nombre, empresa, correo o teléfono"
+          defaultSort={{ column: 'name', direction: 'ascending' }}
+          minWidth={640}
+          filters={[
+            {
+              id: 'state',
+              label: 'Situación',
+              options: [
+                ['due', 'Con saldo por cobrar'],
+                ['overdue', 'Con facturas vencidas'],
+                ['projects', 'Con proyectos'],
+                ['none', 'Sin facturas'],
+              ],
+              match: ({ s }, k) => (k === 'due' ? s.due > 0 : k === 'overdue' ? !!s.overdue : k === 'projects' ? s.projects.length > 0 : !s.billed),
+            },
+            ...(currencies.length > 1 ? [{ id: 'currency', label: 'Moneda', options: currencies.map((x) => [x, x]), match: ({ c }, x) => c.currency === x }] : []),
+          ]}
+          columns={[
+            {
+              id: 'name',
+              name: 'Cliente',
+              isRowHeader: true,
+              sortValue: ({ c }) => plain(c.name),
+              render: ({ c }) => (
+                <span className="flex items-center gap-3">
+                  <Person name={c.name} />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate font-medium">{c.name}</span>
+                    <span className="truncate text-xs text-muted">{c.company || c.email || c.phone || '—'}</span>
+                  </span>
+                </span>
+              ),
+            },
+            { id: 'email', name: 'Correo', hideable: true, hidden: true, sortValue: ({ c }) => c.email || '', render: ({ c }) => <span className="text-muted">{c.email || '—'}</span> },
+            { id: 'phone', name: 'Teléfono', hideable: true, hidden: true, render: ({ c }) => <span className="text-muted">{c.phone || '—'}</span> },
+            { id: 'billed', name: 'Facturado', align: 'end', sortValue: ({ s }) => s.billed, render: ({ s }) => fmt(s.billed) },
+            {
+              id: 'due',
+              name: 'Por cobrar',
+              align: 'end',
+              sortValue: ({ s }) => s.due,
+              render: ({ s }) => (s.due > 0 ? <span className={s.overdue ? 'text-danger' : ''}>{fmt(s.due)}</span> : <span className="text-muted">—</span>),
+            },
+            { id: 'projects', name: 'Proyectos', align: 'end', hideable: true, sortValue: ({ s }) => s.projects.length, render: ({ s }) => s.projects.length || <span className="text-muted">—</span> },
+          ]}
+          onRowAction={({ c }) => go(`#/clientes/${c.id}`)}
+          rowMenu={({ c }) => [
+            { id: 'open', label: 'Abrir la ficha', icon: Persons },
+            { id: 'edit', label: 'Editar', icon: Pencil },
+            { id: 'mail', label: 'Copiar el correo', icon: Envelope, isDisabled: !c.email },
+          ]}
+          onRowMenu={async (id, { c }) => {
+            if (id === 'open') go(`#/clientes/${c.id}`);
+            if (id === 'edit') setEditing(c);
+            if (id === 'mail' && (await copyText(c.email))) toast('Correo copiado');
+          }}
+          bulkActions={[
+            { id: 'csv', label: 'Exportar CSV', icon: ArrowDownToLine },
+            { id: 'mails', label: 'Copiar correos', icon: Envelope },
+          ]}
+          onBulkAction={async (id, list) => {
+            if (id === 'csv') {
+              exportCsv(list);
+              toast(`${list.length} en el archivo`);
+            }
+            if (id === 'mails') {
+              const mails = list.map(({ c }) => c.email).filter(Boolean);
+              if (!mails.length) return toast('Ninguno tiene correo');
+              if (await copyText(mails.join(', '))) toast(`${mails.length} correos copiados`);
+            }
+          }}
+        />
       )}
       {creating && <CustomerForm isOpen onOpenChange={setCreating} onSaved={(c) => go(`#/clientes/${c.id}`)} />}
+      {editing && <CustomerForm isOpen customer={editing} onOpenChange={(o) => !o && setEditing(null)} />}
     </div>
   );
 }

@@ -474,9 +474,11 @@ function ToolbarDemo() {
       </ButtonGroup>
       <Separator />
       <Switch size="sm" aria-label="Vista previa">
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
+        <Switch.Content>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+        </Switch.Content>
       </Switch>
     </Toolbar>
   );

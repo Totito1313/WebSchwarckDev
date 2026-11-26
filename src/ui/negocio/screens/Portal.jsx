@@ -32,6 +32,7 @@ import { BUCKET, FUNCTION_URL, SUPABASE_KEY } from '../../../portal/config.js';
 import { Empty, PageHeader, Panel, Stat } from '../../kit/parts.jsx';
 import { go, useCrm } from '../store.js';
 import { FormModal } from '../fields.jsx';
+import { ApprovalCard } from '../../pro/index.js';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const minutesText = (m) => (!m ? '' : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`);
@@ -191,8 +192,31 @@ function Asks() {
   useEffect(() => {
     clientAsks().then(setItems).catch((err) => setError(err.message));
   }, []);
+  const [skipped, setSkipped] = useState(() => new Set());
   const open = (items || []).filter((x) => !x.task);
+  // La primera petición sin tarea, como tarjeta para decidir rápido (Ctrl+Intro o Esc).
+  const next = open.find((x) => !skipped.has(x.ref));
+  const makeTask = (x) => {
+    const task = askToTask(x);
+    setItems((list) => list.map((y) => (y.ref === x.ref ? { ...y, task } : y)));
+  };
   return (
+    <div className="flex min-w-0 flex-col gap-4">
+    {next && (
+      <ApprovalCard
+        media={<div className="flex size-full items-center justify-center bg-accent/12 text-accent"><Tray className="size-6" /></div>}
+        title={next.title}
+        subtitle={`${next.client} · ${next.what} · ${ago(next.at)}`}
+        note={open.length > 1 ? { label: `${open.length - 1} más esperando`, color: 'default' } : undefined}
+        approveLabel="Crear tarea"
+        rejectLabel="Más tarde"
+        onApprove={() => makeTask(next)}
+        onReject={() => setSkipped((s) => new Set([...s, next.ref]))}
+        middle={{ label: 'Abrir en su app', onPress: () => window.open(`/cliente/?p=${next.clientId}${next.route || ''}`, '_blank', 'noopener') }}
+      >
+        {next.detail && <p className="line-clamp-4 whitespace-pre-line text-sm text-muted">{next.detail}</p>}
+      </ApprovalCard>
+    )}
     <Panel title="Lo que te piden tus clientes" description={items ? (items.length ? `${plural(open.length, 'sin tarea', 'sin tarea')} de ${items.length}` : 'Envíos, cambios, ideas y reuniones de todos los portales.') : 'Cargando…'}>
       {error ? (
         <p className="text-sm text-danger">{error}</p>
@@ -220,12 +244,7 @@ function Asks() {
                     {taskKey(x.task)}
                   </Button>
                 ) : (
-                  <Button
-                    onPress={() => {
-                      const task = askToTask(x);
-                      setItems((list) => list.map((y) => (y.ref === x.ref ? { ...y, task } : y)));
-                    }}
-                  >
+                  <Button onPress={() => makeTask(x)}>
                     <Plus />
                     Crear tarea
                   </Button>
@@ -240,6 +259,7 @@ function Asks() {
         </ul>
       )}
     </Panel>
+    </div>
   );
 }
 

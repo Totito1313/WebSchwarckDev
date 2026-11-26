@@ -68,7 +68,7 @@ function NewPageButton({ parentId = '' }) {
         Nueva página
       </Button>
       <Dropdown>
-        <Button isIconOnly aria-label="Desde una plantilla">
+        <Button isIconOnly size="sm" variant="primary" aria-label="Desde una plantilla">
           <ButtonGroup.Separator />
           <ChevronDown />
         </Button>

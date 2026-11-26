@@ -26,6 +26,7 @@ import {
 import { go, save, usePortal } from '../store.js';
 import { Tone } from '../ui.jsx';
 import { useOpenAfterGesture } from '../../kit/hooks.js';
+import { ApprovalCard, Stepper } from '../../pro/index.js';
 
 const TABS = [
   ['calendario', 'Calendario', 'calendario'],
@@ -244,14 +245,34 @@ function Pieza({ id }) {
               </span>
             </Sheet.Header>
             <Sheet.Body className="flex flex-col gap-4 overflow-y-auto pb-2">
-              <ol className="flex gap-1" aria-label="Etapas">
-                {STATUS_ORDER.map((k, i) => (
-                  <li key={k} className="flex flex-1 flex-col gap-1">
-                    <span className="h-1.5 rounded-full" style={{ background: i <= at ? CONTENT_STATUS[k][1] : 'var(--default)' }} />
-                    <span className={`truncate text-[10px] ${i === at ? 'font-medium' : 'text-muted'}`}>{CONTENT_STATUS[k][0]}</span>
-                  </li>
-                ))}
-              </ol>
+              <div className="-mx-1 overflow-x-auto px-1">
+                <Stepper
+                  orientation="horizontal"
+                  numbered={false}
+                  label="Etapas de la pieza"
+                  className="min-w-[30rem]"
+                  current={c.status === STATUS_ORDER[STATUS_ORDER.length - 1] ? STATUS_ORDER.length : Math.max(0, at)}
+                  steps={STATUS_ORDER.map((k) => ({ id: k, title: CONTENT_STATUS[k][0] }))}
+                />
+              </div>
+              {canDecide && !asking && (
+                <ApprovalCard
+                  title="¿Apruebas esta pieza?"
+                  subtitle="El estudio la publica tal cual cuando la apruebes."
+                  details={[
+                    ['Fecha', `${cap(fDay.format(dayDate(c.date)))}${c.time ? `, ${c.time.slice(0, 5)}` : ''}`],
+                    ['Formato', FORMAT[c.format] || 'Post'],
+                    ['Dónde', channelsOf(c).map((n) => CHANNEL[n]?.[0] || n).join(', ') || '—'],
+                    ...(c.funnel ? [['Para', FUNNEL[c.funnel]?.[0]]] : []),
+                  ]}
+                  approveLabel="Aprobar"
+                  onApprove={() => decide('approved')}
+                  middle={{ label: 'Pedir cambios', onPress: () => setAsking('changes') }}
+                  rejectLabel="Rechazar"
+                  onReject={canReject ? () => setAsking('rejected') : undefined}
+                  isBusy={busy}
+                />
+              )}
               {verdict && (
                 <p className="flex items-center gap-2 rounded-2xl bg-surface-secondary px-3 py-2 text-sm">
                   <span className="size-2 rounded-full" style={{ background: verdict[3] }} />
@@ -335,20 +356,8 @@ function Pieza({ id }) {
                 </Form>
               )}
             </Sheet.Body>
-            {(canDecide || canReject) && !asking && (
+            {!canDecide && canReject && !asking && (
               <Sheet.Footer className="flex flex-wrap gap-2">
-                {canDecide && (
-                  <>
-                    <Button isPending={busy} onPress={() => decide('approved')} className="flex-1">
-                      <CircleCheck />
-                      Aprobar
-                    </Button>
-                    <Button variant="secondary" onPress={() => setAsking('changes')} className="flex-1">
-                      <Pencil />
-                      Pedir cambios
-                    </Button>
-                  </>
-                )}
                 {canReject && (
                   <Button variant="danger-soft" onPress={() => setAsking('rejected')}>
                     <Xmark />

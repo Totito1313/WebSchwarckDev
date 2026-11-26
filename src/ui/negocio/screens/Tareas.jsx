@@ -3,11 +3,10 @@
 // panel con estado, prioridad, fechas, valor o tarifa, checklist, comentarios,
 // subtareas y el temporizador. Las reglas son las de negocio-work.js.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, CircleCheck, Comment, EllipsisVertical, LayoutColumns, ListUl, Play, Plus, TrashBin, Xmark } from '@gravity-ui/icons';
+import { ChevronDown, CircleCheck, CircleDashed, CirclePlay, Comment, EllipsisVertical, Envelope, Eye, LayoutColumns, ListUl, Play, Plus, TrashBin, Xmark } from '@gravity-ui/icons';
 import {
   Button,
   ButtonGroup,
-  Card,
   Checkbox,
   Chip,
   Drawer,
@@ -15,7 +14,6 @@ import {
   Form,
   Input,
   Label,
-  ScrollShadow,
   SearchField,
   Separator,
   Table,
@@ -50,6 +48,7 @@ import { Empty, PageHeader } from '../../kit/parts.jsx';
 import { useOpenAfterGesture } from '../../kit/hooks.js';
 import { go, routeQuery, useCrm } from '../store.js';
 import { AmountField, ConfirmButton, DateInput, SelectField } from '../fields.jsx';
+import { ChatMessage, ChatThread, Kanban, KanbanCard, RichText } from '../../pro/index.js';
 
 const COLOR = { request: 'accent', todo: 'default', doing: 'accent', review: 'warning', done: 'success' };
 const PRIO_COLOR = { low: 'default', medium: 'warning', high: 'danger' };
@@ -82,82 +81,67 @@ function StatusMenu({ task, trigger }) {
   );
 }
 
-function TaskCard({ t }) {
+const STATUS_ICON = { request: Envelope, todo: CircleDashed, doing: CirclePlay, review: Eye, done: CircleCheck };
+const colorVar = (c) => (c && c !== 'default' ? `var(--${c})` : 'var(--muted)');
+const byOrder = (a, b) => (Number(a.order) || 0) - (Number(b.order) || 0);
+
+/** Tarjeta del tablero: clave y proyecto, título, prioridad y fecha, avance del checklist y contadores. */
+function BoardCard({ t }) {
   const subs = subtasksOf(t.id);
   const checks = t.checklist || [];
+  const tags = [];
+  if (t.priority) tags.push({ label: PRIORITY[t.priority]?.[0], color: PRIO_COLOR[t.priority] });
+  if (t.dueDate) tags.push({ label: shortDate(t.dueDate), color: t.status !== 'done' && t.dueDate < todayISO() ? 'danger' : 'default' });
+  const meta = [];
+  if ((t.comments || []).length) meta.push({ icon: Comment, value: t.comments.length, label: 'comentarios' });
+  if (subs.length) meta.push({ icon: ListUl, value: subs.length, label: 'subtareas' });
   return (
-    <Card className="gap-2 p-3">
-      <div className="flex items-start gap-2">
-        <a href={`#/tareas/${t.id}`} className="flex min-w-0 flex-1 flex-col">
-          <span className="font-mono text-[11px] text-muted">{taskKey(t)}</span>
-          <span className={`text-sm font-medium ${t.status === 'done' ? 'text-muted line-through' : ''}`}>{titleOf(t)}</span>
-        </a>
-        <StatusMenu
-          task={t}
-          trigger={
-            <Button isIconOnly size="sm" variant="ghost" aria-label={`Mover ${taskKey(t)}`}>
-              <EllipsisVertical />
-            </Button>
-          }
-        />
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
-        {t.priority && (
-          <Chip size="sm" variant="soft" color={PRIO_COLOR[t.priority]}>
-            {PRIORITY[t.priority]?.[0]}
-          </Chip>
-        )}
-        {t.dueDate && (
-          <Chip size="sm" variant="soft" color={t.status !== 'done' && t.dueDate < todayISO() ? 'danger' : 'default'}>
-            {shortDate(t.dueDate)}
-          </Chip>
-        )}
-        {checks.length > 0 && (
-          <span>
-            {checks.filter((c) => c.done).length}/{checks.length}
-          </span>
-        )}
-        {subs.length > 0 && <span>{subs.length} subtareas</span>}
-        {(t.comments || []).length > 0 && (
-          <span className="flex items-center gap-0.5">
-            <Comment className="size-3" />
-            {t.comments.length}
-          </span>
-        )}
-        {!t.projectId ? null : <span className="truncate">{projectName(t.projectId)}</span>}
-      </div>
-    </Card>
+    <KanbanCard
+      title={<span className={t.status === 'done' ? 'text-muted line-through' : ''}>{titleOf(t)}</span>}
+      description={[taskKey(t), t.projectId ? projectName(t.projectId) : ''].filter(Boolean).join(' · ')}
+      tags={tags.filter((x) => x.label)}
+      progress={checks.length ? checks.filter((c) => c.done).length / checks.length : undefined}
+      meta={meta}
+    />
   );
 }
 
+/** Tablero: se arrastra una tarea para cambiarla de estado o de sitio en su columna. */
 function Board({ tasks, onAdd }) {
+  const sorted = [...tasks].sort(byOrder);
+  const move = (key, status, index) => {
+    const task = find('tasks', key);
+    if (!task) return;
+    const before = task.status;
+    setTaskStatus(task, status);
+    // Orden nuevo de la columna de destino: se numera de 10 en 10.
+    const col = sorted.filter((t) => t.status === status && t.id !== key);
+    col.splice(Math.min(index, col.length), 0, task);
+    col.forEach((t, i) => {
+      const order = (i + 1) * 10;
+      if (t.id === key) task.order = order;
+      else if (Number(t.order) !== order) put('tasks', { ...t, order });
+    });
+    put('tasks', task);
+    if (before !== status) toast(`${taskKey(task)} → ${TASK_STATUS[status][0]}`);
+  };
   return (
-    <ScrollShadow orientation="horizontal" className="-mx-1 pb-2">
-      <div className="flex w-max gap-3 px-1">
-        {TASK_ORDER.map((s) => {
-          const items = tasks.filter((t) => t.status === s).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
-          return (
-            <section key={s} className="flex w-72 shrink-0 flex-col gap-2 rounded-3xl bg-surface-secondary p-2" aria-label={TASK_STATUS[s][0]}>
-              <header className="flex items-center justify-between px-2 pt-1">
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <Chip size="sm" variant="soft" color={COLOR[s]}>
-                    {items.length}
-                  </Chip>
-                  {TASK_STATUS[s][0]}
-                </span>
-                <Button isIconOnly size="sm" variant="ghost" aria-label={`Nueva tarea en ${TASK_STATUS[s][0]}`} onPress={() => onAdd(s)}>
-                  <Plus />
-                </Button>
-              </header>
-              {items.map((t) => (
-                <TaskCard key={t.id} t={t} />
-              ))}
-              {!items.length && <p className="px-2 py-4 text-center text-xs text-muted">Vacía</p>}
-            </section>
-          );
-        })}
-      </div>
-    </ScrollShadow>
+    <Kanban
+      label="Tablero de tareas"
+      columns={TASK_ORDER.map((s) => ({ id: s, title: TASK_STATUS[s][0], icon: STATUS_ICON[s], color: colorVar(COLOR[s]) }))}
+      items={sorted}
+      getColumn={(t) => t.status}
+      onMove={move}
+      onOpen={(t) => go(`#/tareas/${t.id}`)}
+      columnWidth={280}
+      renderCard={(t) => <BoardCard t={t} />}
+      columnFooter={(c) => (
+        <Button size="sm" variant="ghost" className="w-full justify-start text-muted" onPress={() => onAdd(c.id)}>
+          <Plus className="size-4" />
+          Nueva tarea
+        </Button>
+      )}
+    />
   );
 }
 
@@ -307,10 +291,19 @@ function TaskDrawer({ id, onClose }) {
                 {durationText(taskMinutes(t.id))} registradas · vale {money(taskValue(t), cur)}
               </p>
 
-              <TextField defaultValue={t.description} onChange={(x) => save({ description: x })} maxLength={8000}>
-                <Label>Descripción</Label>
-                <TextArea rows={4} placeholder="Escribe la clave de otra tarea (WEB-3) o [[una página]] para enlazarla." />
-              </TextField>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium">Descripción</span>
+                <RichText
+                  key={t.id}
+                  value={t.description || ''}
+                  onChange={(md) => save({ description: md.slice(0, 8000) })}
+                  label="Descripción"
+                  minHeight={110}
+                  footer={false}
+                  placeholder="Escribe la clave de otra tarea (WEB-3) o [[una página]] para enlazarla."
+                  className="shadow-none ring-1 ring-separator"
+                />
+              </div>
 
               <div className="flex flex-col gap-2">
                 <span className="sw-eyebrow">
@@ -383,13 +376,31 @@ function TaskDrawer({ id, onClose }) {
 
               <Separator />
               <div className="flex flex-col gap-2">
-                <span className="sw-eyebrow">Comentarios</span>
-                {(t.comments || []).map((c) => (
-                  <div key={c.id} className="rounded-2xl bg-surface-secondary px-3 py-2 text-sm">
-                    <span className="text-xs text-muted">{new Date(c.at).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                    <p className="whitespace-pre-line">{c.text}</p>
-                  </div>
-                ))}
+                <span className="sw-eyebrow">Comentarios {(t.comments || []).length ? `· ${t.comments.length}` : ''}</span>
+                {(t.comments || []).length > 0 && (
+                  <ChatThread label="Comentarios">
+                    {t.comments.map((c) => {
+                      const who = c.author || c.by || c.name;
+                      return (
+                        <ChatMessage
+                          key={c.id}
+                          mine={!who}
+                          author={who}
+                          time={c.at ? new Date(c.at).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                          text={c.text}
+                          actions={[
+                            {
+                              id: 'del',
+                              label: 'Quitar el comentario',
+                              icon: TrashBin,
+                              onPress: () => save({ comments: t.comments.filter((x) => x.id !== c.id) }),
+                            },
+                          ]}
+                        />
+                      );
+                    })}
+                  </ChatThread>
+                )}
                 <Form
                   className="flex flex-col gap-2"
                   onSubmit={(e) => {

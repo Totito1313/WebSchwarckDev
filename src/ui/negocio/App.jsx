@@ -46,6 +46,8 @@ import {
 import { bus, clockText, find } from '../../negocio-core.js';
 import { elapsedMs, pauseTimer, resumeTimer, runningEntry, stopTimer, taskKey } from '../../negocio-work.js';
 import { startAutoSync } from '../../negocio-puente.js';
+import { Segment } from '../kit/Segment.jsx';
+import { Loader, ShimmerText } from '../pro/index.js';
 import { ThemeSwitch } from '../kit/ThemeSwitch.jsx';
 import { Empty } from '../kit/parts.jsx';
 import { go, useCrm, useLifecycle, useRoute, useSaving, useSession } from './store.js';
@@ -217,7 +219,7 @@ function CreateButton({ area, section, onCreate }) {
         <span className="hidden sm:inline">{LABEL[main]}</span>
       </Button>
       <Dropdown>
-        <Button isIconOnly aria-label="Más cosas para crear">
+        <Button isIconOnly size="sm" variant="primary" aria-label="Más cosas para crear">
           <ButtonGroup.Separator />
           <ChevronDown />
         </Button>
@@ -275,6 +277,8 @@ function Account({ onLogout }) {
 function Island({ area, section, onSearch, onCreate, onLogout }) {
   const current = AREAS.find((a) => a.id === area) || AREAS[0];
   const CurIcon = current.icon;
+  // Cada zona abre la última sección que se usó en ella.
+  const zoneItems = useMemo(() => AREAS.map((a) => ({ id: a.id, label: a.label, href: `#/${lastSection(a)}`, icon: a.icon })), [area, section]);
   return (
     <div className="pointer-events-none fixed inset-x-0 top-0 z-40 flex justify-center px-2 pt-2 sm:px-4 sm:pt-3">
       <nav aria-label="Zonas" className="sw-glass pointer-events-auto flex w-full max-w-[1180px] items-center gap-1 rounded-full p-1.5 shadow-[var(--overlay-shadow)]">
@@ -282,27 +286,11 @@ function Island({ area, section, onSearch, onCreate, onLogout }) {
           <img src="/favicon.svg" alt="" width="30" height="30" />
         </a>
 
-        {/* Escritorio: las seis zonas a la vista. */}
-        <ul className="hidden items-center gap-0.5 lg:flex">
-          {AREAS.map((a) => {
-            const on = a.id === area;
-            const Icon = a.icon;
-            return (
-              <li key={a.id}>
-                <a
-                  href={`#/${lastSection(a)}`}
-                  aria-current={on ? 'true' : undefined}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus ${
-                    on ? 'bg-foreground font-medium text-background' : 'text-foreground hover:bg-default'
-                  }`}
-                >
-                  <Icon className="size-4" />
-                  {a.label}
-                </a>
-              </li>
-            );
-          })}
-        </ul>
+        {/* Escritorio: las seis zonas a la vista. La píldora de la zona abierta se
+            desliza al cambiar, como en las secciones. */}
+        <div className="hidden lg:block">
+          <Segment variant="bare" scroll={false} current="true" label="Zonas de trabajo" value={area} items={zoneItems} />
+        </div>
 
         {/* Teléfono y tableta: la zona actual abre un menú con todas y sus secciones. */}
         <Dropdown>
@@ -348,34 +336,17 @@ function Island({ area, section, onSearch, onCreate, onLogout }) {
   );
 }
 
-/** Las pestañas de la zona abierta, debajo de la isla (en cascada). */
+/** Las secciones de la zona abierta, debajo de la isla: un segmento con iconos. */
 function AreaTabs({ area, section }) {
   const a = AREAS.find((x) => x.id === area);
-  if (!a || a.sections.length < 2) return null;
-  return (
-    <ScrollShadow orientation="horizontal" className="-mx-1 mb-6">
-      <ul className="flex w-max items-center gap-1 px-1" aria-label={`Secciones de ${a.label}`}>
-        {a.sections.map((s) => {
-          const on = s.id === section;
-          const Icon = s.icon;
-          return (
-            <li key={s.id}>
-              <a
-                href={`#/${s.id}`}
-                aria-current={on ? 'page' : undefined}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus ${
-                  on ? 'bg-surface font-medium shadow-[var(--surface-shadow)]' : 'text-muted hover:bg-default hover:text-foreground'
-                }`}
-              >
-                <Icon className="size-4" />
-                {s.label}
-              </a>
-            </li>
-          );
-        })}
-      </ul>
-    </ScrollShadow>
+  const items = useMemo(
+    () => (a ? a.sections.map((s) => ({ id: s.id, label: s.label, href: `#/${s.id}`, icon: s.icon })) : []),
+    [a],
   );
+  if (!a || items.length < 2) return null;
+  // La clave por zona hace que, al cambiar de zona, el indicador aparezca en su
+  // sitio en lugar de deslizarse desde las opciones de la zona anterior.
+  return <Segment key={area} items={items} value={section} label={`Secciones de ${a.label}`} className="mb-6" />;
 }
 
 /** Buscador (Ctrl+K o ⌘K): secciones, clientes, leads, documentos, proyectos, tareas y páginas. */
@@ -568,8 +539,8 @@ export function NegocioApp() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-3">
         <img src="/favicon.svg" alt="" width="44" height="44" />
-        <Spinner />
-        <span className="sr-only">Cargando</span>
+        <Loader variant="dots" label="Cargando Negocio" />
+        <ShimmerText className="text-sm font-medium">{phase === 'checking' ? 'Comprobando la sesión…' : 'Cargando tu negocio…'}</ShimmerText>
       </main>
     );
   if (phase === 'error')

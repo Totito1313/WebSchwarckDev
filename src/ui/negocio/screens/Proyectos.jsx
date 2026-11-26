@@ -46,9 +46,29 @@ import { Empty, PageHeader, Panel, Stat, StatusChip } from '../../kit/parts.jsx'
 import { go, useCrm } from '../store.js';
 import { DOC_STATUS, DOC_WORD, docStatus, totals } from '../domain.js';
 import { AmountField, ConfirmButton, DateInput, FormModal, SelectField, currencyOptions } from '../fields.jsx';
+import { RichView, Stepper, Timeline } from '../../pro/index.js';
 
 const STATUS_COLOR = { pending: 'warning', active: 'accent', paused: 'default', completed: 'success' };
 const TASK_COLOR = { request: 'accent', todo: 'default', doing: 'accent', review: 'warning', done: 'success' };
+
+const whenText = (iso) => {
+  const dt = new Date(String(iso).length === 10 ? `${iso}T12:00:00` : iso);
+  return Number.isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('es', { day: 'numeric', month: 'short' });
+};
+
+/** Lo último del proyecto: etapas cumplidas, tareas hechas, documentos y pagos. */
+function ProjectActivity({ p, tasks, docs }) {
+  const items = [];
+  (p.stages || []).forEach((st, i) => st.done && st.doneAt && items.push({ at: st.doneAt, id: `st-${i}`, title: `Etapa «${st.name}» hecha`, marker: { kind: 'check', color: 'var(--success)' } }));
+  tasks.forEach((t) => t.status === 'done' && t.doneAt && items.push({ at: t.doneAt, id: `t-${t.id}`, title: <a href={`#/tareas/${t.id}`} className="hover:underline">{taskKey(t)} · {t.title || 'Sin título'}</a>, marker: { icon: CircleCheck, color: 'var(--success)' } }));
+  docs.forEach((d) => {
+    if (d.issueDate && d.status !== 'draft') items.push({ at: d.issueDate, id: `d-${d.id}`, title: <a href={`#/documentos/${d.id}`} className="hover:underline">{DOC_WORD[d.type]} {d.number || ''}</a>, marker: { icon: Receipt } });
+    (d.payments || []).forEach((pay) => items.push({ at: pay.date, id: `p-${pay.id}`, title: `Cobrado ${money(Number(pay.amount) || 0, d.currency)}`, marker: { icon: CircleCheck, color: 'var(--success)' } }));
+  });
+  const list = items.filter((x) => x.at).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 8);
+  if (!list.length) return <p className="text-sm text-muted">Aquí saldrán las etapas cumplidas, las tareas hechas y los cobros.</p>;
+  return <Timeline label="Actividad del proyecto" items={list.map((x) => ({ ...x, trailing: whenText(x.at) }))} />;
+}
 
 export function ProjectForm({ project, onClose, onSaved }) {
   const [state] = useCrm();
@@ -346,7 +366,7 @@ export function Proyecto({ id }) {
                 Nueva tarea
               </Button>
               <Dropdown>
-                <Button isIconOnly aria-label="Más acciones del proyecto">
+                <Button isIconOnly variant="primary" aria-label="Más acciones del proyecto">
                   <ButtonGroup.Separator />
                   <ChevronDown />
                 </Button>
@@ -389,28 +409,27 @@ export function Proyecto({ id }) {
         <Stat label="Tareas" value={`${s.done.length}/${s.tasks.length}`} sub="hechas" />
       </div>
 
-      <Panel title="Etapas" description="Se completan en orden: marcar una completa las anteriores.">
-        <div className="flex flex-wrap gap-2">
-          {(p.stages || []).map((st, i) => (
-            <Checkbox
-              key={st.id || st.name}
-              isSelected={st.done}
-              onChange={() => {
+      {(p.stages || []).length > 0 && (
+        <Panel title="Etapas" description="Toca una etapa para marcarla hecha (y las de antes); toca una hecha para volver a ella.">
+          <div className="-mx-1 overflow-x-auto px-1 pb-1">
+            <Stepper
+              orientation="horizontal"
+              label="Etapas del proyecto"
+              className="min-w-[30rem]"
+              current={(p.stages || []).filter((st) => st.done).length}
+              steps={p.stages.map((st, i) => ({
+                id: st.id || `${i}-${st.name}`,
+                title: st.name,
+                description: st.done && st.doneAt ? shortDate(st.doneAt.slice(0, 10)) : undefined,
+              }))}
+              onChange={(i) => {
                 toggleStage(p, i);
                 put('projects', p);
               }}
-              className="rounded-2xl bg-surface-secondary px-3 py-2"
-            >
-              <Checkbox.Content>
-                <Checkbox.Control>
-                  <Checkbox.Indicator />
-                </Checkbox.Control>
-                {st.name}
-              </Checkbox.Content>
-            </Checkbox>
-          ))}
-        </div>
-      </Panel>
+            />
+          </div>
+        </Panel>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Panel
@@ -442,6 +461,7 @@ export function Proyecto({ id }) {
             <p className="text-sm text-muted">Sin tareas todavía.</p>
           )}
         </Panel>
+        <div className="flex min-w-0 flex-col gap-4">
         <Panel title="Documentos">
           {s.docs.length ? (
             <ul className="flex flex-col">
@@ -464,11 +484,15 @@ export function Proyecto({ id }) {
             <p className="text-sm text-muted">Sin documentos. En una factura, el chip «Proyecto» la enlaza aquí.</p>
           )}
         </Panel>
+        <Panel title="Actividad">
+          <ProjectActivity p={p} tasks={s.tasks} docs={s.docs} />
+        </Panel>
+        </div>
       </div>
 
       {p.description && (
         <Panel title="Descripción">
-          <p className="whitespace-pre-line text-sm">{p.description}</p>
+          <RichView value={p.description} className="text-sm" />
         </Panel>
       )}
 

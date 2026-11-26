@@ -84,6 +84,14 @@
      con daltonismo; el verde y el rojo de CeroFiao no). Validados en claro y oscuro. */
   --sw-chart-in: #0097b2;
   --sw-chart-out: #e8590c;
+  /* Partes de un todo (gráfico circular): cinco tonos en orden fijo, validados
+     con daltonismo sobre el blanco de las tarjetas; el resto va en gris («Otras»). */
+  --sw-cat-1: #2a78d6;
+  --sw-cat-2: #eb6834;
+  --sw-cat-3: #1baf7a;
+  --sw-cat-4: #eda100;
+  --sw-cat-5: #e87ba4;
+  --sw-cat-other: #a1a1a6;
   --sw-glass: rgba(255, 255, 255, 0.72);
   --sw-glass-border: rgba(0, 0, 0, 0.06);
 }
@@ -118,7 +126,9 @@
   --field-background: #0d0d0f;
   --field-placeholder: #7c7c81;
 
-  --segment: #3a3a3d;
+  /* Indicador de pestañas y segmentos: bastante más claro que la bandeja (--default)
+     para que la opción activa se distinga de un vistazo sobre el negro. */
+  --segment: #48484c;
   --segment-foreground: #ffffff;
 
   --border: rgba(255, 255, 255, 0.1);
@@ -136,6 +146,12 @@
   --sw-orange: #ffca28;
   --sw-chart-in: #0f9fb8;
   --sw-chart-out: #e5602a;
+  --sw-cat-1: #3987e5;
+  --sw-cat-2: #d95926;
+  --sw-cat-3: #199e70;
+  --sw-cat-4: #c98500;
+  --sw-cat-5: #d55181;
+  --sw-cat-other: #5c5c61;
   --sw-glass: rgba(23, 23, 26, 0.72);
   --sw-glass-border: rgba(255, 255, 255, 0.1);
 }
@@ -170,6 +186,115 @@ html {
   max-width: 100%;
   overflow-x: auto;
   scrollbar-width: none;
+}
+
+/* Perillas blancas, como en HeroUI. HeroUI pinta la bolita del interruptor
+   encendido, el punto del botón de opción elegido y la perilla del deslizador con
+   --accent-foreground, que en su tema es blanco. En el nuestro es casi negro (el
+   texto negro se lee mejor sobre el cian), así que aquí se vuelven a poner en
+   blanco: son piezas, no texto. */
+.switch[data-selected='true'] .switch__thumb,
+.switch[aria-checked='true'] .switch__thumb {
+  background-color: #ffffff;
+}
+.radio[data-selected] .radio__indicator:empty::before,
+.radio:has([data-slot='radio-content'][aria-checked='true']) .radio__indicator:empty::before,
+.radio:has(input:checked) .radio__indicator:empty::before {
+  background-color: #ffffff;
+}
+.slider__thumb::after {
+  background-color: #ffffff;
+}
+.slider__step[data-filled='true'] {
+  background-color: rgb(255 255 255 / 0.35);
+}
+
+/* Segmento con iconos (kit/Segment.jsx): bandeja en píldora y un indicador que se
+   desliza hasta la opción activa. Mismas medidas y colores que las pestañas de
+   HeroUI (40 px de alto, 4 px de margen, 250 ms), para que se lean como familia. */
+.sw-segment {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: max-content;
+  padding: 4px;
+  border-radius: 9999px;
+  background: var(--default);
+}
+.sw-segment__item {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2rem;
+  padding-inline: 0.875rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--muted);
+  text-decoration: none;
+  outline: none;
+  transition: color 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.sw-segment__item > svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+.sw-segment__item:hover,
+.sw-segment__item[data-active='true'] {
+  color: var(--segment-foreground);
+}
+.sw-segment__item:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus);
+}
+.sw-segment__indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  border-radius: 9999px;
+  background: var(--segment);
+  box-shadow: var(--surface-shadow);
+  pointer-events: none;
+  transition-property: translate, width;
+  transition-duration: 250ms;
+  transition-timing-function: var(--ease-out-fluid, cubic-bezier(0.32, 0.72, 0, 1));
+}
+.sw-segment__indicator[data-ready='false'] {
+  transition: none;
+}
+
+/* Sin bandeja (la isla de arriba): el indicador es la píldora del color del texto
+   y la opción activa va en el color del fondo, como antes, pero ahora se desliza. */
+.sw-segment--bare {
+  padding: 0;
+  gap: 0.125rem;
+  background: transparent;
+}
+.sw-segment--bare .sw-segment__item {
+  padding-inline: 0.75rem;
+  color: var(--foreground);
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
+}
+.sw-segment--bare .sw-segment__item:not([data-active='true']):hover {
+  background: var(--default);
+}
+.sw-segment--bare .sw-segment__item[data-active='true'] {
+  color: var(--background);
+}
+.sw-segment--bare .sw-segment__indicator {
+  top: 0;
+  bottom: 0;
+  background: var(--foreground);
+  box-shadow: none;
 }
 
 /* Cifras grandes (KPI, totales): la Anton de CeroFiao. */

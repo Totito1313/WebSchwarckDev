@@ -4,7 +4,8 @@
 // del cliente; el modo estudio sigue en /cliente/.
 import { useState } from 'react';
 import { ChartColumn, CircleExclamation, Folder, House, ListTimeline, Tray } from '@gravity-ui/icons';
-import { Alert, Avatar, Button, Card, Chip, Dropdown, FieldError, Form, Input, Label, Spinner, TextField } from '@heroui/react';
+import { Alert, Avatar, Button, Card, Chip, Dropdown, FieldError, Form, Input, Label, TextField } from '@heroui/react';
+import { Loader, ShimmerText } from '../pro/index.js';
 import { Empty } from '../kit/parts.jsx';
 import { app, can, pendingTasks, toReview, unread, urlOf } from '../../portal/state.js';
 import { openPortal, useBoot, usePortal, useRoute } from './store.js';
@@ -206,8 +207,8 @@ export function PortalApp() {
     return (
       <main className="flex min-h-dvh flex-col items-center justify-center gap-3">
         <img src="/favicon.svg" alt="" width="52" height="52" />
-        <Spinner />
-        <span className="sr-only">Cargando</span>
+        <Loader variant="dots" label="Cargando tu app" />
+        <ShimmerText className="text-sm font-medium">Cargando tu app…</ShimmerText>
       </main>
     );
   if (phase === 'login') return <Login onSignIn={signIn} />;

@@ -24,6 +24,7 @@ import {
 import { SOURCES as RATE_SOURCES } from '../../negocio-gastos.js';
 import { newProject } from '../../negocio-work.js';
 import { AmountField, DateInput, FormModal, SelectField } from './fields.jsx';
+import { SwitchField } from '../kit/SwitchField.jsx';
 
 function receiptFor(doc, payment, balanceAfter) {
   return {
@@ -119,15 +120,13 @@ export function PaymentForm({ doc, onClose }) {
         <Label>Referencia</Label>
         <Input placeholder="Opcional" />
       </TextField>
-      <Switch isSelected={receipt} onChange={setReceipt} className="sm:col-span-2">
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-        <Switch.Content>
-          <Label>Generar recibo</Label>
-          <Description>{doc.status === 'draft' ? 'Al registrar un pago, la factura deja de ser borrador.' : 'Queda en Facturas, enlazado a este pago.'}</Description>
-        </Switch.Content>
-      </Switch>
+      <SwitchField
+        isSelected={receipt}
+        onChange={setReceipt}
+        className="sm:col-span-2"
+        label="Generar recibo"
+        description={doc.status === 'draft' ? 'Al registrar un pago, la factura deja de ser borrador.' : 'Queda en Facturas, enlazado a este pago.'}
+      />
       {error && <p className="text-sm text-danger sm:col-span-2">{error}</p>}
     </FormModal>
   );

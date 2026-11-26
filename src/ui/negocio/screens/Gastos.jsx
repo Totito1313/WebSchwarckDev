@@ -2,7 +2,7 @@
 // la moneda principal, la tasa del día del pago (con la que se pasa para siempre).
 // Las cuentas son las de negocio-gastos.js, las mismas del panel de siempre.
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Paperclip, Plus, TrashBin, Wallet } from '@gravity-ui/icons';
+import { ArrowDown, ArrowDownToLine, ArrowUp, Paperclip, Plus, Tag, TrashBin, Wallet } from '@gravity-ui/icons';
 import {
   Avatar,
   Button,
@@ -34,7 +34,9 @@ import {
 import { Empty, PageHeader, Panel, Stat } from '../../kit/parts.jsx';
 import { go, useCrm } from '../store.js';
 import { base, change, fmt, money, periodRange, spent, within } from '../domain.js';
-import { AmountField, ConfirmButton, DateInput, FormModal, SelectField, currencyOptions } from '../fields.jsx';
+import { AmountField, ConfirmButton, ConfirmDialog, DateInput, FormModal, SelectField, currencyOptions } from '../fields.jsx';
+import { downloadCsv } from '../../kit/csv.js';
+import { ActionBar, ListView } from '../../pro/index.js';
 import { UploadButton } from '../upload.jsx';
 
 // Los colores de las categorías se guardan por nombre (los de CeroFiao).
@@ -274,11 +276,16 @@ function Categorias() {
                   <ArrowUp />
                 </Button>
                 <Button isIconOnly aria-label="Bajar" isDisabled={i === cats.length - 1} onPress={() => move(i, 1)}>
+                  <ButtonGroup.Separator />
                   <ArrowDown />
                 </Button>
-                <Button onPress={() => put('categories', { ...c, archived: !c.archived })}>{c.archived ? 'Activar' : 'Archivar'}</Button>
+                <Button onPress={() => put('categories', { ...c, archived: !c.archived })}>
+                  <ButtonGroup.Separator />
+                  {c.archived ? 'Activar' : 'Archivar'}
+                </Button>
                 {!n && (
                   <Button isIconOnly aria-label="Borrar" onPress={() => remove('categories', c.id)}>
+                    <ButtonGroup.Separator />
                     <TrashBin />
                   </Button>
                 )}
@@ -297,6 +304,10 @@ export function Gastos({ tab }) {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [picked, setPicked] = useState(() => new Set());
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [recat, setRecat] = useState(null);
+  const chosen = (state.expenses || []).filter((e) => picked.has(e.id));
   const isNew = tab === 'nuevo';
   const view = tab === 'categorias' ? 'categorias' : 'gastos';
   // La primera vez se proponen unas categorías (como en el panel de siempre).
@@ -423,19 +434,29 @@ export function Gastos({ tab }) {
           ) : (
             data.months.map(([key, list]) => (
               <Panel key={key} title={monthText(key)} description={fmt(list.reduce((s, e) => s + (expenseBase(e) || 0), 0))}>
-                <ul className="flex flex-col">
-                  {list.map((e) => {
+                <ListView
+                  bare
+                  className="-mx-2"
+                  label={`Gastos de ${monthText(key)}`}
+                  selectionMode="multiple"
+                  selectedKeys={new Set(list.filter((e) => picked.has(e.id)).map((e) => e.id))}
+                  onSelectionChange={(keys) => {
+                    const inMonth = new Set(list.map((e) => e.id));
+                    const chosen = keys === 'all' ? inMonth : new Set([...keys].map(String));
+                    setPicked((p) => new Set([...[...p].filter((k) => !inMonth.has(k)), ...chosen]));
+                  }}
+                  onAction={(k) => setEditing(find('expenses', String(k)))}
+                  items={list.map((e) => {
                     const c = e.categoryId && find('categories', e.categoryId);
                     const vd = e.vendorId && find('vendors', e.vendorId);
                     const b = expenseBase(e);
-                    return (
-                      <li key={e.id}>
-                        <button type="button" onClick={() => setEditing(e)} className="flex w-full items-center gap-3 rounded-2xl px-2 py-2 text-start hover:bg-surface-secondary">
-                          <VendorMark name={vd?.name || e.vendor || e.title} domain={vd?.domain} />
-                          <span className="flex min-w-0 flex-1 flex-col">
-                            <span className="truncate text-sm font-medium">{e.title}</span>
-                            <span className="truncate text-xs text-muted">{[vd?.name || e.vendor, e.method, dateText(e.date)].filter(Boolean).join(' · ')}</span>
-                          </span>
+                    return {
+                      id: e.id,
+                      title: e.title,
+                      description: [vd?.name || e.vendor, e.method, dateText(e.date)].filter(Boolean).join(' · '),
+                      media: <VendorMark name={vd?.name || e.vendor || e.title} domain={vd?.domain} />,
+                      end: (
+                        <>
                           {c && (
                             <Chip size="sm" variant="secondary" className="hidden sm:inline-flex">
                               <span className="size-1.5 rounded-full" style={{ background: catHex(c) }} />
@@ -444,18 +465,80 @@ export function Gastos({ tab }) {
                           )}
                           {e.receipt && <Paperclip className="size-4 text-muted" aria-label="Tiene recibo" />}
                           <span className="flex w-28 flex-col items-end">
-                            <span className="text-sm tabular-nums">{money(-e.amount, e.currency)}</span>
+                            <span className="tabular-nums">{money(-e.amount, e.currency)}</span>
                             {e.currency !== base() && <span className="text-xs text-muted">{b == null ? 'Sin tasa' : `≈ ${money(-b, base())}`}</span>}
                           </span>
-                        </button>
-                      </li>
-                    );
+                        </>
+                      ),
+                    };
                   })}
-                </ul>
+                />
               </Panel>
             ))
           )}
         </>
+      )}
+      <ActionBar
+        count={chosen.length}
+        label={chosen.length === 1 ? 'gasto elegido' : 'gastos elegidos'}
+        onClear={() => setPicked(new Set())}
+        actions={[
+          { id: 'category', label: 'Cambiar categoría', icon: Tag },
+          { id: 'csv', label: 'Exportar CSV', icon: ArrowDownToLine },
+          { id: 'delete', label: 'Borrar', icon: TrashBin, danger: true },
+        ]}
+        onAction={(id) => {
+          if (id === 'category') setRecat(sortedCategories()[0]?.id || '');
+          if (id === 'csv') {
+            downloadCsv(`gastos-${todayISO()}`, [
+              ['Fecha', 'Concepto', 'Proveedor', 'Categoría', 'Forma de pago', 'Moneda', 'Importe', 'Tasa', `En ${base()}`, 'Recibo', 'Notas'],
+              ...chosen.map((e) => [
+                e.date,
+                e.title,
+                (e.vendorId && find('vendors', e.vendorId)?.name) || e.vendor || '',
+                (e.categoryId && find('categories', e.categoryId)?.name) || '',
+                e.method || '',
+                e.currency,
+                e.amount,
+                e.rate || '',
+                expenseBase(e) ?? '',
+                e.receipt ? 'Sí' : 'No',
+                e.notes || '',
+              ]),
+            ]);
+            toast(`${chosen.length} en el archivo`);
+          }
+          if (id === 'delete') setConfirmDelete(chosen);
+        }}
+      />
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={confirmDelete?.length === 1 ? `¿Borrar «${confirmDelete[0].title}»?` : `¿Borrar ${confirmDelete?.length || 0} gastos?`}
+        text="Se borran también sus recibos. No se puede deshacer."
+        confirm="Borrar"
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          confirmDelete.forEach((e) => {
+            if (e.receipt) deleteFile(e.receipt.id);
+            remove('expenses', e.id);
+          });
+          toast(confirmDelete.length === 1 ? 'Gasto borrado.' : `${confirmDelete.length} gastos borrados.`);
+          setPicked(new Set());
+        }}
+      />
+      {recat != null && (
+        <FormModal
+          title={`Categoría de ${chosen.length === 1 ? '1 gasto' : `${chosen.length} gastos`}`}
+          submit="Cambiar"
+          onClose={() => setRecat(null)}
+          onSubmit={() => {
+            chosen.forEach((e) => put('expenses', { ...e, categoryId: recat }));
+            toast(`${chosen.length === 1 ? 'Cambiada' : `${chosen.length} cambiadas`} a «${find('categories', recat)?.name || 'Sin categoría'}»`);
+            setPicked(new Set());
+          }}
+        >
+          <SelectField label="Categoría" value={recat} onChange={setRecat} options={sortedCategories().map((c) => [c.id, c.name])} className="sm:col-span-2" />
+        </FormModal>
       )}
       {(adding || isNew || editing) && <ExpenseForm key={editing?.id || 'new'} expense={editing} onClose={close} />}
     </div>

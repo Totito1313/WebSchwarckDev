@@ -122,6 +122,7 @@ export function Catalogo({ isNew }) {
                     isIconOnly
                     ariaLabel={`Eliminar ${it.name}`}
                   >
+                    <ButtonGroup.Separator />
                     <TrashBin />
                   </ConfirmButton>
                 </ButtonGroup>

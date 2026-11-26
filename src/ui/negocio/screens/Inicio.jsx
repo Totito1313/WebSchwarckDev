@@ -1,11 +1,12 @@
-// Inicio: lo que entró, lo que salió y lo que falta por cobrar en el periodo
-// elegido, frente al tramo anterior; entradas y salidas de 12 meses; lo que pide
-// atención hoy y lo último que pasó.
+// Inicio: un tablero de widgets. Arriba, las cifras del periodo (cobrado, gastado,
+// beneficio y por cobrar) con su variación y su tendencia de 12 meses; luego las
+// entradas y salidas de cada mes con el beneficio encima, en qué se fue el dinero,
+// lo que pide atención hoy, lo que falta por cobrar y lo último que pasó.
 import { useMemo, useState } from 'react';
 import { ArrowRight, Bell, CircleCheck, CircleDollar, Eye, FileText, Funnel, Person, Wallet, Xmark } from '@gravity-ui/icons';
-import { Button, Chip, Link, ProgressBar, Separator, Tabs, Label } from '@heroui/react';
-import { BarsChart } from '../../kit/BarsChart.jsx';
-import { Empty, PageHeader, Panel, Person as PersonAvatar, Stat, StatusChip } from '../../kit/parts.jsx';
+import { Button, Chip, Link, ProgressBar, Tabs } from '@heroui/react';
+import { Empty, PageHeader, Panel, Person as PersonAvatar, StatusChip } from '../../kit/parts.jsx';
+import { ComposedChart, DonutChart, KpiGroup, Timeline, Widget } from '../../pro/index.js';
 import { useCrm } from '../store.js';
 import {
   DOC_STATUS,
@@ -28,8 +29,10 @@ import {
   shortDate,
   spent,
   totals,
+  within,
 } from '../domain.js';
 import { money, shortMonth } from '../../../negocio-core.js';
+import { expenseBase } from '../../../negocio-gastos.js';
 
 const PERIODS = [
   ['30d', '30 días'],
@@ -37,11 +40,26 @@ const PERIODS = [
   ['year', 'Este año'],
   ['all', 'Todo'],
 ];
-const PREV = { '30d': 'frente a los 30 días anteriores', month: 'frente al mismo tramo del mes pasado', year: 'frente al mismo tramo del año pasado' };
+const PREV = { '30d': 'vs. 30 días antes', month: 'vs. el mes pasado', year: 'vs. el año pasado' };
 const KIND_ICON = { in: CircleDollar, doc: FileText, view: Eye, ok: CircleCheck, no: Xmark, out: Wallet, person: Person, lead: Funnel };
+const KIND_COLOR = { in: 'var(--success)', ok: 'var(--success)', no: 'var(--danger)', out: 'var(--sw-chart-out)', lead: 'var(--accent)' };
 const STEPS_KEY = 'negocio-primeros-pasos';
 
 const compactNum = new Intl.NumberFormat('es-VE', { notation: 'compact', maximumFractionDigits: 1 });
+
+/** Gastos del periodo por categoría, en la moneda principal. */
+function byCategory(state, r) {
+  const names = new Map((state.categories || []).map((c) => [c.id, c.name]));
+  const sums = new Map();
+  for (const e of state.expenses || []) {
+    if (!within(e.date, r)) continue;
+    const v = expenseBase(e);
+    if (v == null || v <= 0) continue;
+    const key = e.categoryId || '__none';
+    sums.set(key, (sums.get(key) || 0) + v);
+  }
+  return [...sums].map(([key, value]) => ({ key, label: names.get(key) || 'Sin categoría', value }));
+}
 
 export function Inicio() {
   const [state, v] = useCrm();
@@ -54,7 +72,7 @@ export function Inicio() {
     const outNow = spent(r);
     const inPrev = r.prev ? collected(r.prev) : null;
     const outPrev = r.prev ? spent(r.prev) : null;
-    const rec = receivable();
+    const months = last12Months();
     return {
       r,
       inNow,
@@ -63,12 +81,12 @@ export function Inicio() {
       profitPrev: inPrev && outPrev ? inPrev.sum - outPrev.sum : null,
       dIn: inPrev ? change(inNow.sum, inPrev.sum) : null,
       dOut: outPrev ? change(outNow.sum, outPrev.sum) : null,
-      rec,
-      months: last12Months(),
+      rec: receivable(),
+      months,
+      cats: byCategory(state, r),
       feed: activity(8),
       due: dueLeads(),
       steps: firstSteps(),
-      expenses: [...(state.expenses || [])].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 5),
     };
   }, [period, v, state]);
 
@@ -80,9 +98,11 @@ export function Inicio() {
   const showSteps = !stepsHidden && stepsDone < data.steps.length;
   const prevText = PREV[period];
   const cur = base();
+  const periodLabel = PERIODS.find(([k]) => k === period)?.[1];
+  const profitDelta = data.profitPrev != null && data.profitPrev > 0 ? change(data.profit, data.profitPrev) : null;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <PageHeader
         eyebrow={new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })}
         title={greeting()}
@@ -138,49 +158,92 @@ export function Inicio() {
         </Panel>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Cobrado" value={fmt(data.inNow.sum)} delta={data.dIn} sub={data.dIn != null ? prevText : `${data.inNow.count} cobros`} />
-        <Stat label="Gastado" value={fmt(data.outNow.sum)} delta={data.dOut} upIsGood={false} sub={data.outNow.skipped ? `${data.outNow.skipped} sin tasa` : prevText || 'En gastos'} href="#/gastos" />
-        <Stat
-          label="Beneficio"
-          value={fmt(data.profit)}
-          delta={data.profitPrev != null ? change(data.profit, data.profitPrev) : null}
-          tone={data.profit < 0 ? 'var(--danger)' : undefined}
-          sub="Cobrado menos gastado"
+      <Widget title="Cifras" action={<span>{periodLabel}{prevText ? ` · ${prevText}` : ''}</span>}>
+        <KpiGroup
+          items={[
+            {
+              label: 'Cobrado',
+              value: fmt(data.inNow.sum),
+              delta: data.dIn,
+              sub: `${data.inNow.count} cobros`,
+              trend: data.months.map((m) => m.in),
+              trendColor: 'var(--sw-chart-in)',
+              href: '#/cobros',
+            },
+            {
+              label: 'Gastado',
+              value: fmt(data.outNow.sum),
+              delta: data.dOut,
+              upIsGood: false,
+              sub: data.outNow.skipped ? `${data.outNow.skipped} sin tasa` : 'En gastos',
+              trend: data.months.map((m) => m.out),
+              trendColor: 'var(--sw-chart-out)',
+              href: '#/gastos',
+            },
+            {
+              label: 'Beneficio',
+              value: fmt(data.profit),
+              delta: profitDelta,
+              sub: 'Cobrado menos gastado',
+              tone: data.profit < 0 ? 'var(--danger)' : undefined,
+              trend: data.months.map((m) => m.in - m.out),
+            },
+            {
+              label: 'Por cobrar',
+              value: fmt(data.rec.sum),
+              sub: data.rec.overdue.length ? `${data.rec.overdue.length} vencidas de ${data.rec.open.length}` : `${data.rec.open.length} facturas abiertas`,
+              tone: data.rec.overdue.length ? 'var(--danger)' : undefined,
+              href: '#/facturas',
+            },
+          ]}
         />
-        <Stat
-          label="Por cobrar"
-          value={fmt(data.rec.sum)}
-          icon={CircleDollar}
-          sub={data.rec.overdue.length ? `${data.rec.overdue.length} vencidas` : `${data.rec.open.length} facturas abiertas`}
-          tone={data.rec.overdue.length ? 'var(--danger)' : undefined}
-          href="#/facturas"
-        />
-      </div>
+      </Widget>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <Panel title="Entradas y salidas" description={`Últimos 12 meses, en ${cur}`} className="xl:col-span-2">
-          <BarsChart
-            title="Entradas y salidas de los últimos 12 meses"
-            groups={data.months.map((m) => ({ key: m.key, label: shortMonth(m.key), values: [m.in, m.out] }))}
+        <Widget title="Entradas y salidas" description={`Últimos 12 meses, en ${cur}`} className="xl:col-span-2">
+          <ComposedChart
+            title="Entradas, salidas y beneficio de los últimos 12 meses"
+            xLabel="Mes"
+            data={data.months.map((m) => ({ key: m.key, label: shortMonth(m.key), in: m.in, out: m.out, net: m.in - m.out }))}
             series={[
-              { name: 'Entradas', color: 'var(--sw-chart-in)' },
-              { name: 'Salidas', color: 'var(--sw-chart-out)' },
+              { key: 'in', name: 'Entradas', type: 'bar', color: 'var(--sw-chart-in)' },
+              { key: 'out', name: 'Salidas', type: 'bar', color: 'var(--sw-chart-out)' },
+              { key: 'net', name: 'Beneficio', type: 'line', color: 'var(--foreground)' },
             ]}
             format={(x) => money(x, cur)}
             compact={(x) => compactNum.format(x)}
           />
-        </Panel>
+        </Widget>
 
-        <Panel
+        <Widget
+          title="En qué se fue"
+          description={`Gastos por categoría · ${periodLabel?.toLowerCase()}`}
+          action={
+            <Link href="#/gastos" className="text-xs">
+              Gastos
+              <ArrowRight className="size-3" />
+            </Link>
+          }
+        >
+          {data.cats.length ? (
+            <DonutChart title="Gastos por categoría" parts={data.cats} format={(x) => money(x, cur)} totalLabel="Gastado" size={150} layout="stack" />
+          ) : (
+            <Empty icon={Wallet} title="Sin gastos" text="Cuando anotes gastos, aquí verás en qué se va el dinero." />
+          )}
+        </Widget>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Widget
           title="Para hoy"
           description={data.due.length ? `${data.due.length} seguimientos de leads` : 'Nada atrasado'}
           action={
-            <Link href="#/leads" className="text-sm">
+            <Link href="#/leads" className="text-xs">
               Leads
-              <ArrowRight className="size-3.5" />
+              <ArrowRight className="size-3" />
             </Link>
           }
+          bodyClassName="p-2"
         >
           {data.due.length ? (
             <ul className="flex flex-col">
@@ -202,19 +265,18 @@ export function Inicio() {
           ) : (
             <Empty icon={Bell} title="Todo al día" text="Los seguimientos de leads que toquen hoy salen aquí." />
           )}
-        </Panel>
-      </div>
+        </Widget>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Panel
-          title="Facturas por cobrar"
-          description={data.rec.skipped ? `${data.rec.skipped} en otra moneda sin equivalencia` : undefined}
+        <Widget
+          title="Por cobrar"
+          description={data.rec.skipped ? `${data.rec.skipped} en otra moneda sin equivalencia` : `${data.rec.open.length} facturas`}
           action={
-            <Link href="#/facturas" className="text-sm">
-              Todas
-              <ArrowRight className="size-3.5" />
+            <Link href="#/cobros" className="text-xs">
+              Cobros
+              <ArrowRight className="size-3" />
             </Link>
           }
+          bodyClassName="p-2"
         >
           {data.rec.open.length ? (
             <ul className="flex flex-col">
@@ -232,8 +294,10 @@ export function Inicio() {
                             {d.number} · vence {shortDate(d.dueDate) || '—'}
                           </span>
                         </span>
-                        <StatusChip label={st[0]} color={st[1]} />
-                        <span className="w-28 text-end text-sm tabular-nums">{money(totals(d).due, d.currency)}</span>
+                        <span className="flex flex-col items-end gap-1">
+                          <span className="text-sm tabular-nums">{money(totals(d).due, d.currency)}</span>
+                          <StatusChip label={st[0]} color={st[1]} />
+                        </span>
                       </a>
                     </li>
                   );
@@ -242,48 +306,28 @@ export function Inicio() {
           ) : (
             <Empty icon={CircleDollar} title="Nada por cobrar" text="Las facturas con saldo pendiente salen aquí." />
           )}
-        </Panel>
+        </Widget>
 
-        <Panel title="Lo último que pasó">
+        <Widget title="Lo último que pasó">
           {data.feed.length ? (
-            <ol className="flex flex-col">
-              {data.feed.map((item, i) => {
-                const Icon = KIND_ICON[item.kind] || FileText;
-                return (
-                  <li key={`${item.href}-${i}`}>
-                    <a href={item.href} className="flex items-center gap-3 rounded-2xl px-2 py-2 hover:bg-surface-secondary">
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-secondary">
-                        <Icon className="size-4 text-muted" />
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-sm">{item.text}</span>
-                      <span className="shrink-0 text-xs text-muted">{relDay(item.date)}</span>
-                    </a>
-                  </li>
-                );
-              })}
-            </ol>
+            <Timeline
+              label="Lo último que pasó"
+              items={data.feed.map((item, i) => ({
+                id: `${item.href}-${i}`,
+                marker: { icon: KIND_ICON[item.kind] || FileText, color: KIND_COLOR[item.kind] },
+                title: (
+                  <a href={item.href} className="font-normal hover:underline">
+                    {item.text}
+                  </a>
+                ),
+                trailing: relDay(item.date),
+              }))}
+            />
           ) : (
             <Empty icon={FileText} title="Todavía no hay movimiento" text="Cobros, facturas, firmas, gastos y clientes nuevos salen aquí." />
           )}
-          {data.expenses.length > 0 && (
-            <>
-              <Separator className="my-3" />
-              <Label className="sw-eyebrow">Últimos gastos</Label>
-              <ul className="mt-1 flex flex-col">
-                {data.expenses.map((e) => (
-                  <li key={e.id} className="flex items-center justify-between gap-3 px-2 py-1.5 text-sm">
-                    <span className="truncate">{e.vendor || e.title}</span>
-                    <span className="shrink-0 tabular-nums text-muted">
-                      {money(e.amount, e.currency)} · {shortDate(e.date)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </Panel>
+        </Widget>
       </div>
     </div>
   );
 }
-

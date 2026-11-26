@@ -4,10 +4,13 @@
 // diseño y enlace para el cliente) todavía es el de siempre: «Abrir en el editor»
 // lleva a él con el mismo documento.
 import { useMemo, useState } from 'react';
-import { ArrowLeft, ArrowUpRightFromSquare, ChevronDown, CircleCheck, CircleDollar, Eye, FileText, Folder, Plus, Xmark } from '@gravity-ui/icons';
-import { Button, ButtonGroup, Card, Chip, Description, Dropdown, Label, Link, SearchField, Separator, Table, Tabs, toast } from '@heroui/react';
+import { ArrowDownToLine, ArrowLeft, ArrowUpRightFromSquare, ChevronDown, CircleCheck, CircleDollar, Copy, Eye, FileText, Folder, Plus, Xmark } from '@gravity-ui/icons';
+import { Button, ButtonGroup, Card, Chip, Description, Dropdown, Label, Link, Separator, Table, Tabs, toast } from '@heroui/react';
 import { find, newDoc, pubOf, put } from '../../../negocio-core.js';
-import { Empty, PageHeader, Panel, Stat, StatusChip } from '../../kit/parts.jsx';
+import { Empty, PageHeader, Panel, Person, Stat, StatusChip } from '../../kit/parts.jsx';
+import { copyText, downloadCsv } from '../../kit/csv.js';
+import { DataGrid, Timeline } from '../../pro/index.js';
+import { ConfirmDialog } from '../fields.jsx';
 import { go, useCrm } from '../store.js';
 import { PaymentForm, setDocStatus, toInvoice } from '../payments.jsx';
 import { DOC_STATUS, DOC_WORD, base, customerName, dateText, docStatus, fmt, money, shortDate, sumBase, totals } from '../domain.js';
@@ -53,33 +56,58 @@ export async function createAndEdit(type) {
 
 export function Documentos({ type }) {
   const [state, v] = useCrm();
-  const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
-  const [sort, setSort] = useState({ column: 'date', direction: 'descending' });
+  const [paying, setPaying] = useState(null);
+  const [confirm, setConfirm] = useState(null); // { rows, clear }
 
-  const docs = useMemo(() => state.docs.filter((d) => d.type === type).map((d) => ({ d, s: docStatus(d), t: totals(d) })), [state, v, type]);
+  const docs = useMemo(() => state.docs.filter((d) => d.type === type).map((d) => ({ id: d.id, d, s: docStatus(d), t: totals(d) })), [state, v, type]);
   const filters = FILTERS[type];
   const test = filters.find(([k]) => k === filter)?.[2] || (() => true);
-  const rows = useMemo(() => {
-    const q = plain(query.trim());
-    const list = docs.filter(({ d, s }) => test(s) && (!q || plain(`${d.number} ${customerName(d)} ${d.title || ''}`).includes(q)));
-    const key = ({ d, t }) => ({ number: d.number || '', client: plain(customerName(d)), date: d.issueDate || '', total: t.total, due: d.dueDate || d.validUntil || '' })[sort.column];
-    return list.sort((a, b) => {
-      const x = key(a);
-      const y = key(b);
-      const cmp = typeof x === 'number' ? x - y : String(x).localeCompare(String(y));
-      return sort.direction === 'descending' ? -cmp : cmp;
-    });
-  }, [docs, query, filter, sort]);
+  const rows = useMemo(() => docs.filter(({ s }) => test(s)), [docs, filter]);
 
   const counted = docs.filter(({ d }) => d.status !== 'draft' && d.status !== 'void');
   const total = sumBase(counted.map(({ d, t }) => [d, t.total]));
   const dueSum = type === 'invoice' ? sumBase(counted.filter(({ t }) => t.due > 0.004).map(({ d, t }) => [d, t.due])) : null;
-  const col = (id, label, cls) => (
-    <Table.Column allowsSorting id={id} className={cls} isRowHeader={id === 'number'}>
-      {({ sortDirection }) => <Table.SortableColumnHeader sortDirection={sortDirection}>{label}</Table.SortableColumnHeader>}
-    </Table.Column>
-  );
+  const isInvoice = type === 'invoice';
+
+  const exportCsv = (list) =>
+    downloadCsv(`${PLURAL[type].toLowerCase()}-${new Date().toLocaleDateString('en-CA')}`, [
+      ['Número', 'Cliente', 'Fecha', isInvoice ? 'Vence' : 'Válida hasta', 'Moneda', 'Total', 'Pagado', 'Por cobrar', 'Estado'],
+      ...list.map(({ d, s, t }) => [d.number || 'Borrador', customerName(d), d.issueDate || '', d.dueDate || d.validUntil || '', d.currency, t.total, t.paid || 0, t.due || 0, (DOC_STATUS[s] || DOC_STATUS.draft)[0]]),
+    ]);
+
+  const rowMenu = ({ d, s, t }) => [
+    { id: 'open', label: 'Abrir la ficha', icon: FileText },
+    { id: 'edit', label: 'Abrir en el editor', icon: ArrowUpRightFromSquare },
+    isInvoice && t.due > 0.004 && d.status !== 'void' && { id: 'pay', label: 'Registrar pago', icon: CircleDollar },
+    !isInvoice && !['void', 'declined', 'expired', 'accepted'].includes(s) && { id: 'convert', label: 'Convertir en factura', icon: FileText },
+    { id: 'number', label: 'Copiar el número', icon: Copy, isDisabled: !d.number },
+    '-',
+    d.status !== 'void' ? { id: 'void', label: 'Anular', icon: Xmark, danger: true } : { id: 'draft', label: 'Volver a borrador', icon: ArrowLeft },
+  ].filter(Boolean);
+  const onRowMenu = async (id, { d }) => {
+    if (id === 'open') go(`#/documentos/${d.id}`);
+    if (id === 'edit') location.href = OLD_EDITOR(d.id);
+    if (id === 'pay') setPaying(d);
+    if (id === 'convert') go(`#/documentos/${toInvoice(d).id}`);
+    if (id === 'number' && (await copyText(d.number))) toast(`${d.number} copiado`);
+    if (id === 'void') setConfirm({ rows: [{ d }] });
+    if (id === 'draft') {
+      setDocStatus(d, 'draft');
+      toast('Volvió a borrador.');
+    }
+  };
+  const onBulk = async (id, list, clear) => {
+    if (id === 'csv') {
+      exportCsv(list);
+      toast(`${list.length} en el archivo`);
+    }
+    if (id === 'copy') {
+      const nums = list.map(({ d }) => d.number).filter(Boolean);
+      if (await copyText(nums.join(', '))) toast(`${nums.length} números copiados`);
+    }
+    if (id === 'void') setConfirm({ rows: list.filter(({ d }) => d.status !== 'void'), clear });
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -98,66 +126,125 @@ export function Documentos({ type }) {
         <Empty icon={FileText} title={`Todavía no hay ${PLURAL[type].toLowerCase()}`} text="Se numeran solas por tipo y año, y se comparten con un enlace para ver, pagar o firmar." action={<Button onPress={() => createAndEdit(type)}>{NEW_WORD[type]}</Button>} />
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Tabs selectedKey={filter} onSelectionChange={(k) => setFilter(String(k))}>
-              <Tabs.ListContainer>
-                <Tabs.List aria-label="Filtrar">
-                  {filters.map(([k, label, fn]) => (
-                    <Tabs.Tab key={k} id={k}>
-                      {label}
-                      <span className="ms-1 text-xs text-muted">{docs.filter(({ s }) => fn(s)).length}</span>
-                      <Tabs.Indicator />
-                    </Tabs.Tab>
-                  ))}
-                </Tabs.List>
-              </Tabs.ListContainer>
-            </Tabs>
-            <SearchField aria-label="Buscar" value={query} onChange={setQuery} className="w-full sm:w-64">
-              <SearchField.Group>
-                <SearchField.SearchIcon />
-                <SearchField.Input placeholder="Número o cliente" />
-                <SearchField.ClearButton />
-              </SearchField.Group>
-            </SearchField>
-          </div>
-          <Table>
-            <Table.ScrollContainer>
-              <Table.Content aria-label={PLURAL[type]} className="min-w-[720px]" sortDescriptor={sort} onSortChange={setSort} onRowAction={(id) => go(`#/documentos/${id}`)}>
-                <Table.Header>
-                  {col('number', 'Número')}
-                  {col('client', 'Cliente')}
-                  {col('date', 'Fecha')}
-                  {col('due', type === 'invoice' ? 'Vence' : 'Válida hasta')}
-                  {col('total', 'Total', 'text-end')}
-                  <Table.Column>Estado</Table.Column>
-                </Table.Header>
-                <Table.Body renderEmptyState={() => <p className="p-6 text-center text-sm text-muted">Nada por aquí.</p>}>
-                  {rows.map(({ d, s, t }) => {
-                    const st = DOC_STATUS[s] || DOC_STATUS.draft;
-                    return (
-                      <Table.Row key={d.id} id={d.id} className="cursor-pointer">
-                        <Table.Cell className="font-medium">{d.number || <span className="text-muted">Borrador</span>}</Table.Cell>
-                        <Table.Cell>{customerName(d)}</Table.Cell>
-                        <Table.Cell className="text-muted">{shortDate(d.issueDate)}</Table.Cell>
-                        <Table.Cell className="text-muted">{shortDate(d.dueDate || d.validUntil) || '—'}</Table.Cell>
-                        <Table.Cell className="text-end tabular-nums">
-                          {money(t.total, d.currency)}
-                          {type === 'invoice' && t.paid > 0 && t.due > 0.004 && <span className="block text-xs text-muted">faltan {money(t.due, d.currency)}</span>}
-                        </Table.Cell>
-                        <Table.Cell>
-                          <StatusChip label={st[0]} color={st[1]} />
-                        </Table.Cell>
-                      </Table.Row>
-                    );
-                  })}
-                </Table.Body>
-              </Table.Content>
-            </Table.ScrollContainer>
-          </Table>
+          <Tabs selectedKey={filter} onSelectionChange={(k) => setFilter(String(k))}>
+            <Tabs.ListContainer>
+              <Tabs.List aria-label="Filtrar">
+                {filters.map(([k, label, fn]) => (
+                  <Tabs.Tab key={k} id={k}>
+                    {label}
+                    <span className="ms-1 text-xs text-muted">{docs.filter(({ s }) => fn(s)).length}</span>
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
+            </Tabs.ListContainer>
+          </Tabs>
+          <DataGrid
+            label={PLURAL[type]}
+            rows={rows}
+            search={({ d }, q) => plain(`${d.number} ${customerName(d)} ${d.title || ''}`).includes(plain(q))}
+            searchPlaceholder="Número o cliente"
+            defaultSort={{ column: 'date', direction: 'descending' }}
+            filters={[
+              {
+                id: 'currency',
+                label: 'Moneda',
+                options: [...new Set(docs.map(({ d }) => d.currency).filter(Boolean))].map((c) => [c, c]),
+                match: ({ d }, c) => d.currency === c,
+              },
+            ].filter((f) => f.options.length > 1)}
+            columns={[
+              { id: 'number', name: 'Número', isRowHeader: true, sortValue: ({ d }) => d.number || '', render: ({ d }) => <span className="font-medium">{d.number || <span className="text-muted">Borrador</span>}</span> },
+              {
+                id: 'client',
+                name: 'Cliente',
+                sortValue: ({ d }) => plain(customerName(d)),
+                render: ({ d }) => (
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Person name={customerName(d)} />
+                    <span className="truncate">{customerName(d)}</span>
+                  </span>
+                ),
+              },
+              { id: 'date', name: 'Fecha', sortValue: ({ d }) => d.issueDate || '', render: ({ d }) => <span className="text-muted">{shortDate(d.issueDate)}</span>, hideable: true },
+              { id: 'due', name: isInvoice ? 'Vence' : 'Válida hasta', sortValue: ({ d }) => d.dueDate || d.validUntil || '', render: ({ d }) => <span className="text-muted">{shortDate(d.dueDate || d.validUntil) || '—'}</span>, hideable: true },
+              {
+                id: 'total',
+                name: 'Total',
+                align: 'end',
+                sortValue: ({ t }) => t.total,
+                render: ({ d, t }) => (
+                  <>
+                    {money(t.total, d.currency)}
+                    {isInvoice && t.paid > 0 && t.due > 0.004 && <span className="block text-xs text-muted">faltan {money(t.due, d.currency)}</span>}
+                  </>
+                ),
+              },
+              {
+                id: 'status',
+                name: 'Estado',
+                sortValue: ({ s }) => s,
+                render: ({ s }) => {
+                  const st = DOC_STATUS[s] || DOC_STATUS.draft;
+                  return <StatusChip label={st[0]} color={st[1]} />;
+                },
+              },
+            ]}
+            onRowAction={({ d }) => go(`#/documentos/${d.id}`)}
+            rowMenu={rowMenu}
+            onRowMenu={onRowMenu}
+            bulkActions={[
+              { id: 'csv', label: 'Exportar CSV', icon: ArrowDownToLine },
+              { id: 'copy', label: 'Copiar números', icon: Copy },
+              { id: 'void', label: 'Anular', icon: Xmark, danger: true },
+            ]}
+            onBulkAction={onBulk}
+          />
+          {paying && <PaymentForm doc={paying} onClose={() => setPaying(null)} />}
+          <ConfirmDialog
+            open={!!confirm}
+            title={confirm?.rows.length === 1 ? `¿Anular ${confirm.rows[0].d.number || 'el borrador'}?` : `¿Anular ${confirm?.rows.length || 0} ${PLURAL[type].toLowerCase()}?`}
+            text="Dejan de contar en las cifras y no se pueden pagar ni firmar. Se pueden volver a borrador después."
+            confirm="Anular"
+            onClose={() => setConfirm(null)}
+            onConfirm={() => {
+              const n = confirm.rows.length;
+              confirm.rows.forEach(({ d }) => setDocStatus(d, 'void'));
+              confirm.clear?.();
+              toast(n === 1 ? 'Anulada.' : `${n} anuladas.`);
+            }}
+          />
         </>
       )}
     </div>
   );
+}
+
+const when = (iso) => {
+  if (!iso) return '';
+  const dt = new Date(iso.length === 10 ? `${iso}T12:00:00` : iso);
+  return Number.isNaN(dt.getTime())
+    ? ''
+    : dt.toLocaleString('es', iso.length === 10 ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
+
+/** Lo que le pasó al documento, en orden: creado, enviado, visto, firmado, pagos y anulación. */
+function DocHistory({ d, pub, linked }) {
+  const items = [];
+  const add = (at, item) => at && items.push({ at: String(at), ...item });
+  add(d.createdAt || d.issueDate, { id: 'created', title: d.fromQuote ? 'Creada desde una cotización' : 'Creado', marker: { icon: FileText } });
+  if (d.number && d.status !== 'draft') add(d.sentAt || d.issueDate, { id: 'sent', title: `Emitido como ${d.number}`, marker: { icon: ArrowUpRightFromSquare, color: 'var(--accent)' } });
+  if (pub?.viewedAt) add(pub.viewedAt, { id: 'viewed', title: 'Lo abrió el cliente', marker: { icon: Eye }, description: pub.views > 1 ? `${pub.views} veces` : undefined });
+  if (pub?.acceptedAt) add(pub.acceptedAt, { id: 'ok', title: 'Firmado', badge: { label: pub.name || 'Cliente', color: 'success' }, marker: { kind: 'check', color: 'var(--success)' } });
+  if (pub?.declinedAt) add(pub.declinedAt, { id: 'no', title: 'Rechazado', marker: { icon: Xmark, color: 'var(--danger)' }, description: pub.reason });
+  (d.payments || []).forEach((p) =>
+    add(p.date, { id: `p-${p.id}`, title: 'Pago recibido', badge: { label: money(Number(p.amount) || 0, d.currency), color: 'success' }, marker: { icon: CircleDollar, color: 'var(--success)' }, description: [p.method, p.rate ? `tasa ${p.rate}` : ''].filter(Boolean).join(' · ') || undefined }),
+  );
+  if (linked) add(linked.createdAt || linked.issueDate, { id: 'inv', title: <a href={`#/documentos/${linked.id}`} className="hover:underline">Convertida en {linked.number || 'factura'}</a>, marker: { icon: FileText, color: 'var(--accent)' } });
+  if (d.status === 'void') add(d.updatedAt || d.issueDate, { id: 'void', title: 'Anulado', marker: { icon: Xmark, color: 'var(--danger)' } });
+  items.sort((a, b) => a.at.localeCompare(b.at));
+  if (!items.length) return <p className="text-sm text-muted">Sin movimientos todavía.</p>;
+  return <Timeline label="Historial del documento" items={items.map((it) => ({ ...it, trailing: when(it.at) }))} />;
 }
 
 /** La acción principal de cada documento según lo que le toca, y el resto en la flecha. */
@@ -207,7 +294,7 @@ function DocActions({ d, s, t, linked }) {
         </Button>
         {more.length > 0 && (
           <Dropdown>
-            <Button isIconOnly aria-label="Más acciones">
+            <Button isIconOnly variant="primary" aria-label="Más acciones">
               <ButtonGroup.Separator />
               <ChevronDown />
             </Button>
@@ -354,6 +441,9 @@ export function Documento({ id }) {
               )}
             </Panel>
           )}
+          <Panel title="Historial">
+            <DocHistory d={d} pub={pub} linked={linked} />
+          </Panel>
           {pub && (pub.acceptedAt || pub.declinedAt) && (
             <Card variant="secondary">
               <Chip color={pub.acceptedAt ? 'success' : 'danger'} variant="soft" className="w-fit">
