@@ -8,6 +8,12 @@
       "port": 8787
     },
     {
+      "name": "api-local",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["wrangler", "dev", "--local", "--port", "8787"],
+      "port": 8787
+    },
+    {
       "name": "portada",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["vite", "--port", "5173", "--strictPort"],

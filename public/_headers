@@ -40,6 +40,11 @@
   Cache-Control: no-cache
   Content-Type: application/manifest+json
 
+# La app del cliente rehecha con HeroUI (en pruebas junto a /cliente/).
+/cliente-nuevo/*
+  X-Robots-Tag: noindex
+  Referrer-Policy: no-referrer
+
 # La página que abre el cliente con un enlace: ni se guarda en caché ni se indexa.
 /documento/*
   Cache-Control: no-store

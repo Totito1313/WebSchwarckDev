@@ -1,4 +1,6 @@
 /* Entrada de estilos de las páginas hechas con HeroUI.
-   El orden importa: primero Tailwind, después HeroUI. */
+   El orden importa: primero Tailwind, después HeroUI y al final el tema
+   «Schwarck», que pisa los colores, la letra y las esquinas de HeroUI. */
 @import "tailwindcss";
 @import "@heroui/styles";
+@import "./theme.css";

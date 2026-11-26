@@ -1,0 +1,204 @@
+/* Tema «Schwarck» para HeroUI: el mismo sistema de diseño del panel y de CeroFiao
+   (src/panel.css) traducido a los tokens de HeroUI, para que el catálogo, Negocio
+   y el portal nuevos se vean como una sola familia.
+
+   · Fondo gris claro (#f1f2f3) o negro puro; superficies blancas o #17171a con
+     un borde fino.
+   · Acento: el cian de la marca (#00b8d4 en claro, #00e5ff en oscuro). El texto
+     sobre el cian es negro en los dos temas: blanco sobre #00b8d4 no se lee bien.
+   · Botones en píldora, tarjetas de 24 px y campos de 14 px.
+   · Letra: One UI Sans si está en el equipo; si no, Inter. Anton para las cifras.
+
+   Va sin capa a propósito: así pisa a los valores por defecto de HeroUI (que
+   viven en sus capas) sin tocar node_modules. Solo define variables: las
+   utilidades de Tailwind (bg-surface, text-muted…) las siguen leyendo. */
+
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --font-sans: 'One UI Sans', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Anton', 'Bebas Neue', 'Arial Narrow', Impact, sans-serif;
+
+  --radius: 0.5rem;
+  --field-radius: 0.875rem;
+
+  --background: #f1f2f3;
+  --foreground: #0b0b0c;
+
+  --surface: #ffffff;
+  --surface-foreground: var(--foreground);
+  --surface-secondary: #f4f4f5;
+  --surface-secondary-foreground: var(--foreground);
+  --surface-tertiary: #e8e8ea;
+  --surface-tertiary-foreground: var(--foreground);
+
+  --overlay: #ffffff;
+  --overlay-foreground: var(--foreground);
+
+  --muted: #6e6e73;
+
+  --default: #e8e8ea;
+  --default-foreground: #0b0b0c;
+
+  --accent: #00b8d4;
+  --accent-foreground: #001f24;
+
+  --success: #34c759;
+  --success-foreground: #04200d;
+  --warning: #ff9800;
+  --warning-foreground: #2a1700;
+  --danger: #ff3b30;
+  --danger-foreground: #ffffff;
+
+  --field-background: #f1f2f3;
+  --field-foreground: var(--foreground);
+  --field-placeholder: #99999d;
+  --field-border: transparent;
+
+  --segment: #ffffff;
+  --segment-foreground: var(--foreground);
+
+  --border: rgba(0, 0, 0, 0.06);
+  --separator: rgba(0, 0, 0, 0.07);
+  --focus: var(--accent);
+  --link: var(--foreground);
+
+  --backdrop: rgba(0, 0, 0, 0.35);
+
+  --surface-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  --overlay-shadow: 0 8px 24px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --field-shadow: 0 0 0 0 transparent inset;
+
+  /* Colores de datos (ingresos, gastos, monedas), los mismos de CeroFiao. */
+  --sw-income: #34c759;
+  --sw-expense: #ff3b30;
+  --sw-blue: #387aff;
+  --sw-purple: #9c27b0;
+  --sw-orange: #ff9800;
+  --sw-usd: #22c55e;
+  --sw-bs: #f97316;
+  --sw-usdt: #eab308;
+  --sw-grad-logo: linear-gradient(135deg, #1b66b8 0%, #00d8ff 100%);
+  /* Gráficos de entradas y salidas: azul verdoso y naranja (se distinguen también
+     con daltonismo; el verde y el rojo de CeroFiao no). Validados en claro y oscuro. */
+  --sw-chart-in: #0097b2;
+  --sw-chart-out: #e8590c;
+  --sw-glass: rgba(255, 255, 255, 0.72);
+  --sw-glass-border: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --background: #000000;
+  --foreground: #ffffff;
+
+  --surface: #17171a;
+  --surface-secondary: #1f1f23;
+  --surface-tertiary: #2e2e30;
+
+  --overlay: #1c1c1f;
+
+  --muted: #9a9a9e;
+
+  --default: #2e2e30;
+  --default-foreground: #ffffff;
+
+  --accent: #00e5ff;
+  --accent-foreground: #001a1f;
+
+  --success: #30d158;
+  --success-foreground: #04200d;
+  --warning: #ffca28;
+  --warning-foreground: #2a1d00;
+  --danger: #ff453a;
+  --danger-foreground: #ffffff;
+
+  --field-background: #0d0d0f;
+  --field-placeholder: #7c7c81;
+
+  --segment: #3a3a3d;
+  --segment-foreground: #ffffff;
+
+  --border: rgba(255, 255, 255, 0.1);
+  --separator: rgba(255, 255, 255, 0.1);
+
+  --backdrop: rgba(0, 0, 0, 0.6);
+
+  --surface-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --overlay-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+
+  --sw-income: #30d158;
+  --sw-expense: #ff453a;
+  --sw-blue: #5e8cff;
+  --sw-purple: #ba68c8;
+  --sw-orange: #ffca28;
+  --sw-chart-in: #0f9fb8;
+  --sw-chart-out: #e5602a;
+  --sw-glass: rgba(23, 23, 26, 0.72);
+  --sw-glass-border: rgba(255, 255, 255, 0.1);
+}
+
+/* Los textos y estados del portal (src/portal/state.js) traen sus colores como
+   var(--cf-…), los de CeroFiao. Aquí apuntan a los del tema, para que las mismas
+   constantes sirvan en la app nueva sin cargar panel.css. */
+:root {
+  --cf-primary: var(--accent);
+  --cf-income: var(--sw-income);
+  --cf-expense: var(--sw-expense);
+  --cf-blue: var(--sw-blue);
+  --cf-purple: var(--sw-purple);
+  --cf-orange: var(--sw-orange);
+  --cf-fg-muted: var(--muted);
+  --cf-fg-faint: var(--muted);
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Las pestañas no se parten en dos líneas («Este mes», «Por cobrar»). */
+[role='tab'] {
+  white-space: nowrap;
+}
+
+/* Cifras grandes (KPI, totales): la Anton de CeroFiao. */
+.sw-figure {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+/* Etiquetas en mayúsculas espaciadas, como en el panel. */
+.sw-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Cristal de las barras de navegación. */
+.sw-glass {
+  background: var(--sw-glass);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid var(--sw-glass-border);
+}
+
+.sw-logo-gradient {
+  background: var(--sw-grad-logo);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

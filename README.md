@@ -21,7 +21,7 @@ Cada `git push` a `main` se publica solo en Cloudflare.
 | `/documento/#…` | `documento/index.html` | Lo que abre el cliente con un enlace: ver, pagar o firmar |
 | `/api/*` | `worker/index.js` | La API que usan la página y el panel |
 
-Son páginas HTML con CSS y un poco de JavaScript, construidas con Vite. No hay framework.
+Son páginas HTML con CSS y un poco de JavaScript, construidas con Vite. No hay framework, salvo en lo que se está rehaciendo con React y HeroUI: el catálogo (`/admin/ui/`), Negocio nuevo (`/admin/negocio-nuevo/`) y el portal nuevo (`/cliente-nuevo/`). Ver «HeroUI» más abajo.
 
 ### La portada del estudio
 
@@ -81,12 +81,26 @@ npx wrangler dev
 
 ### HeroUI (React 19 y Tailwind CSS 4)
 
-El panel y el portal se van a pasar a [HeroUI v3](https://heroui.com/docs/react/getting-started), página por página. La base ya está:
+Negocio y el portal se están rehaciendo con [HeroUI v3](https://heroui.com/docs/react/getting-started), para que las dos apps tengan las mismas piezas y se vean igual. Las versiones nuevas viven **al lado** de las de siempre, con los mismos datos, hasta que las sustituyan:
 
-- `@heroui/react` y `@heroui/styles` 3.2.8, con React 19, Tailwind CSS 4 y las dependencias de React Aria que piden, todo con la versión fijada en `package.json`.
+| Ruta | Qué es |
+|---|---|
+| `/admin/ui/` | El catálogo: los 73 componentes de HeroUI con el tema de Schwarck, agrupados como en su documentación y con ejemplos del negocio (clientes, facturas, leads, publicaciones). Buscador y cambio de tema arriba. |
+| `/admin/negocio-nuevo/` | Negocio rehecho. Ya están Inicio, Leads (embudo, lista, análisis y ficha), Clientes (lista y ficha), Facturas, Cotizaciones y Propuestas (lista y ficha), el buscador (Ctrl+K) y el estado del guardado. Las demás secciones del riel llevan a su versión de siempre, y «Abrir en el editor» abre la hoja de un documento en el editor de siempre. |
+| `/cliente-nuevo/` | El portal del cliente rehecho: Inicio, Cronología, Marketing (calendario, rendimiento, leads y la ficha de cada publicación con aprobar, pedir cambios o rechazar), Recursos con facturas y documentos, Peticiones («Ya lo envié») y Perfil. `/cliente-nuevo/?demo` enseña la demostración. El modo estudio, el proyecto, las reuniones y el informe siguen en `/cliente/`. |
+
+Cómo está montado:
+
+- `@heroui/react` y `@heroui/styles` 3.2.8, con React 19, Tailwind CSS 4, las dependencias de React Aria e iconos de `@gravity-ui/icons` (los de la documentación de HeroUI), todo con la versión fijada en `package.json`.
 - `vite.config.js` carga `@vitejs/plugin-react` y `@tailwindcss/vite`. Solo actúan en lo que está hecho con React: las páginas de siempre salen igual que antes.
-- `src/ui/app.css` es la entrada de estilos (`@import "tailwindcss";` y después `@import "@heroui/styles";`, en ese orden) y la importa `src/ui/main.jsx`. HeroUI v3 no necesita Provider.
-- `/admin/ui/` es la página de prueba (botones, pestañas y tema claro/oscuro con `useTheme` de HeroUI, que guarda la elección en `heroui-theme`). Se llega desde los atajos de `/admin/`.
+- `src/ui/app.css` es la entrada de estilos: Tailwind, después HeroUI y al final `src/ui/theme.css`, el tema «Schwarck». Traduce a los tokens de HeroUI el sistema de diseño de CeroFiao (`src/panel.css`): fondo `#f1f2f3` o negro, superficies blancas o `#17171a`, el cian de la marca como acento (con texto negro encima, que se lee mejor que el blanco), botones en píldora, Anton en las cifras (`.sw-figure`) y etiquetas espaciadas (`.sw-eyebrow`). También apunta los `var(--cf-…)` del portal a esos colores, para que las constantes de `src/portal/state.js` sirvan tal cual.
+- Los gráficos (`src/ui/kit/BarsChart.jsx`) usan un azul verdoso y un naranja (`--sw-chart-in` y `--sw-chart-out`) que se distinguen también con daltonismo, en claro y en oscuro; tienen globo al pasar y «Ver como tabla».
+- `src/ui/kit/`: lo que comparten las tres páginas: el arranque (`mount.jsx`: idioma `es-VE` y avisos), el cambio de tema (`ThemeSwitch.jsx`, con `useTheme` de HeroUI, que guarda la elección en `heroui-theme`) y las piezas comunes (`parts.jsx`: cabecera de página, tarjeta de cifra con su variación, bloque con título, vacío, persona).
+- `src/ui/catalog/`: el catálogo, una parte por grupo.
+- `src/ui/negocio/`: Negocio nuevo. No tiene datos propios: `store.js` usa `negocio-core.js` (la misma carga, la misma fila de guardado y la misma sesión del panel) y `domain.js` reúne las cuentas (las de `negocio-core.js`, `negocio-gastos.js` y, sin su interfaz, las de leads y clientes).
+- `src/ui/portal/`: el portal nuevo. `store.js` arranca con `src/portal/data.js` (Supabase o la demostración) y deriva todo con `src/portal/state.js`, así que las reglas y los permisos son los mismos.
+
+Para probar Negocio nuevo en local hace falta la API: `npm run build` y luego `npx wrangler dev --local` (la configuración «api-local» de `.claude/launch.json`; `--local` evita que pida la cuenta de Cloudflare por el modelo de IA). Se abre en `http://localhost:8787/admin/negocio-nuevo/`. Desde `npm run dev` (puerto 5173) la entrada falla con «Origen no permitido»: el Worker solo acepta su propio origen. El catálogo y el portal en demostración sí se ven con `npm run dev`.
 
 La documentación de la versión instalada está en `node_modules/@heroui/react/docs/` (índice en `llms.txt`). La fuente de verdad para instalar y para la API de cada componente es el servidor MCP de HeroUI (`@heroui/react-mcp`).
 

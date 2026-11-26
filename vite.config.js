@@ -39,6 +39,8 @@ export default defineConfig({
         negocio: page('admin/negocio/index.html'),
         perfil: page('admin/perfil/index.html'),
         ui: page('admin/ui/index.html'),
+        negocioNuevo: page('admin/negocio-nuevo/index.html'),
+        clienteNuevo: page('cliente-nuevo/index.html'),
         apps: page('apps/index.html'),
         tienda: page('apps/tienda/index.html'),
         cliente: page('cliente/index.html'),
