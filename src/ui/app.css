@@ -1,0 +1,4 @@
+/* Entrada de estilos de las páginas hechas con HeroUI.
+   El orden importa: primero Tailwind, después HeroUI. */
+@import "tailwindcss";
+@import "@heroui/styles";

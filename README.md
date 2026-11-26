@@ -67,7 +67,7 @@ npm install
 npm run dev
 ```
 
-Eso sirve las páginas en `http://localhost:5173`. Las novedades se ven; las reseñas y el panel necesitan la API. Para tenerla, en otra terminal:
+Eso sirve las páginas en `http://localhost:5173` (la prueba de HeroUI, en `http://localhost:5173/admin/ui/`). Las novedades se ven; las reseñas y el panel necesitan la API. Para tenerla, en otra terminal:
 
 ```bash
 npm run build
@@ -78,6 +78,17 @@ npx wrangler dev
 ```
 
 `wrangler dev` sirve el sitio ya construido con su API en `http://localhost:8787`, con un almacén de datos local. Para entrar al panel en local, copia `.dev.vars.example` como `.dev.vars` y pon una contraseña de prueba.
+
+### HeroUI (React 19 y Tailwind CSS 4)
+
+El panel y el portal se van a pasar a [HeroUI v3](https://heroui.com/docs/react/getting-started), página por página. La base ya está:
+
+- `@heroui/react` y `@heroui/styles` 3.2.8, con React 19, Tailwind CSS 4 y las dependencias de React Aria que piden, todo con la versión fijada en `package.json`.
+- `vite.config.js` carga `@vitejs/plugin-react` y `@tailwindcss/vite`. Solo actúan en lo que está hecho con React: las páginas de siempre salen igual que antes.
+- `src/ui/app.css` es la entrada de estilos (`@import "tailwindcss";` y después `@import "@heroui/styles";`, en ese orden) y la importa `src/ui/main.jsx`. HeroUI v3 no necesita Provider.
+- `/admin/ui/` es la página de prueba (botones, pestañas y tema claro/oscuro con `useTheme` de HeroUI, que guarda la elección en `heroui-theme`). Se llega desde los atajos de `/admin/`.
+
+La documentación de la versión instalada está en `node_modules/@heroui/react/docs/` (índice en `llms.txt`). La fuente de verdad para instalar y para la API de cada componente es el servidor MCP de HeroUI (`@heroui/react-mcp`).
 
 ## El panel
 

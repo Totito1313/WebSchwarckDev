@@ -1,4 +1,6 @@
 import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderChangelog } from './src/changelog-render.js';
@@ -18,7 +20,9 @@ const changelog = () => ({
 });
 
 export default defineConfig({
-  plugins: [changelog()],
+  // React y Tailwind solo actúan en las páginas hechas con HeroUI (src/ui/): las
+  // demás siguen con su CSS y su JavaScript de siempre.
+  plugins: [changelog(), react(), tailwindcss()],
   server: {
     // `npx wrangler dev` sirve la API en 8787; con esto `npm run dev` también la ve.
     proxy: { '/api': 'http://localhost:8787' },
@@ -34,6 +38,7 @@ export default defineConfig({
         panel: page('admin/index.html'),
         negocio: page('admin/negocio/index.html'),
         perfil: page('admin/perfil/index.html'),
+        ui: page('admin/ui/index.html'),
         apps: page('apps/index.html'),
         tienda: page('apps/tienda/index.html'),
         cliente: page('cliente/index.html'),
