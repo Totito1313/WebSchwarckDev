@@ -1,13 +1,15 @@
 // Facturas, cotizaciones y propuestas: la lista con su estado (que sale de los
 // pagos, las fechas y lo que hizo el cliente en el enlace) y la ficha de cada una.
-// El editor de la hoja todavía es el del panel de siempre: «Abrir en el editor»
+// Cobrar, convertir en factura y anular se hacen aquí; el editor de la hoja (líneas,
+// diseño y enlace para el cliente) todavía es el de siempre: «Abrir en el editor»
 // lleva a él con el mismo documento.
 import { useMemo, useState } from 'react';
-import { ArrowLeft, ArrowUpRightFromSquare, CircleCheck, Eye, FileText, Plus, Xmark } from '@gravity-ui/icons';
-import { Button, Card, Chip, Link, SearchField, Separator, Table, Tabs, toast } from '@heroui/react';
+import { ArrowLeft, ArrowUpRightFromSquare, ChevronDown, CircleCheck, CircleDollar, Eye, FileText, Folder, Plus, Xmark } from '@gravity-ui/icons';
+import { Button, ButtonGroup, Card, Chip, Description, Dropdown, Label, Link, SearchField, Separator, Table, Tabs, toast } from '@heroui/react';
 import { find, newDoc, pubOf, put } from '../../../negocio-core.js';
 import { Empty, PageHeader, Panel, Stat, StatusChip } from '../../kit/parts.jsx';
 import { go, useCrm } from '../store.js';
+import { PaymentForm, setDocStatus, toInvoice } from '../payments.jsx';
 import { DOC_STATUS, DOC_WORD, base, customerName, dateText, docStatus, fmt, money, shortDate, sumBase, totals } from '../domain.js';
 
 const PLURAL = { invoice: 'Facturas', quote: 'Cotizaciones', proposal: 'Propuestas' };
@@ -158,6 +160,78 @@ export function Documentos({ type }) {
   );
 }
 
+/** La acción principal de cada documento según lo que le toca, y el resto en la flecha. */
+function DocActions({ d, s, t, linked }) {
+  const [paying, setPaying] = useState(false);
+  const editor = () => (location.href = OLD_EDITOR(d.id));
+  const isInvoice = d.type === 'invoice';
+  const signable = d.type === 'quote' || d.type === 'proposal';
+  let main;
+  if (isInvoice && t.due > 0.004 && d.status !== 'void') main = ['pay', 'Registrar pago', CircleDollar];
+  else if (signable && linked) main = ['invoice', 'Ver la factura', FileText];
+  else if (signable && !['void', 'declined', 'expired'].includes(s)) main = ['convert', 'Convertir en factura', FileText];
+  else main = ['edit', 'Abrir en el editor', ArrowUpRightFromSquare];
+  const run = (k) => {
+    if (k === 'pay') setPaying(true);
+    if (k === 'edit') editor();
+    if (k === 'invoice') go(`#/documentos/${linked.id}`);
+    if (k === 'convert') go(`#/documentos/${toInvoice(d).id}`);
+    if (k === 'convert-project') go(`#/documentos/${toInvoice(d, { project: true }).id}`);
+    if (k === 'void') {
+      setDocStatus(d, 'void');
+      toast('Anulada: ya no cuenta ni se puede pagar o firmar.');
+    }
+    if (k === 'draft') {
+      setDocStatus(d, 'draft');
+      toast('Volvió a borrador.');
+    }
+    if (k === 'declined') {
+      setDocStatus(d, 'declined');
+      toast('Marcada como rechazada.');
+    }
+  };
+  const Icon = main[2];
+  const more = [
+    main[0] !== 'edit' && ['edit', 'Abrir en el editor', 'Líneas, diseño, enlace para el cliente e imprimir'],
+    signable && !linked && main[0] === 'convert' && ['convert-project', 'Factura y proyecto', 'Crea también el proyecto con su presupuesto'],
+    signable && d.status !== 'declined' && d.status !== 'void' && !linked && ['declined', 'Marcar como rechazada', ''],
+    d.status !== 'void' && d.type !== 'receipt' && ['void', 'Anular', 'Deja de contar en las cifras'],
+    d.status === 'void' && ['draft', 'Volver a borrador', ''],
+  ].filter(Boolean);
+  return (
+    <>
+      <ButtonGroup>
+        <Button onPress={() => run(main[0])}>
+          <Icon />
+          {main[1]}
+        </Button>
+        {more.length > 0 && (
+          <Dropdown>
+            <Button isIconOnly aria-label="Más acciones">
+              <ButtonGroup.Separator />
+              <ChevronDown />
+            </Button>
+            <Dropdown.Popover placement="bottom end" className="min-w-64">
+              <Dropdown.Menu aria-label="Acciones del documento" onAction={(k) => run(String(k))}>
+                {more.map(([k, label, desc]) => (
+                  <Dropdown.Item key={k} id={k} textValue={label} variant={k === 'void' ? 'danger' : 'default'}>
+                    {k === 'convert-project' ? <Folder className="size-4" /> : k === 'edit' ? <ArrowUpRightFromSquare className="size-4" /> : k === 'void' || k === 'declined' ? <Xmark className="size-4" /> : <FileText className="size-4" />}
+                    <div className="flex flex-col">
+                      <Label>{label}</Label>
+                      {desc && <Description>{desc}</Description>}
+                    </div>
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
+        )}
+      </ButtonGroup>
+      {paying && <PaymentForm doc={d} onClose={() => setPaying(false)} />}
+    </>
+  );
+}
+
 export function Documento({ id }) {
   const [state, v] = useCrm();
   const d = find('docs', id);
@@ -167,6 +241,7 @@ export function Documento({ id }) {
   const t = totals(d);
   const pub = pubOf(d);
   const lines = (d.items || []).filter((it) => it.name || it.price);
+  const linked = d.invoiceId && find('docs', d.invoiceId);
 
   return (
     <div className="flex flex-col gap-6" data-v={v}>
@@ -183,12 +258,7 @@ export function Documento({ id }) {
           </span>
         }
         description={`${customerName(d)} · ${dateText(d.issueDate)}`}
-        actions={
-          <Button onPress={() => (location.href = OLD_EDITOR(d.id))}>
-            Abrir en el editor
-            <ArrowUpRightFromSquare />
-          </Button>
-        }
+        actions={<DocActions d={d} s={s} t={t} linked={linked} />}
       />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Total" value={money(t.total, d.currency)} sub={d.equiv?.rate ? `1 ${d.currency} = ${d.equiv.rate} ${d.equiv.currency}` : d.currency} />
@@ -280,7 +350,7 @@ export function Documento({ id }) {
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-muted">Sin pagos todavía. Se registran en el editor.</p>
+                <p className="text-sm text-muted">Sin pagos todavía: regístralos con «Registrar pago».</p>
               )}
             </Panel>
           )}

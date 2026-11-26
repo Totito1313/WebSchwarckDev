@@ -86,7 +86,7 @@ Negocio y el portal se están rehaciendo con [HeroUI v3](https://heroui.com/docs
 | Ruta | Qué es |
 |---|---|
 | `/admin/ui/` | El catálogo: los 73 componentes de HeroUI con el tema de Schwarck, agrupados como en su documentación y con ejemplos del negocio (clientes, facturas, leads, publicaciones). Buscador y cambio de tema arriba. |
-| `/admin/negocio-nuevo/` | Negocio rehecho. Ya están Inicio, Leads (embudo, lista, análisis y ficha), Clientes (lista y ficha), Facturas, Cotizaciones y Propuestas (lista y ficha), el buscador (Ctrl+K) y el estado del guardado. Las demás secciones del riel llevan a su versión de siempre, y «Abrir en el editor» abre la hoja de un documento en el editor de siempre. |
+| `/admin/negocio-nuevo/` | Negocio rehecho, con todas sus secciones. Arriba, una isla flotante con seis zonas y, debajo, las pestañas de la zona abierta (ver «Negocio nuevo» más abajo). El editor de la hoja de un documento (líneas, diseño, enlace para el cliente, imprimir) sigue siendo el de siempre: «Abrir en el editor». |
 | `/cliente-nuevo/` | El portal del cliente rehecho: Inicio, Cronología, Marketing (calendario, rendimiento, leads y la ficha de cada publicación con aprobar, pedir cambios o rechazar), Recursos con facturas y documentos, Peticiones («Ya lo envié») y Perfil. `/cliente-nuevo/?demo` enseña la demostración. El modo estudio, el proyecto, las reuniones y el informe siguen en `/cliente/`. |
 
 Cómo está montado:
@@ -97,7 +97,24 @@ Cómo está montado:
 - Los gráficos (`src/ui/kit/BarsChart.jsx`) usan un azul verdoso y un naranja (`--sw-chart-in` y `--sw-chart-out`) que se distinguen también con daltonismo, en claro y en oscuro; tienen globo al pasar y «Ver como tabla».
 - `src/ui/kit/`: lo que comparten las tres páginas: el arranque (`mount.jsx`: idioma `es-VE` y avisos), el cambio de tema (`ThemeSwitch.jsx`, con `useTheme` de HeroUI, que guarda la elección en `heroui-theme`) y las piezas comunes (`parts.jsx`: cabecera de página, tarjeta de cifra con su variación, bloque con título, vacío, persona).
 - `src/ui/catalog/`: el catálogo, una parte por grupo.
-- `src/ui/negocio/`: Negocio nuevo. No tiene datos propios: `store.js` usa `negocio-core.js` (la misma carga, la misma fila de guardado y la misma sesión del panel) y `domain.js` reúne las cuentas (las de `negocio-core.js`, `negocio-gastos.js` y, sin su interfaz, las de leads y clientes).
+- `src/ui/negocio/`: Negocio nuevo. No tiene datos propios: `store.js` usa `negocio-core.js` (la misma carga, la misma fila de guardado y la misma sesión del panel) y `domain.js` reúne las cuentas (las de `negocio-core.js`, `negocio-gastos.js` y, sin su interfaz, las de leads y clientes). Las reglas de proyectos, tareas, horas, gastos, marketing y portal se importan tal cual de sus módulos de siempre (`negocio-work.js`, `negocio-gastos.js`, `negocio-contenido.js`, `negocio-paginas.js`, `negocio-puente.js`).
+
+#### Negocio nuevo: cómo está organizado
+
+Seis zonas, cada una con sus secciones en el orden en que se trabajan (`src/ui/negocio/nav.js`). Cada zona recuerda la última sección abierta; en el teléfono, la zona abre un menú con todas.
+
+| Zona | Secciones |
+|---|---|
+| Inicio | Resumen: cobrado, gastado, beneficio y por cobrar; entradas y salidas de 12 meses; seguimientos de hoy; lo último que pasó |
+| Ventas | Leads → Clientes → Propuestas → Cotizaciones → Facturas → Catálogo (el camino de un cliente, y lo que se vende) |
+| Trabajo | Proyectos → Tareas → Horas → Páginas |
+| Dinero | Cobros (por cobrar, con «Registrar» en cada factura, e historial con la tasa de cada pago) y Gastos (con categorías) |
+| Crecer | Marketing (calendario, tablero, copias, campañas y marcas) y Portal de clientes (lo que piden, sincronizar, trabajo de hoy y portales) |
+| Negocio | Mi negocio, Formas de cobro, Biblioteca y Copia de seguridad |
+
+Botones agrupados (`ButtonGroup`) donde hay una acción principal y otras relacionadas: «Crear» (la de la sección abierta y, en la flecha, todo lo demás por zona), el temporizador en la isla (pausar y parar), cada documento (Registrar pago o Convertir en factura, y en la flecha Factura y proyecto, rechazar, anular o abrir en el editor), cada proyecto (Nueva tarea, y Editar, Registrar horas y Facturar horas), «Nueva página» con sus plantillas, y los navegadores de mes.
+
+Siguen en la versión de siempre: el editor de la hoja de los documentos, los bloques de enlace de las páginas, las imágenes y pautas de cada marca, y en el portal los accesos, los permisos, la identidad de cada app y «Conectar Claude».
 - `src/ui/portal/`: el portal nuevo. `store.js` arranca con `src/portal/data.js` (Supabase o la demostración) y deriva todo con `src/portal/state.js`, así que las reglas y los permisos son los mismos.
 
 Para probar Negocio nuevo en local hace falta la API: `npm run build` y luego `npx wrangler dev --local` (la configuración «api-local» de `.claude/launch.json`; `--local` evita que pida la cuenta de Cloudflare por el modelo de IA). Se abre en `http://localhost:8787/admin/negocio-nuevo/`. Desde `npm run dev` (puerto 5173) la entrada falla con «Origen no permitido»: el Worker solo acepta su propio origen. El catálogo y el portal en demostración sí se ven con `npm run dev`.

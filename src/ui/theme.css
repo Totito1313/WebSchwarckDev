@@ -160,9 +160,16 @@ html {
   text-rendering: optimizeLegibility;
 }
 
-/* Las pestañas no se parten en dos líneas («Este mes», «Por cobrar»). */
+/* Las pestañas no se parten en dos líneas («Este mes», «Por cobrar»), la tira
+   ocupa lo que necesita (no todo el ancho) y, si no cabe, se desliza. */
 [role='tab'] {
   white-space: nowrap;
+}
+.tabs__list-container {
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 /* Cifras grandes (KPI, totales): la Anton de CeroFiao. */

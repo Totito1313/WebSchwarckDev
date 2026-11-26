@@ -120,7 +120,7 @@ export function useLifecycle(active) {
 
 /** Ruta de la app: «#/leads/abc» → ['leads', 'abc']. */
 export function useRoute() {
-  const read = () => location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
+  const read = () => location.hash.replace(/^#\/?/, '').split('?')[0].split('/').map(decodeURIComponent);
   const [parts, setParts] = useState(read);
   useEffect(() => {
     const on = () => {
@@ -132,6 +132,9 @@ export function useRoute() {
   }, []);
   return parts;
 }
+
+/** Lo que va después de «?» en la ruta: #/tareas/nueva?p=ID. */
+export const routeQuery = () => new URLSearchParams(location.hash.split('?')[1] || '');
 
 export const go = (hash) => {
   location.hash = hash;

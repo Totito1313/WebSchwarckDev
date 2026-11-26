@@ -1,46 +1,40 @@
 // Negocio nuevo (/admin/negocio-nuevo/): el mismo negocio de /admin/negocio/,
 // rehecho con HeroUI. Usa la misma sesión del panel y los mismos datos: lo que se
-// cambia aquí se ve allí y al revés. Mientras se rehacen, las secciones que faltan
-// llevan a su versión de siempre.
+// cambia aquí se ve allí y al revés.
+//
+// Navegación: una isla flotante arriba con las seis zonas (Inicio, Ventas,
+// Trabajo, Dinero, Crecer y Negocio), el buscador, el temporizador, «Crear» y la
+// cuenta; debajo, las pestañas de la zona abierta. Ver nav.js.
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRightFromSquare,
   ArrowUpRightFromSquare,
-  Bars,
-  Box,
+  ChevronDown,
   CircleExclamation,
   Clock,
   CloudCheck,
-  FileText,
-  Folder,
-  Funnel,
-  Gear,
-  Hammer,
-  House,
-  ListCheck,
+  Display,
   Magnifier,
-  Megaphone,
-  PaperPlane,
-  Persons,
+  Pause,
+  Play,
   Plus,
-  Receipt,
-  Smartphone,
-  SquareArticle,
-  Wallet,
+  Square,
 } from '@gravity-ui/icons';
 import {
   Button,
+  ButtonGroup,
   Card,
   Description,
-  Drawer,
   Dropdown,
   FieldError,
   Form,
+  Header,
   Input,
   Kbd,
   Label,
   ListBox,
   Modal,
+  Popover,
   ScrollShadow,
   SearchField,
   Separator,
@@ -49,58 +43,54 @@ import {
   Tooltip,
   toast,
 } from '@heroui/react';
-import { bus, find } from '../../negocio-core.js';
+import { bus, clockText, find } from '../../negocio-core.js';
+import { elapsedMs, pauseTimer, resumeTimer, runningEntry, stopTimer, taskKey } from '../../negocio-work.js';
+import { startAutoSync } from '../../negocio-puente.js';
 import { ThemeSwitch } from '../kit/ThemeSwitch.jsx';
 import { Empty } from '../kit/parts.jsx';
 import { go, useCrm, useLifecycle, useRoute, useSaving, useSession } from './store.js';
 import { DOC_WORD, customerName, leadName } from './domain.js';
+import { AREAS, SECTIONS, areaOf, lastSection, rememberSection, sectionOf } from './nav.js';
 import { Inicio } from './screens/Inicio.jsx';
 import { Cliente, Clientes, CustomerForm } from './screens/Clientes.jsx';
 import { Leads } from './screens/Leads.jsx';
 import { Documento, Documentos, createAndEdit } from './screens/Documentos.jsx';
+import { Catalogo } from './screens/Catalogo.jsx';
+import { Proyecto, Proyectos } from './screens/Proyectos.jsx';
+import { Tareas } from './screens/Tareas.jsx';
+import { Horas } from './screens/Horas.jsx';
+import { Paginas, newPageAndOpen } from './screens/Paginas.jsx';
+import { Cobros } from './screens/Cobros.jsx';
+import { Gastos } from './screens/Gastos.jsx';
+import { Marketing } from './screens/Marketing.jsx';
+import { Portal } from './screens/Portal.jsx';
+import { Ajustes } from './screens/Ajustes.jsx';
 
 const OLD = '/admin/negocio/';
-
-// Las secciones del riel, agrupadas. `ready: false` = todavía en la versión de siempre.
-const NAV = [
-  { group: null, items: [{ id: 'inicio', label: 'Inicio', icon: House, ready: true }] },
-  {
-    group: 'Ventas',
-    items: [
-      { id: 'leads', label: 'Leads', icon: Funnel, ready: true },
-      { id: 'clientes', label: 'Clientes', icon: Persons, ready: true },
-      { id: 'propuestas', label: 'Propuestas', icon: PaperPlane, ready: true },
-      { id: 'cotizaciones', label: 'Cotizaciones', icon: FileText, ready: true },
-      { id: 'facturas', label: 'Facturas', icon: Receipt, ready: true },
-    ],
-  },
-  {
-    group: 'Trabajo',
-    items: [
-      { id: 'proyectos', label: 'Proyectos', icon: Folder },
-      { id: 'tareas', label: 'Tareas', icon: ListCheck },
-      { id: 'horas', label: 'Horas', icon: Clock },
-      { id: 'paginas', label: 'Páginas', icon: SquareArticle },
-    ],
-  },
-  { group: 'Dinero', items: [{ id: 'gastos', label: 'Gastos', icon: Wallet }] },
-  {
-    group: 'Crecer',
-    items: [
-      { id: 'marketing', label: 'Marketing', icon: Megaphone },
-      { id: 'portal', label: 'Portal de clientes', icon: Smartphone },
-    ],
-  },
-  {
-    group: 'Negocio',
-    items: [
-      { id: 'catalogo', label: 'Catálogo', icon: Box },
-      { id: 'ajustes', label: 'Ajustes', icon: Gear },
-    ],
-  },
-];
-const ALL = NAV.flatMap((g) => g.items);
 const LIST_OF = { invoice: 'facturas', quote: 'cotizaciones', proposal: 'propuestas', receipt: 'facturas' };
+
+// Lo que se puede crear, por zona. La de la sección abierta es el botón principal de «Crear».
+const CREATE = {
+  ventas: [
+    ['factura', 'Nueva factura'],
+    ['cotizacion', 'Nueva cotización'],
+    ['propuesta', 'Nueva propuesta'],
+    ['lead', 'Nuevo lead'],
+    ['cliente', 'Nuevo cliente'],
+    ['servicio', 'Nuevo servicio'],
+  ],
+  trabajo: [
+    ['tarea', 'Nueva tarea'],
+    ['proyecto', 'Nuevo proyecto'],
+    ['horas', 'Registrar horas'],
+    ['pagina', 'Nueva página'],
+  ],
+  dinero: [['gasto', 'Nuevo gasto']],
+  crecer: [['publicacion', 'Nueva publicación']],
+};
+const PRIMARY = { inicio: 'factura', ventas: 'factura', trabajo: 'tarea', dinero: 'gasto', crecer: 'publicacion', negocio: 'factura' };
+const SECTION_PRIMARY = { leads: 'lead', clientes: 'cliente', propuestas: 'propuesta', cotizaciones: 'cotizacion', facturas: 'factura', catalogo: 'servicio', proyectos: 'proyecto', tareas: 'tarea', horas: 'horas', paginas: 'pagina' };
+const LABEL = Object.fromEntries(Object.values(CREATE).flat());
 
 function Login({ onLogin, expired }) {
   const [error, setError] = useState('');
@@ -132,7 +122,19 @@ function Login({ onLogin, expired }) {
             }
           }}
         >
-          <TextField name="password" type="password" isRequired autoFocus isInvalid={Boolean(error)} autoComplete="current-password" value={password} onChange={(t) => { setPassword(t); setError(''); }}>
+          <TextField
+            name="password"
+            type="password"
+            isRequired
+            autoFocus
+            isInvalid={Boolean(error)}
+            autoComplete="current-password"
+            value={password}
+            onChange={(t) => {
+              setPassword(t);
+              setError('');
+            }}
+          >
             <Label>Contraseña</Label>
             <Input />
             <FieldError>{error || 'Escribe la contraseña.'}</FieldError>
@@ -165,59 +167,237 @@ function SaveStatus() {
   );
 }
 
-function NavList({ active, onNavigate }) {
+/** El temporizador en marcha, siempre a la vista: tocarlo lleva a Horas; pausar y parar al lado. */
+function TimerPill() {
+  useCrm();
+  const e = runningEntry();
+  const [, setNow] = useState(0);
+  useEffect(() => {
+    if (!e?.resumedAt) return undefined;
+    const t = setInterval(() => setNow((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [e?.id, e?.resumedAt]);
+  if (!e) return null;
+  const task = e.taskId && find('tasks', e.taskId);
+  const label = task ? `${taskKey(task)} ${task.title}` : e.note || find('projects', e.projectId)?.name || 'Sin tarea';
   return (
-    <nav aria-label="Secciones" className="flex flex-col gap-4">
-      {NAV.map(({ group, items }) => (
-        <div key={group || 'top'} className="flex flex-col gap-0.5">
-          {group && <p className="sw-eyebrow px-3 pb-1">{group}</p>}
-          {items.map(({ id, label, icon: Icon, ready }) => {
-            const on = active === id;
-            return (
-              <a
-                key={id}
-                href={ready ? `#/${id}` : `${OLD}#/${id}`}
-                onClick={onNavigate}
-                aria-current={on ? 'page' : undefined}
-                className={`flex items-center gap-3 rounded-2xl px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus ${
-                  on ? 'bg-foreground font-medium text-background' : 'text-foreground hover:bg-default'
-                }`}
-              >
-                <Icon className="size-4 shrink-0" />
-                <span className="flex-1 truncate">{label}</span>
-                {!ready && <ArrowUpRightFromSquare className="size-3 text-muted" aria-label="Versión de siempre" />}
-              </a>
-            );
-          })}
-        </div>
-      ))}
-    </nav>
+    <ButtonGroup size="sm" variant="secondary" className="hidden md:inline-flex">
+      <Button onPress={() => go('#/horas')} aria-label={`Temporizador: ${label}`} className="max-w-56">
+        <Clock className={e.resumedAt ? 'text-success' : 'text-warning'} />
+        <span className="font-mono tabular-nums">{clockText(elapsedMs(e))}</span>
+        <span className="hidden truncate text-muted xl:inline">{label}</span>
+      </Button>
+      <Button isIconOnly aria-label={e.resumedAt ? 'Pausar' : 'Seguir'} onPress={() => (e.resumedAt ? pauseTimer() : resumeTimer())}>
+        <ButtonGroup.Separator />
+        {e.resumedAt ? <Pause /> : <Play />}
+      </Button>
+      <Button
+        isIconOnly
+        aria-label="Parar y guardar"
+        onPress={() => {
+          const saved = stopTimer({ quiet: true });
+          if (saved) toast.success(`Guardado: ${Math.round(saved.minutes)} min`);
+          else toast('Menos de un minuto: no se guardó.');
+        }}
+      >
+        <ButtonGroup.Separator />
+        <Square />
+      </Button>
+    </ButtonGroup>
   );
 }
 
-const CREATE = [
-  ['lead', 'Nuevo lead', Funnel],
-  ['cliente', 'Nuevo cliente', Persons],
-  ['factura', 'Nueva factura', Receipt],
-  ['cotizacion', 'Nueva cotización', FileText],
-];
+/** «Crear»: la acción principal de donde estás, y en la flecha todo lo demás, por zona. */
+function CreateButton({ area, section, onCreate }) {
+  const main = SECTION_PRIMARY[section] || PRIMARY[area] || 'factura';
+  return (
+    <ButtonGroup size="sm">
+      <Button onPress={() => onCreate(main)}>
+        <Plus />
+        <span className="hidden sm:inline">{LABEL[main]}</span>
+      </Button>
+      <Dropdown>
+        <Button isIconOnly aria-label="Más cosas para crear">
+          <ButtonGroup.Separator />
+          <ChevronDown />
+        </Button>
+        <Dropdown.Popover placement="bottom end" className="min-w-56">
+          <Dropdown.Menu aria-label="Crear" onAction={(k) => onCreate(String(k))}>
+            {Object.entries(CREATE).map(([zone, items]) => (
+              <Dropdown.Section key={zone}>
+                <Header>{AREAS.find((a) => a.id === zone)?.label}</Header>
+                {items.map(([k, label]) => (
+                  <Dropdown.Item key={k} id={k} textValue={label}>
+                    <Label>{label}</Label>
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Section>
+            ))}
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
+    </ButtonGroup>
+  );
+}
 
-/** Buscador (Ctrl+K o ⌘K): secciones, clientes, leads y documentos. */
+function Account({ onLogout }) {
+  return (
+    <Popover>
+      <Button isIconOnly size="sm" variant="ghost" aria-label="Cuenta y apariencia">
+        <Display />
+      </Button>
+      <Popover.Content placement="bottom end" className="w-64">
+        <Popover.Dialog className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-medium">Tema</span>
+            <ThemeSwitch />
+          </div>
+          <Separator />
+          <a href={OLD} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm hover:bg-default">
+            <ArrowUpRightFromSquare className="size-4" />
+            Versión de siempre
+          </a>
+          <a href="/admin/ui/" className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm hover:bg-default">
+            <ArrowUpRightFromSquare className="size-4" />
+            Catálogo de componentes
+          </a>
+          <Button variant="danger-soft" size="sm" onPress={onLogout}>
+            <ArrowRightFromSquare />
+            Salir
+          </Button>
+        </Popover.Dialog>
+      </Popover.Content>
+    </Popover>
+  );
+}
+
+/** La isla flotante: zonas a la izquierda (en el teléfono, un menú) y herramientas a la derecha. */
+function Island({ area, section, onSearch, onCreate, onLogout }) {
+  const current = AREAS.find((a) => a.id === area) || AREAS[0];
+  const CurIcon = current.icon;
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-40 flex justify-center px-2 pt-2 sm:px-4 sm:pt-3">
+      <nav aria-label="Zonas" className="sw-glass pointer-events-auto flex w-full max-w-[1180px] items-center gap-1 rounded-full p-1.5 shadow-[var(--overlay-shadow)]">
+        <a href="#/inicio" aria-label="Inicio" className="shrink-0 rounded-full p-1 outline-none focus-visible:ring-2 focus-visible:ring-focus">
+          <img src="/favicon.svg" alt="" width="30" height="30" />
+        </a>
+
+        {/* Escritorio: las seis zonas a la vista. */}
+        <ul className="hidden items-center gap-0.5 lg:flex">
+          {AREAS.map((a) => {
+            const on = a.id === area;
+            const Icon = a.icon;
+            return (
+              <li key={a.id}>
+                <a
+                  href={`#/${lastSection(a)}`}
+                  aria-current={on ? 'true' : undefined}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus ${
+                    on ? 'bg-foreground font-medium text-background' : 'text-foreground hover:bg-default'
+                  }`}
+                >
+                  <Icon className="size-4" />
+                  {a.label}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* Teléfono y tableta: la zona actual abre un menú con todas y sus secciones. */}
+        <Dropdown>
+          <Button variant="ghost" size="sm" className="lg:hidden">
+            <CurIcon />
+            {current.label}
+            <ChevronDown className="size-3.5" />
+          </Button>
+          <Dropdown.Popover placement="bottom start" className="min-w-60">
+            <Dropdown.Menu aria-label="Ir a" onAction={(k) => go(`#/${k}`)}>
+              {AREAS.map((a) => (
+                <Dropdown.Section key={a.id}>
+                  <Header>{a.label}</Header>
+                  {a.sections.map((s) => {
+                    const Icon = s.icon;
+                    return (
+                      <Dropdown.Item key={s.id} id={s.id} textValue={s.label}>
+                        <Icon className="size-4" />
+                        <Label>{s.label}</Label>
+                      </Dropdown.Item>
+                    );
+                  })}
+                </Dropdown.Section>
+              ))}
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+
+        <span className="flex-1" />
+        <Button variant="ghost" size="sm" onPress={onSearch} aria-label="Buscar" className="gap-2">
+          <Magnifier />
+          <Kbd variant="light" className="hidden md:inline-flex">
+            <Kbd.Abbr keyValue="ctrl" />
+            <Kbd.Content>K</Kbd.Content>
+          </Kbd>
+        </Button>
+        <TimerPill />
+        <SaveStatus />
+        <CreateButton area={area} section={section} onCreate={onCreate} />
+        <Account onLogout={onLogout} />
+      </nav>
+    </div>
+  );
+}
+
+/** Las pestañas de la zona abierta, debajo de la isla (en cascada). */
+function AreaTabs({ area, section }) {
+  const a = AREAS.find((x) => x.id === area);
+  if (!a || a.sections.length < 2) return null;
+  return (
+    <ScrollShadow orientation="horizontal" className="-mx-1 mb-6">
+      <ul className="flex w-max items-center gap-1 px-1" aria-label={`Secciones de ${a.label}`}>
+        {a.sections.map((s) => {
+          const on = s.id === section;
+          const Icon = s.icon;
+          return (
+            <li key={s.id}>
+              <a
+                href={`#/${s.id}`}
+                aria-current={on ? 'page' : undefined}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus ${
+                  on ? 'bg-surface font-medium shadow-[var(--surface-shadow)]' : 'text-muted hover:bg-default hover:text-foreground'
+                }`}
+              >
+                <Icon className="size-4" />
+                {s.label}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </ScrollShadow>
+  );
+}
+
+/** Buscador (Ctrl+K o ⌘K): secciones, clientes, leads, documentos, proyectos, tareas y páginas. */
 function CommandPalette({ isOpen, onOpenChange }) {
   const [state, v] = useCrm();
   const [q, setQ] = useState('');
-  const plain = (s = '') => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const plain = (s = '') => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const results = useMemo(() => {
     const t = plain(q.trim());
     const hit = (s) => !t || plain(s).includes(t);
+    const zone = (id) => AREAS.find((a) => a.id === id)?.label;
     const out = [];
-    for (const s of ALL) if (hit(s.label)) out.push({ id: `s-${s.id}`, label: s.label, sub: s.ready ? 'Sección' : 'Sección (versión de siempre)', href: s.ready ? `#/${s.id}` : `${OLD}#/${s.id}` });
+    for (const s of SECTIONS) if (hit(`${s.label} ${zone(s.area)}`)) out.push({ id: `s-${s.id}`, label: s.label, sub: `Sección · ${zone(s.area)}`, href: `#/${s.id}` });
     if (t) {
       for (const c of state.customers) if (hit(`${c.name} ${c.company} ${c.email}`)) out.push({ id: `c-${c.id}`, label: c.name, sub: 'Cliente', href: `#/clientes/${c.id}` });
       for (const l of state.leads || []) if (hit(`${l.name} ${l.company} ${l.interest}`)) out.push({ id: `l-${l.id}`, label: leadName(l), sub: 'Lead', href: `#/leads/${l.id}` });
-      for (const d of state.docs) if (hit(`${d.number} ${customerName(d)}`)) out.push({ id: `d-${d.id}`, label: `${DOC_WORD[d.type]} ${d.number || '(borrador)'}`, sub: customerName(d), href: `#/documentos/${d.id}` });
+      for (const d of state.docs) if (hit(`${d.number} ${customerName(d)} ${d.title || ''}`)) out.push({ id: `d-${d.id}`, label: `${DOC_WORD[d.type]} ${d.number || '(borrador)'}`, sub: customerName(d), href: `#/documentos/${d.id}` });
+      for (const p of state.projects) if (hit(`${p.name} ${p.code}`)) out.push({ id: `p-${p.id}`, label: p.name || 'Proyecto', sub: 'Proyecto', href: `#/proyectos/${p.id}` });
+      for (const k of state.tasks) if (hit(`${taskKey(k)} ${k.title}`)) out.push({ id: `t-${k.id}`, label: `${taskKey(k)} ${k.title || 'Sin título'}`, sub: 'Tarea', href: `#/tareas/${encodeURIComponent(k.id)}` });
+      for (const g of state.pages || []) if (hit(g.title)) out.push({ id: `g-${g.id}`, label: `${g.icon || '📄'} ${g.title || 'Sin título'}`, sub: 'Página', href: `#/paginas/${g.id}` });
     }
-    return out.slice(0, 30);
+    return out.slice(0, 40);
   }, [q, v, state]);
 
   return (
@@ -230,11 +410,11 @@ function CommandPalette({ isOpen, onOpenChange }) {
                 <SearchField aria-label="Buscar en Negocio" value={q} onChange={setQ} autoFocus>
                   <SearchField.Group>
                     <SearchField.SearchIcon />
-                    <SearchField.Input placeholder="Clientes, leads, facturas o secciones…" />
+                    <SearchField.Input placeholder="Clientes, facturas, tareas, páginas o secciones…" />
                     <SearchField.ClearButton />
                   </SearchField.Group>
                 </SearchField>
-                <ScrollShadow className="max-h-[50vh]">
+                <ScrollShadow className="max-h-[55vh]">
                   <ListBox
                     aria-label="Resultados"
                     selectionMode="none"
@@ -243,8 +423,7 @@ function CommandPalette({ isOpen, onOpenChange }) {
                       if (!r) return;
                       close();
                       setQ('');
-                      if (r.href.startsWith('#')) go(r.href);
-                      else location.href = r.href;
+                      go(r.href);
                     }}
                     renderEmptyState={() => <p className="p-4 text-center text-sm text-muted">Nada coincide con «{q}».</p>}
                   >
@@ -267,37 +446,16 @@ function CommandPalette({ isOpen, onOpenChange }) {
   );
 }
 
-function Soon({ id }) {
-  const s = ALL.find((x) => x.id === id);
-  return (
-    <Empty
-      icon={Hammer}
-      title={s ? `${s.label}, en camino` : 'Esta sección no existe'}
-      text={s ? 'Esta sección todavía se usa en la versión de siempre, con los mismos datos.' : 'Vuelve al inicio.'}
-      action={
-        s ? (
-          <Button onPress={() => (location.href = `${OLD}#/${id}`)}>
-            Abrir {s.label}
-            <ArrowUpRightFromSquare />
-          </Button>
-        ) : (
-          <Button onPress={() => go('#/inicio')}>Ir al inicio</Button>
-        )
-      }
-    />
-  );
-}
-
 function Screen({ route }) {
-  const [section = 'inicio', id] = route;
+  const [section = 'inicio', id, sub] = route;
   switch (section) {
     case '':
     case 'inicio':
       return <Inicio />;
-    case 'clientes':
-      return id ? <Cliente id={id} /> : <Clientes />;
     case 'leads':
       return <Leads id={id && !['embudo', 'lista', 'analisis'].includes(id) ? id : null} tab={id} />;
+    case 'clientes':
+      return id ? <Cliente id={id} /> : <Clientes />;
     case 'facturas':
       return <Documentos type="invoice" />;
     case 'cotizaciones':
@@ -306,20 +464,44 @@ function Screen({ route }) {
       return <Documentos type="proposal" />;
     case 'documentos':
       return <Documento id={id} />;
+    case 'catalogo':
+      return <Catalogo isNew={id === 'nuevo'} />;
+    case 'proyectos':
+      return id && id !== 'nuevo' ? <Proyecto id={id} /> : <Proyectos isNew={id === 'nuevo'} />;
+    case 'tareas':
+      return <Tareas open={id} />;
+    case 'horas':
+      return <Horas isNew={id === 'nueva'} />;
+    case 'paginas':
+      return <Paginas id={id} />;
+    case 'cobros':
+      return <Cobros />;
+    case 'gastos':
+      return <Gastos tab={id} />;
+    case 'marketing':
+      return <Marketing tab={id} arg={sub} />;
+    case 'portal':
+      return <Portal tab={id} />;
+    case 'ajustes':
+    case 'formas-de-cobro':
+    case 'biblioteca':
+    case 'copia':
+      return <Ajustes section={section} />;
     default:
-      return <Soon id={section} />;
+      return <Empty title="Esta sección no existe" action={<Button onPress={() => go('#/inicio')}>Ir al inicio</Button>} />;
   }
 }
 
 function Shell({ onLogout }) {
   const route = useRoute();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [creating, setCreating] = useState(null);
   useLifecycle(true);
   useCrm();
 
-  const active = route[0] === 'documentos' ? LIST_OF[find('docs', route[1])?.type] || 'facturas' : route[0] || 'inicio';
+  const section = route[0] === 'documentos' ? LIST_OF[find('docs', route[1])?.type] || 'facturas' : sectionOf(route[0] || 'inicio')?.id || 'inicio';
+  const area = areaOf(section).id;
+  useEffect(() => rememberSection(section), [section]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -329,12 +511,13 @@ function Shell({ onLogout }) {
       }
     };
     addEventListener('keydown', onKey);
-    // Avisos del guardado y de otros dispositivos, como en el panel de siempre.
     const onConflict = (e) =>
       toast.warning(e.detail.reason === 'signed' ? 'El cliente ya firmó este documento: se guardó solo su estado.' : 'Esto cambió en otro dispositivo. Se cargó la versión más reciente.');
     const onRejected = (e) => toast.danger('No se guardó un cambio', { description: e.detail.message });
     bus.addEventListener('conflict', onConflict);
     bus.addEventListener('rejected', onRejected);
+    // Proyectos y documentos publicados se ponen al día solos en el portal de cada cliente.
+    startAutoSync();
     return () => {
       removeEventListener('keydown', onKey);
       bus.removeEventListener('conflict', onConflict);
@@ -343,91 +526,31 @@ function Shell({ onLogout }) {
   }, []);
 
   const create = (key) => {
-    if (key === 'lead') go('#/leads/nuevo');
-    if (key === 'cliente') setCreating('cliente');
-    if (key === 'factura') createAndEdit('invoice');
-    if (key === 'cotizacion') createAndEdit('quote');
+    const to = {
+      lead: '#/leads/nuevo',
+      proyecto: '#/proyectos/nuevo',
+      tarea: '#/tareas/nueva',
+      horas: '#/horas/nueva',
+      gasto: '#/gastos/nuevo',
+      publicacion: '#/marketing/nueva',
+      servicio: '#/catalogo/nuevo',
+    }[key];
+    if (to) return go(to);
+    if (key === 'cliente') return setCreating('cliente');
+    if (key === 'factura') return createAndEdit('invoice');
+    if (key === 'cotizacion') return createAndEdit('quote');
+    if (key === 'propuesta') return createAndEdit('proposal');
+    if (key === 'pagina') return newPageAndOpen();
+    return undefined;
   };
 
-  const sidebar = (
-    <div className="flex h-full flex-col gap-4">
-      <a href="#/inicio" className="flex items-center gap-2 px-3 pt-1">
-        <img src="/favicon.svg" alt="" width="28" height="28" />
-        <span className="font-semibold tracking-tight">Negocio</span>
-      </a>
-      <Button variant="secondary" className="mx-1 justify-start" onPress={() => setSearchOpen(true)}>
-        <Magnifier />
-        <span className="flex-1 text-start">Buscar</span>
-        <Kbd variant="light">
-          <Kbd.Abbr keyValue="ctrl" />
-          <Kbd.Content>K</Kbd.Content>
-        </Kbd>
-      </Button>
-      <ScrollShadow className="-mx-1 flex-1 px-1">
-        <NavList active={active} onNavigate={() => setMenuOpen(false)} />
-      </ScrollShadow>
-      <Separator />
-      <div className="flex items-center justify-between gap-2 px-1">
-        <ThemeSwitch />
-        <Tooltip delay={200}>
-          <Button variant="ghost" size="sm" isIconOnly aria-label="Salir" onPress={onLogout}>
-            <ArrowRightFromSquare />
-          </Button>
-          <Tooltip.Content>Salir</Tooltip.Content>
-        </Tooltip>
-      </div>
-      <a href={OLD} className="px-3 text-xs text-muted hover:text-foreground">
-        Volver a la versión de siempre
-      </a>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen lg:flex">
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-e border-separator p-3 lg:block">{sidebar}</aside>
-
-      <div className="min-w-0 flex-1">
-        <header className="sw-glass sticky top-0 z-30 flex items-center gap-2 border-x-0 border-t-0 px-3 py-2 sm:px-6">
-          <Button isIconOnly variant="ghost" className="lg:hidden" aria-label="Menú" onPress={() => setMenuOpen(true)}>
-            <Bars />
-          </Button>
-          <span className="flex-1 truncate text-sm font-medium lg:hidden">{ALL.find((s) => s.id === active)?.label || 'Negocio'}</span>
-          <span className="hidden flex-1 lg:block" />
-          <Button isIconOnly variant="ghost" className="lg:hidden" aria-label="Buscar" onPress={() => setSearchOpen(true)}>
-            <Magnifier />
-          </Button>
-          <SaveStatus />
-          <Dropdown>
-            <Button size="sm">
-              <Plus />
-              <span className="hidden sm:inline">Crear</span>
-            </Button>
-            <Dropdown.Popover placement="bottom end">
-              <Dropdown.Menu aria-label="Crear" onAction={(k) => create(String(k))}>
-                {CREATE.map(([k, label, Icon]) => (
-                  <Dropdown.Item key={k} id={k} textValue={label}>
-                    <Icon className="size-4" />
-                    <Label>{label}</Label>
-                  </Dropdown.Item>
-                ))}
-              </Dropdown.Menu>
-            </Dropdown.Popover>
-          </Dropdown>
-        </header>
-        <main className="mx-auto w-full max-w-[1280px] px-4 py-6 sm:px-6 lg:py-8">
-          <Screen route={route} />
-        </main>
-      </div>
-
-      <Drawer isOpen={menuOpen} onOpenChange={setMenuOpen}>
-        <Drawer.Backdrop>
-          <Drawer.Content placement="left">
-            <Drawer.Dialog aria-label="Menú" className="h-full w-72 p-0">
-              <Drawer.Body className="h-full p-3">{sidebar}</Drawer.Body>
-            </Drawer.Dialog>
-          </Drawer.Content>
-        </Drawer.Backdrop>
-      </Drawer>
+    <div className="min-h-screen">
+      <Island area={area} section={section} onSearch={() => setSearchOpen(true)} onCreate={create} onLogout={onLogout} />
+      <main className="mx-auto w-full max-w-[1240px] px-4 pb-16 pt-20 sm:px-6 sm:pt-24">
+        <AreaTabs area={area} section={section} />
+        <Screen route={route} />
+      </main>
       <CommandPalette isOpen={searchOpen} onOpenChange={setSearchOpen} />
       {creating === 'cliente' && <CustomerForm isOpen onOpenChange={(o) => !o && setCreating(null)} onSaved={(c) => go(`#/clientes/${c.id}`)} />}
     </div>
