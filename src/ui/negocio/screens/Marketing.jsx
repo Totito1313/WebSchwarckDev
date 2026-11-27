@@ -57,7 +57,7 @@ import { useOpenAfterGesture } from '../../kit/hooks.js';
 import { go, useCrm } from '../store.js';
 import { fmt, money } from '../domain.js';
 import { AmountField, ConfirmButton, DateInput, FormModal, SelectField } from '../fields.jsx';
-import { Agenda, Kanban } from '../../pro/index.js';
+import { Kanban } from '../../pro/index.js';
 import { Pieza } from './Pieza.jsx';
 import { Segment } from '../../kit/Segment.jsx';
 import { CampanaPage, Campanas, Feed, MARCA_KEY, MarcaPage, Marcas, Resultados } from './MarketingMas.jsx';
@@ -66,7 +66,6 @@ const ROLE_HEX = { tof: '#00b8d4', mof: '#8e5bd6', bof: '#34c759', com: '#f97316
 const STATUS_COLOR = { idea: 'default', guion: 'accent', diseno: 'accent', aprobado: 'success', programado: 'warning', publicado: 'success' };
 const TABS = [
   ['calendario', 'Calendario', Calendar],
-  ['agenda', 'Agenda', Clock],
   ['tablero', 'Tablero', LayoutColumns],
   ['campanas', 'Campañas', Flag],
   ['resultados', 'Resultados', ChartColumn],
@@ -243,33 +242,6 @@ function Tablero({ posts }) {
           </div>
         </div>
       )}
-    />
-  );
-}
-
-/** Agenda por horas: cada pieza en su día y su hora (media hora), del color de su marca. */
-function AgendaView({ posts }) {
-  const events = posts
-    .filter((p) => p.date)
-    .map((p) => {
-      const b = p.brandId && find('brands', p.brandId);
-      const start = new Date(`${p.date}T${p.time || '09:00'}:00`);
-      return {
-        id: p.id,
-        title: p.title || 'Sin título',
-        start,
-        end: new Date(start.getTime() + 45 * 60000),
-        allDay: !p.time,
-        color: brandColor(b) || 'var(--accent)',
-      };
-    });
-  return (
-    <Agenda
-      events={events}
-      onOpen={(e) => go(`#/marketing/pieza/${e.id}`)}
-      onCreate={(d) => go(`#/marketing/nueva?d=${d.toLocaleDateString('en-CA')}&t=${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)}
-      defaultView="week"
-      height={600}
     />
   );
 }
@@ -455,7 +427,6 @@ export function Marketing({ tab, arg }) {
         )}
       </div>
       {view === 'calendario' && <Calendario posts={posts} ym={ym} setYm={setYm} />}
-      {view === 'agenda' && <AgendaView posts={posts} />}
       {view === 'tablero' && <Tablero posts={posts} />}
       {view === 'copias' && <Copias posts={posts} />}
       {view === 'campanas' && <Campanas brandId={chosen} />}

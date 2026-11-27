@@ -332,6 +332,17 @@
   .sw-sheet-stage .sw-print-area { zoom: 1 !important; }
 }
 
+/* Iconos del editor interactivo (los de @gravity-ui/icons llegan sin el envoltorio .ic
+   de la versión de siempre) y botones redondos de los bloques. */
+.ng-sheet { --chev: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27 fill=%27none%27 stroke=%27%23686f76%27 stroke-width=%271.8%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27M4 6l4 4 4-4%27/%3E%3C/svg%3E"); }
+.sh-del > svg { width: 14px; height: 14px; }
+.sh-handle > svg, .sh-add > svg, .sh-chip > svg { width: 15px; height: 15px; flex: none; }
+.sh-media-x > svg { width: 12px; height: 12px; }
+.pb-figure-empty > svg { width: 18px; height: 18px; }
+.ng-sheet .ng-ibtn { display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; cursor: pointer; }
+.ng-sheet .ng-ibtn > svg { width: 15px; height: 15px; }
+.sh-paybtn > svg { width: 14px; height: 14px; }
+
 /* ── Impresión: solo la hoja ── */
 @media print {
   @page { size: A4; margin: 12mm; }

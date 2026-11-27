@@ -61,7 +61,7 @@ export function Diseno({ doc, change }) {
                 aria-label={ACCENT_NAMES[key]}
                 title={ACCENT_NAMES[key]}
                 onClick={() => restyle('accent')(key)}
-                className={`size-9 rounded-full outline-none ring-offset-2 ring-offset-surface transition-shadow focus-visible:ring-2 focus-visible:ring-focus ${on ? 'ring-2 ring-foreground' : ''}`}
+                className={`size-9 rounded-full border border-border outline-none ring-offset-2 ring-offset-surface transition-shadow focus-visible:ring-2 focus-visible:ring-focus ${on ? 'ring-2 ring-foreground' : ''}`}
                 style={{ background: color }}
               />
             );

@@ -130,7 +130,7 @@ function MiNegocio() {
   );
 }
 
-function PayForm({ template, onClose }) {
+export function PayForm({ template, onClose, onSaved }) {
   const [t] = useState(() =>
     template
       ? { ...template, fields: template.fields.map((x) => ({ ...x })) }
@@ -163,6 +163,7 @@ function PayForm({ template, onClose }) {
         if (isDefault) for (const other of crm.paytemplates) if (other.id !== next.id && other.isDefault) put('paytemplates', { ...other, isDefault: false });
         put('paytemplates', next);
         toast.success('Forma de cobro guardada');
+        onSaved?.(next);
         return true;
       }}
     >

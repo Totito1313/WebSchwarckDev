@@ -12,19 +12,24 @@
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   ArrowDown,
+  ArrowDownToLine,
   ArrowLeft,
   ArrowUp,
   ArrowUpFromLine,
+  ArrowUpRightFromSquare,
   Briefcase,
   ChevronDown,
   ChevronRight,
   Copy,
   EllipsisVertical,
   FaceSmile,
+  FileArrowUp,
   FileText,
+  Globe,
   Grip,
   Link as LinkIcon,
   LogoMarkdown,
+  Paperclip,
   Picture,
   Plus,
   Printer,
@@ -42,6 +47,7 @@ import { COVERS, TOKENS, backlinks, coverBg, docByNumber, pageByTitle, pageIcon,
 import { TASK_STATUS, findTaskByKey, projectName, taskKey } from '../../../negocio-work.js';
 import { fileUrl, uploadFile } from '../../../negocio-gastos.js';
 import { DOC_WORD } from '../domain.js';
+import { block as ioBlock, embedUrl, htmlToBlocks, mdToBlocks, readPageFile, tableMd } from '../paginasIO.js';
 import { Empty, PageHeader, Panel, Person } from '../../kit/parts.jsx';
 import { PointPicker, below } from '../../kit/PointPicker.jsx';
 import { copyText } from '../../kit/csv.js';
@@ -67,11 +73,17 @@ const KINDS = {
   image: ['Imagen', 'Pie de foto (opcional)', 'Sube una foto o captura'],
   link: ['Enlace', '', 'A una tarea, página o documento'],
   subpage: ['Subpágina', '', 'Una página dentro de esta'],
+  toggle: ['Desplegable', 'Título del desplegable', 'Se abre y se cierra'],
+  table: ['Tabla', '', 'Filas y columnas'],
+  bookmark: ['Enlace web', '', 'Una dirección con su título'],
+  video: ['Vídeo', 'Pie del vídeo (opcional)', 'YouTube, Vimeo o Loom'],
+  file: ['PDF', '', 'Un documento adjunto'],
+  toc: ['Índice', '', 'Los títulos de esta página'],
 };
-const KIND_LEAD = { p: '¶', h1: 'H1', h2: 'H2', h3: 'H3', bullet: '•', number: '1.', todo: '☐', quote: '❝', callout: '💡', code: '{ }', divider: '—', image: '🖼️', link: '🔗', subpage: '📄' };
-const TEXTUAL = new Set(['p', 'h1', 'h2', 'h3', 'bullet', 'number', 'todo', 'quote', 'callout', 'code']);
+const KIND_LEAD = { p: '¶', h1: 'H1', h2: 'H2', h3: 'H3', bullet: '•', number: '1.', todo: '☐', quote: '❝', callout: '💡', code: '{ }', divider: '—', image: '🖼️', link: '🔗', subpage: '📄', toggle: '▸', table: '▦', bookmark: '🌐', video: '▶', file: '📎', toc: '☰' };
+const TEXTUAL = new Set(['p', 'h1', 'h2', 'h3', 'bullet', 'number', 'todo', 'quote', 'callout', 'code', 'toggle']);
 const LISTS = new Set(['bullet', 'number', 'todo']);
-const CONVERTIBLE = ['p', 'h1', 'h2', 'h3', 'bullet', 'number', 'todo', 'quote', 'callout', 'code'];
+const CONVERTIBLE = ['p', 'h1', 'h2', 'h3', 'bullet', 'number', 'todo', 'quote', 'callout', 'code', 'toggle'];
 const SHORTCUTS = [[/^###\s/, 'h3'], [/^##\s/, 'h2'], [/^#\s/, 'h1'], [/^[-*]\s/, 'bullet'], [/^1[.)]\s/, 'number'], [/^\[ ?\]\s/, 'todo'], [/^>\s/, 'quote'], [/^```$/, 'code'], [/^---$/, 'divider']];
 const EMOJIS = ['📄', '📝', '📌', '📎', '📚', '🗂️', '💡', '🚀', '🎯', '✅', '📅', '📊', '📈', '💰', '🧾', '🤝', '👥', '🎨', '🖌️', '📱', '💻', '⚙️', '🔧', '🧪', '🐞', '📣', '✨', '🔥', '⭐', '❤️', '🏁', '📦', '🛒', '🏷️', '🧭', '🏠', '🏢', '🌐', '🔒', '🔑', '🧠', '🎬', '📸', '🎵', '☕', '🍀', '🦁', '🧩'];
 const TEXT_STYLE = {
@@ -86,6 +98,8 @@ const TEXT_STYLE = {
   callout: 'text-[15px] leading-relaxed',
   code: 'font-mono text-[13px] leading-relaxed',
   image: 'text-xs text-muted',
+  video: 'text-xs text-muted',
+  toggle: 'text-[15px] font-medium leading-relaxed',
 };
 const TOP = { h1: 'mt-6', h2: 'mt-5', h3: 'mt-3' };
 const STATUS_DOT = { request: 'bg-accent', todo: 'bg-muted', doing: 'bg-accent', review: 'bg-warning', done: 'bg-success' };
@@ -137,6 +151,12 @@ function toMarkdown(page) {
       case 'code': lines.push('```', t, '```', ''); break;
       case 'divider': lines.push('---', ''); break;
       case 'image': lines.push(`![${t}](${new URL(b.url || '', location.origin).href})`, ''); break;
+      case 'toggle': lines.push('<details>', `<summary>${t}</summary>`, '', b.body || '', '', '</details>', ''); break;
+      case 'table': lines.push(tableMd(b.rows || [], b.header !== false), ''); break;
+      case 'bookmark': if (b.url) lines.push(`[${t || b.url}](${b.url})`, ''); break;
+      case 'video': if (b.url) lines.push(b.url, t, ''); break;
+      case 'file': if (b.url) lines.push(`[${t || 'Documento'}](${new URL(b.url, location.origin).href})`, ''); break;
+      case 'toc': break;
       case 'link': {
         const target = linkTarget(b);
         if (target) lines.push(b.target === 'page' ? `[[${pageTitle(target)}]]` : b.target === 'task' ? `${taskKey(target)} ${target.title || ''}` : target.number, '');
@@ -146,6 +166,47 @@ function toMarkdown(page) {
     }
   }
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+const IMPORT_ACCEPT = '.md,.markdown,.txt,.html,.htm,text/markdown,text/plain,text/html';
+/** Elegir uno o varios archivos de texto. */
+function pickTextFiles(done) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = IMPORT_ACCEPT;
+  input.multiple = true;
+  input.addEventListener('change', () => {
+    const files = [...(input.files || [])];
+    if (files.length) done(files);
+  });
+  input.click();
+}
+/** Cada archivo, una página nueva (en scope: dentro de otra, de un cliente o de un proyecto). */
+function importPages(scope = {}) {
+  pickTextFiles(async (files) => {
+    let last = null;
+    for (const file of files) {
+      try {
+        const { title, blocks } = await readPageFile(file);
+        const page = createPage({ ...scope, title, open: false });
+        page.blocks = blocks.length ? blocks : [ioBlock('p')];
+        put('pages', page);
+        last = page;
+      } catch {
+        toast.danger(`No se pudo leer ${file.name}`);
+      }
+    }
+    if (!last) return;
+    toast.success(files.length > 1 ? `Importadas ${files.length} páginas` : `Importada «${pageTitle(last)}»`);
+    go(`#/paginas/${last.id}`);
+  });
+}
+function downloadText(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/markdown;charset=utf-8' }));
+  a.download = name.replace(/[\\/:*?"<>|]+/g, '-');
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 const linkTarget = (b) => (b.target === 'page' ? find('pages', b.ref) : b.target === 'task' ? find('tasks', b.ref) : find('docs', b.ref));
@@ -323,7 +384,7 @@ function NewPageButton({ scope = {}, size = 'md', variant = 'primary', label = '
           <ChevronDown />
         </Button>
         <Dropdown.Popover placement="bottom end" className="min-w-72">
-          <Dropdown.Menu aria-label="Plantillas" onAction={(k) => createPage({ ...scope, template: String(k) })}>
+          <Dropdown.Menu aria-label="Plantillas" onAction={(k) => (k === '_import' ? importPages(scope) : createPage({ ...scope, template: String(k) }))}>
             {Object.entries(PAGE_TEMPLATES).map(([k, [tLabel, emoji, note]]) => (
               <Dropdown.Item key={k} id={k} textValue={tLabel}>
                 <span aria-hidden className="text-lg">
@@ -335,6 +396,13 @@ function NewPageButton({ scope = {}, size = 'md', variant = 'primary', label = '
                 </div>
               </Dropdown.Item>
             ))}
+            <Dropdown.Item id="_import" textValue="Importar archivos">
+              <FileArrowUp className="size-5 text-muted" />
+              <div className="flex flex-col">
+                <Label>Importar archivos…</Label>
+                <Description>Markdown, texto o HTML (Notion, Google Docs…)</Description>
+              </div>
+            </Dropdown.Item>
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>
@@ -433,12 +501,352 @@ function TextBlock({ b, ed, className = '' }) {
         onKeyDown={(e) => ed.onKey(e, b)}
         onPaste={(e) => {
           const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
-          if (!files.length) return;
-          e.preventDefault();
-          ed.addImages(files, b);
+          if (files.length) {
+            e.preventDefault();
+            ed.addImages(files, b);
+            return;
+          }
+          if (b.kind === 'code') return;
+          // Markdown o HTML (de Notion, Google Docs o una web) se pegan como bloques.
+          const html = e.clipboardData?.getData('text/html') || '';
+          const plain = e.clipboardData?.getData('text/plain') || '';
+          let list = [];
+          if (html && /<(p|h[1-6]|li|table|pre|blockquote|hr|img|details)\b/i.test(html)) list = htmlToBlocks(html);
+          else if (plain.includes('\n') || /^(#{1,6}\s|[-*+]\s|\d+[.)]\s|>\s|```|\|)/.test(plain)) list = mdToBlocks(plain);
+          if (list.length > 1 || (list.length === 1 && list[0].kind !== 'p')) {
+            e.preventDefault();
+            ed.insertBlocks(b, list);
+          }
         }}
       />
     </div>
+  );
+}
+
+/* ── Bloques que no son solo texto ──────────────────────────────────────── */
+
+const fitArea = (el) => {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+};
+const hostOf = (url) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+};
+const sizeText = (n) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n > 1024 ? `${Math.round(n / 1024)} KB` : n ? `${n} B` : '');
+
+/** Texto de varias líneas que, sin foco, se lee con sus enlaces (el cuerpo de un desplegable). */
+function BodyText({ value, onChange, placeholder }) {
+  const [, force] = useReducer((x) => x + 1, 0);
+  const [focused, setFocused] = useState(false);
+  const ref = useRef(null);
+  useLayoutEffect(() => fitArea(ref.current));
+  const text = value || '';
+  const showView = !focused && text.length > 0;
+  return (
+    <div className="relative text-[15px] leading-relaxed">
+      {showView && (
+        <div
+          className="min-h-[1.5em] cursor-text whitespace-pre-wrap break-words"
+          onClick={(e) => {
+            if (e.target.closest('a,button')) return;
+            ref.current?.focus();
+          }}
+        >
+          <Inline text={text} />
+        </div>
+      )}
+      <textarea
+        ref={ref}
+        rows={1}
+        value={text}
+        aria-label={placeholder}
+        placeholder={placeholder}
+        className={`block w-full resize-none overflow-hidden border-0 bg-transparent p-0 outline-none placeholder:text-muted/70 ${showView ? 'pointer-events-none absolute inset-0 opacity-0' : ''}`}
+        style={{ font: 'inherit' }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          force();
+        }}
+      />
+    </div>
+  );
+}
+
+/** Un campo para pegar una dirección (enlace web o vídeo). */
+function UrlInput({ placeholder, onSubmit, check }) {
+  const [value, setValue] = useState('');
+  const submit = () => {
+    const url = value.trim();
+    if (!/^https?:\/\/\S+$/i.test(url)) return toast.warning('Escribe una dirección que empiece por https://');
+    if (check && !check(url)) return undefined;
+    onSubmit(url);
+    return undefined;
+  };
+  return (
+    <form
+      className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-dashed border-border p-1.5 print:hidden"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <input
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted/70"
+      />
+      <Button size="sm" type="submit">
+        Añadir
+      </Button>
+    </form>
+  );
+}
+
+/** Desplegable: un título que abre lo de dentro. */
+function ToggleBlock({ b, ed }) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex items-start gap-1">
+        <button
+          type="button"
+          aria-expanded={Boolean(b.open)}
+          aria-label={b.open ? 'Cerrar' : 'Abrir'}
+          onClick={() => ed.change(() => { b.open = !b.open; })}
+          className="mt-[0.15em] flex size-6 shrink-0 items-center justify-center rounded-md text-muted hover:bg-default"
+        >
+          <ChevronRight className={`size-4 transition-transform ${b.open ? 'rotate-90' : ''}`} />
+        </button>
+        <TextBlock b={b} ed={ed} />
+      </div>
+      {b.open && (
+        <div className="ms-3 border-s-2 border-border ps-4 pt-1">
+          <BodyText value={b.body} placeholder="Lo que se ve al abrirlo…" onChange={(v) => { b.body = v; ed.touch(); }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Tabla: celdas que se escriben, con filas y columnas que se añaden y se quitan. */
+function TableBlock({ b, ed }) {
+  const [, force] = useReducer((x) => x + 1, 0);
+  b.rows ||= [['', ''], ['', '']];
+  const rows = b.rows;
+  const cols = Math.max(1, ...rows.map((r) => r.length));
+  return (
+    <div className="group/table min-w-0 flex-1">
+      <ScrollShadow orientation="horizontal" size={32}>
+        <table className="w-full min-w-max border-separate border-spacing-0 overflow-hidden rounded-xl border border-border text-sm">
+          <thead className="print:hidden">
+            <tr>
+              {Array.from({ length: cols }, (_, c) => (
+                <th key={c} className="h-0 p-0">
+                  {cols > 1 && (
+                    <button
+                      type="button"
+                      aria-label={`Quitar la columna ${c + 1}`}
+                      title="Quitar la columna"
+                      onClick={() => ed.change(() => { b.rows = rows.map((r) => r.filter((_, j) => j !== c)); })}
+                      className="relative -top-0 mx-auto hidden h-4 w-8 items-center justify-center rounded-b-md bg-default text-muted hover:text-danger group-hover/table:flex"
+                    >
+                      <Xmark className="size-3" />
+                    </button>
+                  )}
+                </th>
+              ))}
+              <th className="w-0 p-0" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, r) => {
+              const head = b.header && r === 0;
+              return (
+                <tr key={r} className="group/row">
+                  {Array.from({ length: cols }, (_, c) => (
+                    <td key={c} className={`border-b border-border p-0 align-top [&:not(:last-of-type)]:border-e ${head ? 'bg-surface-secondary font-semibold' : ''} ${r === rows.length - 1 ? 'border-b-0' : ''}`}>
+                      <textarea
+                        rows={1}
+                        value={row[c] ?? ''}
+                        aria-label={`Fila ${r + 1}, columna ${c + 1}`}
+                        ref={fitArea}
+                        onChange={(e) => {
+                          row[c] = e.target.value;
+                          fitArea(e.target);
+                          ed.touch();
+                          force();
+                        }}
+                        className="block w-full min-w-28 resize-none overflow-hidden bg-transparent px-2.5 py-2 outline-none focus:bg-accent/8"
+                        style={{ font: 'inherit' }}
+                      />
+                    </td>
+                  ))}
+                  <td className="w-0 p-0 align-middle print:hidden">
+                    <button
+                      type="button"
+                      aria-label={`Quitar la fila ${r + 1}`}
+                      title="Quitar la fila"
+                      onClick={() => ed.change(() => {
+                        b.rows = rows.filter((_, j) => j !== r);
+                        if (!b.rows.length) b.rows = [Array(cols).fill('')];
+                      })}
+                      className="ms-1 flex size-6 items-center justify-center rounded-md text-muted opacity-0 hover:text-danger group-hover/row:opacity-100 max-sm:opacity-60"
+                    >
+                      <Xmark className="size-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </ScrollShadow>
+      <div className="mt-1.5 flex flex-wrap gap-1 opacity-70 group-hover/table:opacity-100 print:hidden">
+        <Button size="sm" variant="ghost" onPress={() => ed.change(() => { b.rows = [...rows, Array(cols).fill('')]; })}>
+          <Plus />
+          Fila
+        </Button>
+        <Button size="sm" variant="ghost" onPress={() => ed.change(() => { b.rows = rows.map((r) => [...r, ...Array(cols - r.length).fill(''), '']); })}>
+          <Plus />
+          Columna
+        </Button>
+        <Button size="sm" variant="ghost" onPress={() => ed.change(() => { b.header = !b.header; })}>
+          {b.header ? 'Sin fila de títulos' : 'Primera fila como títulos'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Enlace web: una dirección con su título. */
+function BookmarkBlock({ b, ed }) {
+  const [, force] = useReducer((x) => x + 1, 0);
+  if (!b.url)
+    return (
+      <UrlInput
+        placeholder="Pega un enlace: https://…"
+        onSubmit={(url) => ed.change(() => {
+          b.url = url;
+          if (!b.text) b.text = hostOf(url);
+        })}
+      />
+    );
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-border px-3 py-2.5">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-surface-secondary">
+        <Globe className="size-4 text-muted" />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <input
+          value={b.text || ''}
+          aria-label="Título del enlace"
+          placeholder={hostOf(b.url)}
+          onChange={(e) => {
+            b.text = e.target.value;
+            ed.touch();
+            force();
+          }}
+          className="bg-transparent text-sm font-semibold outline-none"
+        />
+        <a href={b.url} target="_blank" rel="noopener noreferrer" className="truncate text-xs text-muted hover:underline">
+          {b.url}
+        </a>
+      </div>
+      <Button isIconOnly size="sm" variant="ghost" aria-label="Abrir el enlace" onPress={() => window.open(b.url, '_blank', 'noopener')}>
+        <ArrowUpRightFromSquare />
+      </Button>
+    </div>
+  );
+}
+
+/** Vídeo de YouTube, Vimeo o Loom, incrustado. */
+function VideoBlock({ b, ed }) {
+  const src = embedUrl(b.url);
+  if (!b.url || !src)
+    return (
+      <UrlInput
+        placeholder="Pega el enlace de YouTube, Vimeo o Loom"
+        check={(url) => {
+          if (embedUrl(url)) return true;
+          toast.warning('Ese enlace no es de un vídeo de YouTube, Vimeo o Loom');
+          return false;
+        }}
+        onSubmit={(url) => ed.change(() => { b.url = url; })}
+      />
+    );
+  return (
+    <figure className="m-0 flex min-w-0 flex-1 flex-col gap-1.5">
+      <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black">
+        <iframe
+          src={src}
+          title={b.text || 'Vídeo'}
+          className="size-full border-0"
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      </div>
+      <figcaption>
+        <TextBlock b={b} ed={ed} />
+      </figcaption>
+    </figure>
+  );
+}
+
+/** PDF adjunto. */
+function FileBlock({ b, ed }) {
+  if (!b.url)
+    return (
+      <button
+        type="button"
+        onClick={() => ed.pickFile(b)}
+        className="flex h-20 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl border border-dashed border-border text-sm text-muted hover:bg-surface-secondary print:hidden"
+      >
+        <Paperclip className="size-4" />
+        Subir un PDF
+      </button>
+    );
+  return (
+    <a href={b.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-border px-3 py-2.5 no-underline hover:bg-surface-secondary">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-danger/10 text-danger">
+        <FileText className="size-4" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <b className="truncate text-sm font-semibold text-foreground">{b.text || 'Documento.pdf'}</b>
+        <span className="text-xs text-muted">{['PDF', sizeText(b.size)].filter(Boolean).join(' · ')}</span>
+      </span>
+      <ArrowUpRightFromSquare className="size-4 text-muted" />
+    </a>
+  );
+}
+
+/** Índice: los títulos de la página, para saltar a ellos. */
+function TocBlock({ ed }) {
+  const heads = ed.page.blocks.filter((x) => ['h1', 'h2', 'h3'].includes(x.kind) && (x.text || '').trim());
+  if (!heads.length) return <p className="flex-1 rounded-2xl bg-surface-secondary px-3 py-2.5 text-sm text-muted">Añade títulos a la página y aquí saldrá su índice.</p>;
+  return (
+    <nav aria-label="Índice de la página" className="flex min-w-0 flex-1 flex-col rounded-2xl bg-surface-secondary px-2 py-2">
+      {heads.map((h) => (
+        <button
+          key={h.id}
+          type="button"
+          onClick={() => document.querySelector(`[data-block="${h.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+          className={`truncate rounded-lg px-2 py-1 text-start text-sm hover:bg-default ${h.kind === 'h1' ? 'font-semibold' : h.kind === 'h2' ? 'ps-5' : 'ps-8 text-muted'}`}
+        >
+          {h.text}
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -493,6 +901,7 @@ function BlockRow({ b, i, ed }) {
         <TextBlock b={b} ed={ed} />
       </div>
     );
+  else if (b.kind === 'toggle') content = <ToggleBlock b={b} ed={ed} />;
   else if (TEXTUAL.has(b.kind)) content = <TextBlock b={b} ed={ed} />;
   else if (b.kind === 'divider') content = <Separator className="my-3 flex-1" />;
   else if (b.kind === 'image')
@@ -517,6 +926,11 @@ function BlockRow({ b, i, ed }) {
         <LinkCard b={b} />
       </div>
     );
+  else if (b.kind === 'table') content = <TableBlock b={b} ed={ed} />;
+  else if (b.kind === 'bookmark') content = <BookmarkBlock b={b} ed={ed} />;
+  else if (b.kind === 'video') content = <VideoBlock b={b} ed={ed} />;
+  else if (b.kind === 'file') content = <FileBlock b={b} ed={ed} />;
+  else if (b.kind === 'toc') content = <TocBlock ed={ed} />;
   else content = <div className="flex-1" />;
 
   return (
@@ -675,6 +1089,21 @@ function Editor({ page }) {
       setPick({ at: below(row), kind: 'linkBlock', b });
       return;
     }
+    if (kind === 'table' || kind === 'bookmark' || kind === 'video' || kind === 'toc') {
+      Object.assign(b, { kind, text: '' }, kind === 'table' ? { rows: [['', '', ''], ['', '', ''], ['', '', '']], header: true } : kind === 'toc' ? {} : { url: '' });
+      const next = insertAfter(b, block('p'));
+      changed();
+      if (kind === 'toc') focusSoon(next.id, 'start');
+      return;
+    }
+    if (kind === 'file') {
+      pickFile(b);
+      return;
+    }
+    if (kind === 'toggle') {
+      b.open = true;
+      b.body ||= '';
+    }
     if (kind === 'subpage') {
       const child = createPage({ parentId: page.id, open: false });
       Object.assign(b, { kind: 'link', target: 'page', ref: child.id, text: '' });
@@ -688,11 +1117,46 @@ function Editor({ page }) {
     focusSoon(b.id, caret);
   };
 
+  /** Un PDF (o una imagen) para un bloque «PDF». */
+  const pickFile = (b) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/pdf,image/png,image/jpeg,image/webp';
+    input.addEventListener('change', async () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      toast(`Subiendo ${f.name}…`);
+      try {
+        const meta = await uploadFile(f);
+        if (f.type.startsWith('image/')) Object.assign(b, { kind: 'image', url: fileUrl(meta.id), text: '' });
+        else Object.assign(b, { kind: 'file', url: fileUrl(meta.id), text: f.name, size: f.size });
+        if (!page.blocks.includes(b)) page.blocks.push(b);
+        changed();
+        toast.success('Listo');
+      } catch (err) {
+        toast.danger('No se pudo subir', { description: err.message });
+      }
+    });
+    input.click();
+  };
+
   const ed = {
     page,
     dragging,
     change,
     addImages,
+    touch,
+    pickFile,
+    /** Bloques que llegan de fuera (pegados): ocupan el bloque vacío o van detrás. */
+    insertBlocks(b, list) {
+      const i = at(b);
+      if (TEXTUAL.has(b.kind) && !(b.text || '').trim()) page.blocks.splice(i, 1, ...list);
+      else page.blocks.splice(i + 1, 0, ...list);
+      changed();
+      const last = [...list].reverse().find((x) => TEXTUAL.has(x.kind));
+      if (last) focusSoon(last.id, 'end');
+      toast(`Pegado como ${plural(list.length, 'bloque', 'bloques')}`);
+    },
     onInput(e, b) {
       const area = e.target;
       const v = area.value;
@@ -905,6 +1369,23 @@ function Editor({ page }) {
     if (k === 'move') setPick({ at: below(document.querySelector('[data-page-more]')), kind: 'move' });
     if (k === 'dup') duplicatePage();
     if (k === 'md') copyText(toMarkdown(page)).then((ok) => (ok ? toast.success('Copiada como Markdown') : toast.danger('No se pudo copiar')));
+    if (k === 'download') downloadText(`${pageTitle(page)}.md`, toMarkdown(page));
+    if (k === 'import')
+      pickTextFiles(async (files) => {
+        let added = 0;
+        for (const file of files) {
+          const { title, blocks } = await readPageFile(file);
+          if (!blocks.length) continue;
+          const empty = page.blocks.length === 1 && TEXTUAL.has(page.blocks[0].kind) && !page.blocks[0].text;
+          if (empty) page.blocks = [];
+          if (files.length > 1) page.blocks.push(block('h2', title));
+          page.blocks.push(...blocks);
+          if (!page.title && files.length === 1) page.title = title;
+          added += blocks.length;
+        }
+        changed();
+        toast.success(added ? `Importados ${plural(added, 'bloque', 'bloques')}` : 'No había nada que importar');
+      });
     if (k === 'print') printPage();
     if (k === 'delete') setAsking(true);
   };
@@ -1053,6 +1534,14 @@ function Editor({ page }) {
                   <Dropdown.Item id="md" textValue="Copiar como Markdown">
                     <LogoMarkdown className="size-4" />
                     <Label>Copiar como Markdown</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="download" textValue="Descargar en Markdown">
+                    <ArrowDownToLine className="size-4" />
+                    <Label>Descargar (.md)</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="import" textValue="Importar aquí">
+                    <FileArrowUp className="size-4" />
+                    <Label>Importar aquí…</Label>
                   </Dropdown.Item>
                   <Dropdown.Item id="print" textValue="Imprimir o PDF">
                     <Printer className="size-4" />
@@ -1410,6 +1899,15 @@ function Overview() {
                 <span className="line-clamp-2 text-xs text-muted">{note}</span>
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => importPages()}
+              className="flex w-48 shrink-0 flex-col gap-1 rounded-3xl border-2 border-dashed border-border p-4 text-start outline-none transition-colors hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-focus"
+            >
+              <FileArrowUp className="size-7 text-muted" />
+              <b className="text-sm font-semibold">Importar</b>
+              <span className="line-clamp-2 text-xs text-muted">Markdown, texto o HTML: de Notion, Google Docs u Obsidian.</span>
+            </button>
           </div>
         </ScrollShadow>
       </section>

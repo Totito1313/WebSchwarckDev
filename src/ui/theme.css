@@ -188,26 +188,10 @@ html {
   scrollbar-width: none;
 }
 
-/* Perillas blancas, como en HeroUI. HeroUI pinta la bolita del interruptor
-   encendido, el punto del botón de opción elegido y la perilla del deslizador con
-   --accent-foreground, que en su tema es blanco. En el nuestro es casi negro (el
-   texto negro se lee mejor sobre el cian), así que aquí se vuelven a poner en
-   blanco: son piezas, no texto. */
-.switch[data-selected='true'] .switch__thumb,
-.switch[aria-checked='true'] .switch__thumb {
-  background-color: #ffffff;
-}
-.radio[data-selected] .radio__indicator:empty::before,
-.radio:has([data-slot='radio-content'][aria-checked='true']) .radio__indicator:empty::before,
-.radio:has(input:checked) .radio__indicator:empty::before {
-  background-color: #ffffff;
-}
-.slider__thumb::after {
-  background-color: #ffffff;
-}
-.slider__step[data-filled='true'] {
-  background-color: rgb(255 255 255 / 0.35);
-}
+/* Interruptores, botones de opción y deslizadores: tal cual los pinta HeroUI. La
+   perilla encendida usa --accent-foreground, así que con nuestro cian (un acento
+   claro) sale oscura sobre el cian, como el tema «Sky» de la documentación; el
+   riel apagado usa --default, claro u oscuro según el modo. No se sobrescribe. */
 
 /* Segmento con iconos (kit/Segment.jsx): bandeja en píldora y un indicador que se
    desliza hasta la opción activa. Mismas medidas y colores que las pestañas de
