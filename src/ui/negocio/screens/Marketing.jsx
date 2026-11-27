@@ -57,7 +57,7 @@ import { useOpenAfterGesture } from '../../kit/hooks.js';
 import { go, useCrm } from '../store.js';
 import { fmt, money } from '../domain.js';
 import { AmountField, ConfirmButton, DateInput, FormModal, SelectField } from '../fields.jsx';
-import { Kanban } from '../../pro/index.js';
+import { Kanban, KpiGroup, Widget } from '../../pro/index.js';
 import { Pieza } from './Pieza.jsx';
 import { Segment } from '../../kit/Segment.jsx';
 import { BrandMark, CampanaPage, Campanas, Feed, MARCA_KEY, MarcaPage, Marcas, Resultados } from './MarketingMas.jsx';
@@ -449,12 +449,16 @@ export function Marketing({ tab, arg }) {
           </Button>
         }
       />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Este mes" value={String(month.length)} icon={Megaphone} sub={`${published.length} publicadas`} />
-        <Stat label="Alcance del mes" value={numText(reach)} sub="De lo publicado" />
-        <Stat label="Por aprobar" value={String((state.posts || []).filter((p) => ['guion', 'diseno'].includes(p.status)).length)} sub="En guion o diseño" />
-        <Stat label="Campañas en marcha" value={String(campaigns().filter((c) => c.status === 'active').length)} sub={fmt(round2(campaigns().reduce((s, c) => s + (Number(c.spent) || 0), 0)))} />
-      </div>
+      <Widget title="Este mes">
+        <KpiGroup
+          items={[
+            { label: 'Publicaciones', value: String(month.length), sub: `${published.length} publicadas` },
+            { label: 'Alcance', value: numText(reach), sub: 'De lo publicado' },
+            { label: 'Por aprobar', value: String((state.posts || []).filter((p) => ['guion', 'diseno'].includes(p.status)).length), sub: 'En guion o diseño', href: '#/marketing/tablero' },
+            { label: 'Campañas en marcha', value: String(campaigns().filter((c) => c.status === 'active').length), sub: `${fmt(round2(campaigns().reduce((s, c) => s + (Number(c.spent) || 0), 0)))} gastado`, href: '#/marketing/campanas' },
+          ]}
+        />
+      </Widget>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Segment items={TAB_ITEMS} value={view} label="Vistas de marketing" className="max-w-full" />
         {view !== 'marcas' && (

@@ -61,22 +61,28 @@ export function Widget({ title, description, action, footer, children, className
 
 /** Cifra con su variación y, si se da, su tendencia en pequeño. */
 export function Kpi({ label, value, delta, upIsGood = true, deltaLabel, trend, trendColor, sub, href, tone }) {
+  // Se mide su propio ancho (@container): estrecha, la cifra baja de tamaño y la
+  // tendencia se esconde; así cabe igual en una fila de cuatro que en el teléfono.
   const body = (
+    <div className="@container min-w-0">
     <div className="flex min-w-0 items-end justify-between gap-3">
       <div className="flex min-w-0 flex-col gap-1.5">
         <span className="truncate text-sm text-muted">{label}</span>
-        <span className="sw-figure truncate text-3xl" style={tone ? { color: tone } : undefined}>
+        <span className="sw-figure truncate text-2xl @[13rem]:text-3xl" style={tone ? { color: tone } : undefined}>
           {value}
         </span>
-        {delta != null ? <TrendChip value={delta} upIsGood={upIsGood} label={deltaLabel} /> : sub && <span className="truncate text-xs text-muted">{sub}</span>}
+        {delta != null ? <TrendChip value={delta} upIsGood={upIsGood} label={deltaLabel} /> : sub && <span className="line-clamp-2 text-xs text-muted @[16rem]:truncate">{sub}</span>}
       </div>
       {trend && trend.length > 1 && (
-        <Sparkline
-          values={trend}
-          color={trendColor || (delta == null || Math.abs(delta) < 0.0005 ? 'var(--muted)' : (delta > 0) === upIsGood ? 'var(--success)' : 'var(--danger)')}
-          label={`Tendencia de ${label}`}
-        />
+        <span className="hidden shrink-0 @[17rem]:block">
+          <Sparkline
+            values={trend}
+            color={trendColor || (delta == null || Math.abs(delta) < 0.0005 ? 'var(--muted)' : (delta > 0) === upIsGood ? 'var(--success)' : 'var(--danger)')}
+            label={`Tendencia de ${label}`}
+          />
+        </span>
       )}
+    </div>
     </div>
   );
   return href ? (
@@ -88,18 +94,23 @@ export function Kpi({ label, value, delta, upIsGood = true, deltaLabel, trend, t
   );
 }
 
-/** Fila de cifras dentro de un widget, separadas por una línea fina. */
+/**
+ * Fila de cifras dentro de un widget, separadas por una línea fina. Cuántas por fila
+ * depende del sitio que tiene el widget (no de la pantalla): cuatro si caben, si no dos.
+ */
 export function KpiGroup({ items }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-0">
+    <div className="@container">
+    <div className="grid grid-cols-2 gap-x-4 gap-y-5 @3xl:grid-cols-4 @3xl:gap-0">
       {items.map((k, i) => (
         <div key={k.label} className="flex min-w-0 items-stretch">
-          {i > 0 && <Separator orientation="vertical" className="mx-5 hidden h-auto xl:block" />}
+          {i > 0 && <Separator orientation="vertical" className="mx-5 hidden h-auto @3xl:block" />}
           <div className="min-w-0 flex-1">
             <Kpi {...k} />
           </div>
         </div>
       ))}
+    </div>
     </div>
   );
 }

@@ -9,6 +9,11 @@
   <!-- useTheme de HeroUI guarda el tema en «heroui-theme»; esto lo aplica antes del primer pintado. -->
   <script>try{var t=localStorage.getItem('heroui-theme')||'system';if(t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);document.documentElement.classList.add(t)}catch(e){}</script>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <!-- Se instala en el teléfono (o en el ordenador) como app: ver src/ui/kit/install.js. -->
+  <link rel="manifest" href="/cliente-nuevo/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/cliente/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Mi proyecto">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://zblcnysojrogwbflived.supabase.co">

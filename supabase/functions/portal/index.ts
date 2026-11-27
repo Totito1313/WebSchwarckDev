@@ -6,6 +6,8 @@
 //                                      y, los lunes, el resumen de la semana
 //   POST { action: 'claim' }           crea o recupera la cuenta del estudio con un pase de un solo uso
 //                                      que da el panel de schwarckdev.com (prueba que tiene la sesión abierta)
+//   POST { action: 'ticket_login' }    con ese mismo pase, entra en la cuenta del estudio sin contraseña
+//                                      (devuelve el token de un enlace mágico, que no se manda por correo)
 //   POST { action: 'invite' | 'password' | 'link' | 'users' | 'create_user' | 'set_studio' | 'delete_user'
 //          | 'mcp_key' | 'mcp_status' | 'mcp_revoke' }
 //                                      solo el estudio (app_metadata.role = 'admin'); los tres últimos,
@@ -505,6 +507,30 @@ async function claim(body: Row) {
   return { ok: true, email: r.user.email };
 }
 
+/**
+ * Entra como el estudio sin contraseña: quien tiene abierta la sesión del panel de
+ * Negocio es el dueño, y el pase de un solo uso (que solo da el panel con esa sesión,
+ * y que comprueba el Worker) lo prueba. Es lo mismo que ya permite `claim` (que
+ * cambia la contraseña de la cuenta del estudio), sin tocar la contraseña.
+ * Devuelve el token de un enlace mágico de la cuenta del estudio, que la app canjea
+ * con verifyOtp; el enlace no se manda por correo.
+ */
+async function ticketLogin(body: Row) {
+  const ticket = String(body.ticket ?? '');
+  if (!/^[A-Za-z0-9_-]{40,60}$/.test(ticket)) throw new Fail(400, 'Pase no válido.');
+  const check = await fetch('https://schwarckdev.com/api/portal-ticket', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ticket }) });
+  if (!check.ok) throw new Fail(401, 'El pase no vale: vuelve a intentarlo desde el panel.');
+  const studios = (await listUsers()).filter((u) => u.studio);
+  if (!studios.length) throw new Fail(404, 'Todavía no hay cuenta del estudio.');
+  const want = String(body.email ?? '').trim().toLowerCase();
+  // Si hay varias, la que se pidió o la última que entró.
+  const user = studios.find((u) => u.email === want) ?? [...studios].sort((a, b) => String(b.last_sign_in_at ?? '').localeCompare(String(a.last_sign_in_at ?? '')))[0];
+  const data = await sb('/auth/v1/admin/generate_link', { method: 'POST', body: { type: 'magiclink', email: user.email } });
+  const tokenHash = data?.hashed_token ?? data?.properties?.hashed_token;
+  if (!tokenHash) throw new Fail(502, 'Supabase no devolvió el pase de entrada.');
+  return { email: user.email, token_hash: tokenHash };
+}
+
 // ── Entrada ──
 
 Deno.serve(async (req) => {
@@ -526,6 +552,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'claim') return json(await claim(body));
+    if (action === 'ticket_login') return json(await ticketLogin(body));
 
     const who = await caller(req);
     if (action === 'test') {

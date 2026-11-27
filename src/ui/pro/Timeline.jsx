@@ -53,6 +53,7 @@ export function Timeline({ items, split = false, label = 'Historial', className 
         return (
           <li
             key={it.id}
+            data-item={it.id}
             className={`relative grid gap-x-3 ${split ? 'grid-cols-[minmax(4.5rem,7rem)_1.75rem_minmax(0,1fr)]' : 'grid-cols-[1.75rem_minmax(0,1fr)]'} ${last ? '' : 'pb-5'}`}
             aria-current={it.current ? 'step' : undefined}
           >

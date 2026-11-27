@@ -36,6 +36,31 @@ export async function studioSession() {
   const s = (await (await sb()).auth.getSession()).data.session;
   return s ? { user: s.user, admin: s.user?.app_metadata?.role === 'admin', token: s.access_token } : null;
 }
+
+/**
+ * Entra en la cuenta del estudio sin contraseña: con la sesión del panel abierta, el
+ * Worker da un pase de un solo uso y la función `portal` (acción ticket_login) lo
+ * canjea por la entrada de la cuenta del estudio. Si no hay cuenta del estudio, el
+ * error lleva status 404 (hay que crearla). Devuelve la sesión nueva.
+ */
+export async function autoStudioLogin() {
+  const { ticket } = await api('/portal-ticket', { method: 'POST' });
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/portal`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', apikey: SUPABASE_KEY },
+    body: JSON.stringify({ action: 'ticket_login', ticket }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.token_hash) {
+    const err = new Error(data.error || 'No se pudo entrar como el estudio.');
+    err.status = res.status;
+    throw err;
+  }
+  const c = await sb();
+  await c.auth.signOut({ scope: 'local' }).catch(() => {});
+  must(await c.auth.verifyOtp({ type: 'magiclink', token_hash: data.token_hash }));
+  return studioSession();
+}
 /** Sin abrir Supabase: si este navegador guardó alguna vez una sesión del portal. */
 const mightHaveSession = () => {
   try {

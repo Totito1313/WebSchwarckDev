@@ -17,6 +17,13 @@
   Cache-Control: no-store
   X-Robots-Tag: noindex
 
+# Negocio instalable (app de escritorio): su service worker y su manifiesto.
+/admin/negocio/sw.js
+  Service-Worker-Allowed: /admin/negocio/
+
+/admin/negocio/manifest.webmanifest
+  Content-Type: application/manifest+json
+
 # Mis apps: novedades, reseñas, botón de descarga y gráficos para Play.
 /apps/*
   Cache-Control: no-store
@@ -44,6 +51,14 @@
 /cliente-nuevo/*
   X-Robots-Tag: noindex
   Referrer-Policy: no-referrer
+
+/cliente-nuevo/sw.js
+  Cache-Control: no-cache
+  Service-Worker-Allowed: /cliente-nuevo/
+
+/cliente-nuevo/manifest.webmanifest
+  Cache-Control: no-cache
+  Content-Type: application/manifest+json
 
 # La página que abre el cliente con un enlace: ni se guarda en caché ni se indexa.
 /documento/*

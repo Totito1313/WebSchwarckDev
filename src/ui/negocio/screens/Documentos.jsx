@@ -8,7 +8,8 @@ import { Button, ButtonGroup, Card, Chip, Description, Dropdown, Label, Link, Se
 import { find, newDoc, pubOf, put } from '../../../negocio-core.js';
 import { Empty, PageHeader, Panel, Person, Stat, StatusChip } from '../../kit/parts.jsx';
 import { copyText, downloadCsv } from '../../kit/csv.js';
-import { DataGrid, Timeline } from '../../pro/index.js';
+import { ComposedChart, DataGrid, DonutChart, Timeline, Widget } from '../../pro/index.js';
+import { billedAndCollected, compactNum, issued, monthKeys, monthLabel } from '../series.js';
 import { ConfirmDialog } from '../fields.jsx';
 import { go, useCrm } from '../store.js';
 import { PaymentForm, setDocStatus, toInvoice } from '../payments.jsx';
@@ -37,6 +38,104 @@ const FILTERS = {
   ],
 };
 FILTERS.proposal = FILTERS.quote;
+
+/**
+ * Arriba de cada lista, en gráficos: en facturas, lo facturado y lo cobrado de cada
+ * mes y cómo están (pagadas, por cobrar, vencidas); en cotizaciones y propuestas,
+ * cuántas se mandaron y cuántas se aceptaron, y en qué quedaron.
+ */
+function SalesCharts({ type, docs }) {
+  const cur = base();
+  if (type === 'invoice') {
+    const months = billedAndCollected(docs.map(({ d }) => d));
+    const parts = { paid: 0, open: 0, overdue: 0 };
+    for (const { d, s, t } of docs) {
+      if (!issued(d)) continue;
+      if (s === 'paid') parts.paid += t.total ? sumBase([[d, t.total]]).sum : 0;
+      else if (s === 'overdue') parts.overdue += sumBase([[d, t.due]]).sum;
+      else if (t.due > 0.004) {
+        parts.open += sumBase([[d, t.due]]).sum;
+        parts.paid += sumBase([[d, t.paid || 0]]).sum;
+      }
+    }
+    return (
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Widget title="Facturado y cobrado" description={`Últimos 12 meses, en ${cur}`} className="lg:col-span-2">
+          <ComposedChart
+            title="Facturado y cobrado de los últimos 12 meses"
+            xLabel="Mes"
+            height={200}
+            data={months}
+            series={[
+              { key: 'billed', name: 'Facturado', type: 'bar', color: 'var(--sw-cat-other)' },
+              { key: 'collected', name: 'Cobrado', type: 'bar', color: 'var(--sw-chart-in)' },
+            ]}
+            format={(x) => money(x, cur)}
+            compact={compactNum}
+          />
+        </Widget>
+        <Widget title="Cómo están" description="Lo emitido, por estado">
+          <DonutChart
+            title="Facturas por estado"
+            parts={[
+              { key: 'paid', label: 'Cobrado', value: parts.paid, color: 'var(--success)' },
+              { key: 'open', label: 'Por cobrar', value: parts.open, color: 'var(--warning)' },
+              { key: 'overdue', label: 'Vencido', value: parts.overdue, color: 'var(--danger)' },
+            ]}
+            format={(x) => money(x, cur)}
+            totalLabel="Emitido"
+            size={140}
+            layout="stack"
+          />
+        </Widget>
+      </div>
+    );
+  }
+  const keys = monthKeys(12);
+  const months = keys.map((key) => ({
+    key,
+    label: monthLabel(key),
+    sent: docs.filter(({ d }) => issued(d) && (d.issueDate || '').slice(0, 7) === key).length,
+    accepted: docs.filter(({ d, s }) => s === 'accepted' && (d.issueDate || '').slice(0, 7) === key).length,
+  }));
+  const count = (fn) => docs.filter(({ d, s }) => issued(d) && fn(s)).length;
+  const accepted = count((s) => s === 'accepted');
+  const lost = count((s) => ['declined', 'expired'].includes(s));
+  const waiting = count((s) => ['sent', 'viewed', 'issued', 'pending'].includes(s));
+  const rate = accepted + lost ? Math.round((accepted / (accepted + lost)) * 100) : null;
+  return (
+    <div className="grid gap-4 lg:grid-cols-3">
+      <Widget title="Enviadas y aceptadas" description="Por mes de emisión, en los últimos 12 meses" className="lg:col-span-2">
+        <ComposedChart
+          title="Enviadas y aceptadas de los últimos 12 meses"
+          xLabel="Mes"
+          height={200}
+          data={months}
+          series={[
+            { key: 'sent', name: 'Enviadas', type: 'bar', color: 'var(--sw-cat-other)' },
+            { key: 'accepted', name: 'Aceptadas', type: 'bar', color: 'var(--success)' },
+          ]}
+          format={(x) => String(x)}
+          compact={(x) => (Number.isInteger(x) ? String(x) : '')}
+        />
+      </Widget>
+      <Widget title="En qué quedaron" description={rate == null ? 'Aún ninguna cerrada' : `${rate} % aceptadas de las cerradas`}>
+        <DonutChart
+          title="Por estado"
+          parts={[
+            { key: 'accepted', label: 'Aceptadas', value: accepted, color: 'var(--success)' },
+            { key: 'waiting', label: 'Esperando', value: waiting, color: 'var(--accent)' },
+            { key: 'lost', label: 'Rechazadas o caducadas', value: lost, color: 'var(--danger)' },
+          ]}
+          format={(x) => String(x)}
+          totalLabel="Enviadas"
+          size={140}
+          layout="stack"
+        />
+      </Widget>
+    </div>
+  );
+}
 
 /** Crea el borrador y lo abre en el editor (las propuestas eligen antes su plantilla). */
 export async function createAndEdit(type) {
@@ -121,6 +220,7 @@ export function Documentos({ type, isNew = false }) {
         <Empty icon={FileText} title={`Todavía no hay ${PLURAL[type].toLowerCase()}`} text="Se numeran solas por tipo y año, y se comparten con un enlace para ver, pagar o firmar." action={<Button onPress={() => createAndEdit(type)}>{NEW_WORD[type]}</Button>} />
       ) : (
         <>
+          {docs.some(({ d }) => issued(d)) && <SalesCharts type={type} docs={docs} />}
           <Tabs selectedKey={filter} onSelectionChange={(k) => setFilter(String(k))}>
             <Tabs.ListContainer>
               <Tabs.List aria-label="Filtrar">

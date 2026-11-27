@@ -8,6 +8,12 @@
   <!-- useTheme de HeroUI guarda el tema en «heroui-theme»; esto lo aplica antes del primer pintado. -->
   <script>try{var t=localStorage.getItem('heroui-theme')||'system';if(t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);document.documentElement.classList.add(t)}catch(e){}</script>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <!-- Se instala como app (Windows o macOS desde Edge o Chrome, o en el teléfono): ver src/ui/kit/install.js. -->
+  <link rel="manifest" href="/admin/negocio/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/cliente/icon-192.png">
+  <meta name="theme-color" content="#f1f2f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-title" content="Negocio">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Allura&family=Anton&family=DM+Sans:wght@400;500;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">

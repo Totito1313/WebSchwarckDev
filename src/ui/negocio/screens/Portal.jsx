@@ -2,10 +2,12 @@
 // la sincronización de proyectos, documentos y datos con sus portales, el trabajo
 // de hoy listo para su reporte, los portales, las cuentas con sus permisos (Accesos)
 // y la identidad de cada app (PortalAdmin.jsx). Usa la cuenta del estudio en Supabase
-// (la misma sesión que la app /cliente/).
-import { useCallback, useEffect, useMemo, useState } from 'react';
+// (la misma sesión que la app /cliente/). Al abrirlo con la sesión del panel, entra
+// solo como el estudio (autoStudioLogin); la contraseña solo hace falta la primera vez,
+// para crear la cuenta del estudio.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { encode } from 'uqr';
-import { Archive, ArrowRotateRight, ArrowUpRightFromSquare, CircleCheck, EllipsisVertical, Key, Link as LinkIcon, Palette, Persons, Plus, Shield, Smartphone, Star, TrashBin, Tray } from '@gravity-ui/icons';
+import { Archive, ArrowRotateRight, ArrowUpRightFromSquare, ChevronDown, CircleCheck, EllipsisVertical, Key, Link as LinkIcon, Palette, Persons, Plus, Shield, Smartphone, Star, TrashBin, Tray } from '@gravity-ui/icons';
 import {
   Avatar,
   AvatarGroup,
@@ -21,6 +23,7 @@ import {
   Input,
   Label,
   Link,
+  Popover,
   Skeleton,
   Tabs,
   TextField,
@@ -28,14 +31,14 @@ import {
 } from '@heroui/react';
 import { api, find, put, state as crm, todayISO } from '../../../negocio-core.js';
 import { newTask, taskKey } from '../../../negocio-work.js';
-import { clientAsks, must, ratingsByPortal, sb, sendWork, settleField, studioSession, syncNow, syncState } from '../../../negocio-puente.js';
+import { autoStudioLogin, clientAsks, must, ratingsByPortal, sb, sendWork, settleField, studioSession, syncNow, syncState } from '../../../negocio-puente.js';
 import { BUCKET, FUNCTION_URL, SUPABASE_KEY } from '../../../portal/config.js';
 import { Empty, PageHeader, Panel, Stat } from '../../kit/parts.jsx';
 import { go, useCrm } from '../store.js';
 import { ConfirmDialog, FormModal } from '../fields.jsx';
 import { Segment } from '../../kit/Segment.jsx';
 import { Accesos, ClaudeDialog, Identidad, NewPortalDialog, PermsDialog, PortalLogo, changedPerms, loadPortals } from './PortalAdmin.jsx';
-import { ApprovalCard } from '../../pro/index.js';
+import { ApprovalCard, ComposedChart, DonutChart, KpiGroup, Widget } from '../../pro/index.js';
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const minutesText = (m) => (!m ? '' : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`);
@@ -457,47 +460,89 @@ function Summary() {
   useEffect(() => {
     (async () => {
       const c = await sb();
-      const [clients, members, unseen, sent, meetings, ratings] = await Promise.all([
-        c.from('portal_clients').select('id, archived').then(must),
-        c.from('portal_members').select('user_id').then(must),
+      const since = new Date(Date.now() - 56 * 86_400_000).toISOString();
+      const [clients, members, unseen, sent, meetings, ratings, subs, tasks] = await Promise.all([
+        c.from('portal_clients').select('id, name, archived, accent').then(must),
+        c.from('portal_members').select('user_id, client_id').then(must),
         c.from('portal_submissions').select('id', { count: 'exact', head: true }).is('seen_at', null),
         c.from('portal_tasks').select('id', { count: 'exact', head: true }).eq('status', 'submitted'),
         c.from('portal_meetings').select('id', { count: 'exact', head: true }).eq('status', 'requested').then((r) => (r.error ? null : r.count)),
         ratingsByPortal().catch(() => []),
+        c.from('portal_submissions').select('created_at').gte('created_at', since).then((r) => (r.error ? [] : r.data)),
+        c.from('portal_tasks').select('created_at, status').gte('created_at', since).then((r) => (r.error ? [] : r.data)),
       ]);
       const avg = ratings.length ? ratings.reduce((s, r) => s + r.avg, 0) / ratings.length : null;
-      setStats({ clients, people: new Set(members.map((m) => m.user_id)).size, unseen: unseen.count || 0, sent: sent.count || 0, meetings, avg, rated: ratings.length });
+      // Semana a semana: lo que te mandaron y las peticiones que abriste.
+      const weeks = Array.from({ length: 8 }, (_, i) => {
+        const from = Date.now() - (8 - i) * 7 * 86_400_000;
+        const to = from + 7 * 86_400_000;
+        const inWeek = (row) => {
+          const t = Date.parse(row.created_at);
+          return t >= from && t < to;
+        };
+        return {
+          key: String(i),
+          label: new Date(to - 86_400_000).toLocaleDateString('es', { day: 'numeric', month: 'short' }),
+          subs: subs.filter(inWeek).length,
+          tasks: tasks.filter(inWeek).length,
+        };
+      });
+      const byPortal = clients
+        .filter((x) => !x.archived)
+        .map((x) => ({ key: x.id, label: x.name, value: new Set(members.filter((m) => m.client_id === x.id).map((m) => m.user_id)).size }));
+      setStats({ clients, people: new Set(members.map((m) => m.user_id)).size, unseen: unseen.count || 0, sent: sent.count || 0, meetings, avg, rated: ratings.length, weeks, byPortal });
     })().catch((err) => toast.danger('No se pudo cargar el resumen', { description: err.message }));
   }, []);
-  const url = `${location.origin}/cliente/`;
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {stats ? (
-          <>
-            <Stat label="Portales" value={String(stats.clients.filter((x) => !x.archived).length)} icon={Smartphone} sub={plural(stats.clients.filter((x) => x.archived).length, 'archivado', 'archivados')} />
-            <Stat label="Personas" value={String(stats.people)} icon={Persons} sub="Con acceso a algún portal" />
-            <Stat label="Te enviaron" value={String(stats.unseen)} icon={Tray} sub="Sin ver todavía" />
-            <Stat label="Peticiones" value={String(stats.sent)} sub="Esperan tu revisión" />
-            <Stat label="Valoración" value={stats.avg != null ? `${stats.avg.toFixed(1).replace('.', ',')} ★` : '—'} icon={Star} sub={stats.avg != null ? `Media de ${plural(stats.rated, 'cliente', 'clientes')}` : 'Sin valoraciones'} />
-          </>
-        ) : (
-          Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-28 rounded-3xl" />)
-        )}
-      </div>
+      {stats ? (
+        <>
+          <Widget title="Tus portales" action={<span>{plural(stats.clients.filter((x) => x.archived).length, 'archivado', 'archivados')}</span>}>
+            <KpiGroup
+              items={[
+                { label: 'Portales activos', value: String(stats.clients.filter((x) => !x.archived).length), sub: `${plural(stats.people, 'persona', 'personas')} con acceso`, href: '#/portal/clientes' },
+                { label: 'Te enviaron', value: String(stats.unseen), sub: 'Sin ver todavía', tone: stats.unseen ? 'var(--accent)' : undefined },
+                { label: 'Peticiones', value: String(stats.sent), sub: stats.meetings ? `Esperan revisión · ${plural(stats.meetings, 'reunión pedida', 'reuniones pedidas')}` : 'Esperan tu revisión' },
+                { label: 'Valoración', value: stats.avg != null ? `${stats.avg.toFixed(1).replace('.', ',')} ★` : '—', sub: stats.avg != null ? `Media de ${plural(stats.rated, 'cliente', 'clientes')}` : 'Sin valoraciones' },
+              ]}
+            />
+          </Widget>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Widget title="Actividad" description="Lo que te mandaron y las peticiones, semana a semana" className="lg:col-span-2">
+              <ComposedChart
+                title="Envíos y peticiones de las últimas 8 semanas"
+                xLabel="Semana"
+                height={200}
+                data={stats.weeks}
+                series={[
+                  { key: 'subs', name: 'Te enviaron', type: 'bar', color: 'var(--sw-chart-in)' },
+                  { key: 'tasks', name: 'Peticiones', type: 'bar', color: 'var(--sw-cat-other)' },
+                ]}
+                format={(x) => String(x)}
+                compact={(x) => (Number.isInteger(x) ? String(x) : '')}
+              />
+            </Widget>
+            <Widget title="Personas por portal">
+              {stats.byPortal.some((x) => x.value) ? (
+                <DonutChart title="Personas con acceso en cada portal" parts={stats.byPortal} format={(x) => String(x)} totalLabel="Accesos" size={140} layout="stack" />
+              ) : (
+                <p className="text-sm text-muted">Nadie con acceso todavía. Dalo en Accesos.</p>
+              )}
+            </Widget>
+          </div>
+        </>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Skeleton className="h-36 rounded-3xl lg:col-span-3" />
+          <Skeleton className="h-64 rounded-3xl lg:col-span-2" />
+          <Skeleton className="h-64 rounded-3xl" />
+        </div>
+      )}
       <div className="grid gap-4 lg:grid-cols-2">
         <Asks />
         <Sync />
       </div>
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
-        <Panel title="Llévalo en tu teléfono" description="Escanea el código, entra con tu cuenta del estudio y toca «Instalar».">
-          <div className="flex items-center gap-4">
-            <Qr text={url} />
-            <code className="break-all text-xs text-muted">{url}</code>
-          </div>
-        </Panel>
-        <Today />
-      </div>
+      <Today />
     </div>
   );
 }
@@ -646,9 +691,14 @@ function Portales() {
                   )}
                 </div>
                 <ButtonGroup size="sm" variant="secondary" className="mt-auto self-start">
+                  <Button onPress={() => window.open(`/cliente/?p=${p.id}`, '_blank', 'noopener')}>
+                    <ArrowUpRightFromSquare />
+                    Abrir
+                  </Button>
                   <Button onPress={() => go(`#/portal/identidad/${p.id}`)}>
+                    <ButtonGroup.Separator />
                     <Palette />
-                    Identidad
+                    Editar
                   </Button>
                   <Button onPress={() => go(`#/portal/accesos/${p.id}`)}>
                     <ButtonGroup.Separator />
@@ -686,11 +736,49 @@ const PORTAL_TABS = [
   { id: 'identidad', label: 'Identidad', href: '#/portal/identidad', icon: Palette },
 ];
 
+/** El portal en el teléfono: el código para escanear, en un botón discreto. */
+function PhoneQr() {
+  const url = `${location.origin}/cliente/`;
+  return (
+    <Popover>
+      <Button variant="secondary" size="sm">
+        <Smartphone />
+        En el teléfono
+      </Button>
+      <Popover.Content placement="bottom end" className="w-72">
+        <Popover.Dialog className="flex flex-col items-center gap-3 p-4 text-center">
+          <Qr text={url} />
+          <p className="text-sm">Escanéalo, entra con tu cuenta del estudio y toca «Instalar».</p>
+          <code className="break-all text-xs text-muted">{url}</code>
+        </Popover.Dialog>
+      </Popover.Content>
+    </Popover>
+  );
+}
+
 export function Portal({ tab, arg }) {
   const [session, setSession] = useState(undefined);
+  const [autoError, setAutoError] = useState('');
+  const tried = useRef(false);
   const check = useCallback(() => {
     studioSession()
-      .then(setSession)
+      .then(async (now) => {
+        // Sin sesión del estudio, se intenta entrar solo una vez con la sesión del panel.
+        if (now?.admin || tried.current) return setSession(now);
+        tried.current = true;
+        try {
+          const auto = await autoStudioLogin();
+          toast.success('Dentro como administrador del portal');
+          return setSession(auto);
+        } catch (err) {
+          setAutoError(
+            err.status === 404
+              ? 'Todavía no hay cuenta del estudio: créala aquí (solo esta vez).'
+              : `No se pudo entrar solo (${err.message.replace(/\.$/, '')}). Entra con tu cuenta del estudio.`,
+          );
+          return setSession(now);
+        }
+      })
       .catch(() => setSession(null));
   }, []);
   useEffect(() => check(), [check]);
@@ -703,24 +791,51 @@ export function Portal({ tab, arg }) {
         title="Portal de clientes"
         description="La app de cada cliente: quién entra, qué puede hacer, cómo se ve y lo que te piden."
         actions={
-          <ButtonGroup variant="secondary">
-            <Button onPress={() => window.open('/cliente/?demo=estudio', '_blank', 'noopener')}>Demo del estudio</Button>
-            <Button onPress={() => window.open('/cliente-nuevo/', '_blank', 'noopener')}>
-              <ButtonGroup.Separator />
-              App nueva
-            </Button>
-            <Button onPress={() => window.open('/cliente/', '_blank', 'noopener')}>
-              <ButtonGroup.Separator />
-              <ArrowUpRightFromSquare />
-              Abrir el portal
-            </Button>
-          </ButtonGroup>
+          <div className="flex items-center gap-2">
+            <PhoneQr />
+            <ButtonGroup size="sm">
+              <Button size="sm" onPress={() => window.open('/cliente/', '_blank', 'noopener')}>
+                <ArrowUpRightFromSquare />
+                Abrir el portal
+              </Button>
+              <Dropdown>
+                <Button size="sm" variant="primary" isIconOnly aria-label="Otras formas de abrirlo">
+                  <ButtonGroup.Separator />
+                  <ChevronDown />
+                </Button>
+                <Dropdown.Popover placement="bottom end" className="min-w-60">
+                  <Dropdown.Menu aria-label="Abrir" onAction={(k) => window.open(String(k), '_blank', 'noopener')}>
+                    <Dropdown.Item id="/cliente-nuevo/" textValue="App nueva">
+                      <Smartphone className="size-4 text-muted" />
+                      <div className="flex flex-col">
+                        <Label>App nueva</Label>
+                        <Description>La versión que estamos estrenando</Description>
+                      </div>
+                    </Dropdown.Item>
+                    <Dropdown.Item id="/cliente/?demo=estudio" textValue="Demo del estudio">
+                      <Star className="size-4 text-muted" />
+                      <div className="flex flex-col">
+                        <Label>Demo del estudio</Label>
+                        <Description>Con datos de ejemplo, para enseñarla</Description>
+                      </div>
+                    </Dropdown.Item>
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
+            </ButtonGroup>
+          </div>
         }
       />
       {session === undefined ? (
-        <Skeleton className="h-40 rounded-3xl" />
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted">Entrando como administrador…</p>
+          <Skeleton className="h-40 rounded-3xl" />
+        </div>
       ) : !session?.admin ? (
-        <Connect session={session} onDone={check} />
+        <>
+          {autoError && <p className="rounded-2xl bg-warning/10 p-3 text-sm">{autoError}</p>}
+          <Connect session={session} onDone={check} />
+        </>
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">

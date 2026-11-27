@@ -16,6 +16,7 @@ import {
   ListBox,
   Modal,
   NumberField,
+  ScrollShadow,
   Select,
 } from '@heroui/react';
 
@@ -49,7 +50,12 @@ export function FormModal({ title, isOpen = true, onClose, onSubmit, submit = 'G
                 <Modal.Header>
                   <Modal.Heading>{title}</Modal.Heading>
                 </Modal.Header>
-                <Modal.Body className="grid max-h-[65vh] gap-4 overflow-y-auto px-1 sm:grid-cols-2">{children}</Modal.Body>
+                {/* Lo largo se desliza con sombra arriba y abajo (ScrollShadow), no de golpe. */}
+                <Modal.Body className="px-0">
+                  <ScrollShadow className="max-h-[65vh]" size={32}>
+                    <div className="grid gap-4 px-1 py-1 sm:grid-cols-2">{children}</div>
+                  </ScrollShadow>
+                </Modal.Body>
                 <Modal.Footer className="flex-wrap">
                   {extra}
                   <span className="flex-1" />

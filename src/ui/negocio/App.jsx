@@ -5,8 +5,9 @@
 // Navegación: una isla flotante arriba con las seis zonas (Inicio, Ventas,
 // Trabajo, Dinero, Crecer y Negocio), el buscador, el temporizador, «Crear» y la
 // cuenta; debajo, las pestañas de la zona abierta. Ver nav.js.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowDownToSquare,
   ArrowRightFromSquare,
   ArrowUpRightFromSquare,
   ChevronDown,
@@ -48,10 +49,11 @@ import { startAutoSync } from '../../negocio-puente.js';
 import { Segment } from '../kit/Segment.jsx';
 import { Loader, ShimmerText } from '../pro/index.js';
 import { ThemeSwitch } from '../kit/ThemeSwitch.jsx';
+import { useInstall } from '../kit/install.js';
 import { Empty } from '../kit/parts.jsx';
 import { go, useCrm, useLifecycle, useRoute, useSaving, useSession } from './store.js';
 import { DOC_WORD, customerName, leadName } from './domain.js';
-import { AREAS, SECTIONS, areaOf, lastSection, rememberSection, sectionOf } from './nav.js';
+import { AREAS, CREATE, CREATE_HOME, SECTIONS, areaOf, lastSection, rememberSection, sectionOf } from './nav.js';
 import { Inicio } from './screens/Inicio.jsx';
 import { Cliente, Clientes, CustomerForm } from './screens/Clientes.jsx';
 import { Leads } from './screens/Leads.jsx';
@@ -71,31 +73,10 @@ import { Ajustes } from './screens/Ajustes.jsx';
 
 const LIST_OF = { invoice: 'facturas', quote: 'cotizaciones', proposal: 'propuestas', receipt: 'facturas' };
 
-// Lo que se puede crear, por zona. La de la sección abierta es el botón principal de «Crear».
-const CREATE = {
-  ventas: [
-    ['factura', 'Nueva factura'],
-    ['cotizacion', 'Nueva cotización'],
-    ['propuesta', 'Nueva propuesta'],
-    ['lead', 'Nuevo lead'],
-    ['cliente', 'Nuevo cliente'],
-    ['servicio', 'Nuevo servicio'],
-  ],
-  trabajo: [
-    ['tarea', 'Nueva tarea'],
-    ['proyecto', 'Nuevo proyecto'],
-    ['horas', 'Registrar horas'],
-    ['pagina', 'Nueva página'],
-  ],
-  dinero: [['gasto', 'Nuevo gasto']],
-  crecer: [['publicacion', 'Nueva publicación']],
-};
 const PRIMARY = { inicio: 'factura', ventas: 'factura', trabajo: 'tarea', dinero: 'gasto', crecer: 'publicacion', negocio: 'factura' };
 const SECTION_PRIMARY = { leads: 'lead', clientes: 'cliente', propuestas: 'propuesta', cotizaciones: 'cotizacion', facturas: 'factura', catalogo: 'servicio', proyectos: 'proyecto', tareas: 'tarea', horas: 'horas', paginas: 'pagina' };
 const LABEL = Object.fromEntries(Object.values(CREATE).flat());
-// Dónde vive cada cosa que se crea: de ahí sale su icono.
-const HOME_OF = { factura: 'facturas', cotizacion: 'cotizaciones', propuesta: 'propuestas', lead: 'leads', cliente: 'clientes', servicio: 'catalogo', tarea: 'tareas', proyecto: 'proyectos', horas: 'horas', pagina: 'paginas', gasto: 'gastos', publicacion: 'marketing' };
-const iconOf = (k) => sectionOf(HOME_OF[k])?.icon;
+const iconOf = (k) => sectionOf(CREATE_HOME[k])?.icon;
 
 function Login({ onLogin, expired }) {
   const [error, setError] = useState('');
@@ -249,6 +230,38 @@ function CreateButton({ area, section, onCreate }) {
   );
 }
 
+/** Instalar Negocio como app de escritorio, cuando el navegador lo ofrece (Edge o Chrome). */
+function InstallButton() {
+  const { canInstall, install } = useInstall();
+  if (!canInstall) return null;
+  return (
+    <Tooltip delay={400}>
+      <Button isIconOnly variant="ghost" size="sm" aria-label="Instalar Negocio como app" className="hidden sm:inline-flex" onPress={() => install().then((ok) => ok && toast.success('Negocio ya está instalado: ábrelo desde el menú Inicio o el escritorio.'))}>
+        <ArrowDownToSquare />
+      </Button>
+      <Tooltip.Content>Instalar como app</Tooltip.Content>
+    </Tooltip>
+  );
+}
+
+function AppRow() {
+  const { canInstall, installed, done, install } = useInstall();
+  return (
+    <div className="flex items-center gap-3 rounded-xl bg-default/60 p-2.5">
+      <Display className="size-5 shrink-0 text-muted" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">App de escritorio</p>
+        <p className="text-xs text-muted">{installed ? 'La estás usando ahora.' : done ? 'Instalada: ábrela desde el menú Inicio.' : canInstall ? 'Con su ventana y en el menú Inicio.' : 'En Edge o Chrome: menú › «Instalar Negocio».'}</p>
+      </div>
+      {canInstall && (
+        <Button size="sm" variant="secondary" onPress={install}>
+          Instalar
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function Account({ onLogout }) {
   return (
     <Popover>
@@ -261,6 +274,7 @@ function Account({ onLogout }) {
             <span className="text-sm font-medium">Tema</span>
             <ThemeSwitch />
           </div>
+          <AppRow />
           <Separator />
           <a href="/admin/" className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm hover:bg-default">
             <ArrowUpRightFromSquare className="size-4" />
@@ -367,6 +381,7 @@ function Island({ area, section, onSearch, onCreate, onLogout }) {
         <TimerPill />
         <SaveStatus />
         <CreateButton area={area} section={section} onCreate={onCreate} />
+        <InstallButton />
         <Account onLogout={onLogout} />
       </nav>
     </div>
@@ -554,6 +569,13 @@ function Shell({ onLogout }) {
     if (key === 'pagina') return createPage({ template: 'blank' });
     return undefined;
   };
+  const createRef = useRef(create);
+  createRef.current = create;
+  useEffect(() => {
+    const onCreate = (e) => createRef.current(e.detail);
+    addEventListener('negocio:create', onCreate);
+    return () => removeEventListener('negocio:create', onCreate);
+  }, []);
 
   return (
     <div className="min-h-screen">

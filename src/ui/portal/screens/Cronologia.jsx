@@ -1,16 +1,67 @@
 // Cronología: todo lo que pasó, por días. El reporte diario del estudio (cada
 // tarea con su tiempo, quién lo mandó, dificultades y observaciones), anuncios,
 // avances, contenido, resultados y lo que mandó el propio cliente. Lo nuevo desde
-// su última visita sale marcado.
-import { useMemo } from 'react';
-import { CircleCheck, Clock, Thunderbolt } from '@gravity-ui/icons';
-import { Card, Chip, Disclosure, Tabs } from '@heroui/react';
+// su última visita sale marcado. Mantener pulsado (o el clic derecho) sobre algo
+// abre su menú: abrirlo, copiarlo, compartirlo y, si es tuyo o eres del estudio,
+// editarlo o borrarlo.
+import { useMemo, useState } from 'react';
+import { ArrowShapeTurnUpRight, ArrowUpRightFromSquare, CircleCheck, Clock, Copy, Pencil, Thunderbolt, TrashBin } from '@gravity-ui/icons';
+import { Card, Chip, Disclosure, Input, Label, Tabs, TextArea, TextField, toast } from '@heroui/react';
 import { Empty } from '../../kit/parts.jsx';
+import { useLongPress } from '../../kit/hooks.js';
 import { ago, dayLabel, localDay, minutesText } from '../../../portal/kit.js';
-import { feed, unread } from '../../../portal/state.js';
-import { go, usePortal } from '../store.js';
-import { Timeline } from '../../pro/index.js';
+import { app, feed, isMine, removeLocal, unread } from '../../../portal/state.js';
+import { go, refresh, save, usePortal } from '../store.js';
+import { PointMenu, Timeline } from '../../pro/index.js';
+import { ConfirmDialog, FormModal } from '../../negocio/fields.jsx';
 import { Ico } from '../ui.jsx';
+
+/** Lo que se puede hacer con algo de la cronología. */
+function itemMenu(it) {
+  const post = it.ref?.type === 'post' ? it.ref.row : null;
+  const canEdit = Boolean(post) && app.studio;
+  const canDelete = Boolean(post) && (app.studio || (post.kind === 'announcement' && isMine(post)));
+  return [
+    it.go && { id: 'open', label: 'Abrir', icon: ArrowUpRightFromSquare },
+    { id: 'copy', label: 'Copiar el texto', icon: Copy },
+    typeof navigator.share === 'function' && { id: 'share', label: 'Compartir', icon: ArrowShapeTurnUpRight },
+    (canEdit || canDelete) && '-',
+    canEdit && { id: 'edit', label: 'Editar', icon: Pencil },
+    canDelete && { id: 'delete', label: 'Borrar', icon: TrashBin, danger: true },
+  ].filter(Boolean);
+}
+const textOf = (it) => [it.title, it.body, it.report && it.report.done.map((w) => `· ${w.title}`).join('\n')].filter(Boolean).join('\n');
+
+/** Editar un anuncio o un avance (solo el estudio). */
+function EditPost({ post, onClose }) {
+  return (
+    <FormModal
+      title="Editar"
+      onClose={onClose}
+      onSubmit={async (f) => {
+        const title = String(f.title || '').trim();
+        if (!title) return false;
+        try {
+          await save('posts', { id: post.id, title, body: String(f.body || '').trim() || null });
+          toast.success('Guardado');
+          return true;
+        } catch (err) {
+          toast.danger('No se guardó', { description: err.message });
+          return false;
+        }
+      }}
+    >
+      <TextField name="title" defaultValue={post.title} maxLength={200} isRequired className="sm:col-span-2">
+        <Label>Título</Label>
+        <Input />
+      </TextField>
+      <TextField name="body" defaultValue={post.body || ''} maxLength={5000} className="sm:col-span-2">
+        <Label>Texto</Label>
+        <TextArea rows={5} />
+      </TextField>
+    </FormModal>
+  );
+}
 
 const FILTERS = [
   ['todo', 'Todo'],
@@ -92,6 +143,9 @@ function Report({ item, fresh }) {
 
 export function Cronologia({ filter = 'todo' }) {
   const [, v] = usePortal();
+  const [menu, setMenu] = useState(null); // { at, it }
+  const [editing, setEditing] = useState(null);
+  const [removing, setRemoving] = useState(null);
   const current = FILTERS.some(([k]) => k === filter) ? filter : 'todo';
   const { days, fresh } = useMemo(() => {
     const items = feed().filter((x) => current === 'todo' || x.group === current);
@@ -101,8 +155,28 @@ export function Cronologia({ filter = 'todo' }) {
       if (!byDay.has(k)) byDay.set(k, []);
       byDay.get(k).push(it);
     }
-    return { days: [...byDay], fresh: new Set(unread().map((x) => x.id)) };
+    return { days: [...byDay], fresh: new Set(unread().map((x) => x.id)), byId: new Map(items.map((it) => [it.id, it])) };
   }, [v, current]);
+  const press = useLongPress((el, at) => {
+    const it = days.flatMap(([, list]) => list).find((x) => x.id === el.getAttribute('data-item'));
+    if (it) setMenu({ at, it });
+  }, { selector: '[data-item]' });
+  const run = async (id) => {
+    const it = menu?.it;
+    if (!it) return;
+    if (id === 'open') go(it.go);
+    if (id === 'copy') {
+      try {
+        await navigator.clipboard.writeText(textOf(it));
+        toast.success('Copiado');
+      } catch {
+        toast.danger('No se pudo copiar');
+      }
+    }
+    if (id === 'share') navigator.share?.({ title: it.title, text: textOf(it) }).catch(() => {});
+    if (id === 'edit') setEditing(it.ref.row);
+    if (id === 'delete') setRemoving(it.ref.row);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -122,11 +196,12 @@ export function Cronologia({ filter = 'todo' }) {
           </Tabs.List>
         </Tabs.ListContainer>
       </Tabs>
+      <p className="-mt-2 text-xs text-muted">Mantén pulsado algo para ver qué puedes hacer con ello.</p>
       {days.length === 0 ? (
         <Empty icon={Clock} title="Nada por aquí todavía" text="Lo que vaya pasando aparecerá en esta lista." />
       ) : (
         days.map(([day, items]) => (
-          <section key={day} className="flex flex-col gap-3" aria-label={dayLabel(day)}>
+          <section key={day} className="flex select-none flex-col gap-3 [-webkit-touch-callout:none]" aria-label={dayLabel(day)} {...press}>
             <h2 className="sw-eyebrow sticky top-14 z-10 -mx-1 bg-background/90 px-1 py-1 backdrop-blur">{dayLabel(day)}</h2>
             <Timeline
               label={`Lo que pasó el ${dayLabel(day)}`}
@@ -161,6 +236,27 @@ export function Cronologia({ filter = 'todo' }) {
           </section>
         ))
       )}
+      <PointMenu at={menu?.at} items={menu ? itemMenu(menu.it) : []} onClose={() => setMenu(null)} onAction={run} label="Acciones" />
+      {editing && <EditPost post={editing} onClose={() => setEditing(null)} />}
+      <ConfirmDialog
+        open={Boolean(removing)}
+        title="¿Borrarlo de la cronología?"
+        text="Deja de verse para todos. No se puede deshacer."
+        confirm="Borrar"
+        onClose={() => setRemoving(null)}
+        onConfirm={async () => {
+          const row = removing;
+          setRemoving(null);
+          try {
+            await app.backend.remove('posts', row.id);
+            removeLocal('posts', row.id);
+            refresh();
+            toast('Borrado');
+          } catch (err) {
+            toast.danger('No se pudo borrar', { description: err.message });
+          }
+        }}
+      />
     </div>
   );
 }

@@ -166,7 +166,10 @@ export function activity(limit = 8) {
     if (pub?.acceptedAt) items.push({ date: localDay(pub.acceptedAt), kind: 'ok', text: `${pub.name || who} firmó ${WORD[d.type] || 'el documento'} ${d.number}`, href: `#/documentos/${d.id}` });
     if (pub?.declinedAt) items.push({ date: localDay(pub.declinedAt), kind: 'no', text: `${who} rechazó ${WORD[d.type] || 'el documento'} ${d.number}`, href: `#/documentos/${d.id}` });
   }
-  for (const e of list('expenses')) items.push({ date: e.date, kind: 'out', text: `Gasto en ${e.vendor || e.title}: ${money(e.amount, e.currency)}`, href: '#/gastos' });
+  for (const e of list('expenses')) {
+    const who = (e.vendorId && find('vendors', e.vendorId)?.name) || e.vendor || e.title;
+    items.push({ date: e.date, kind: 'out', text: who ? `Gasto en ${who}: ${money(e.amount, e.currency)}` : `Gasto de ${money(e.amount, e.currency)}`, href: '#/gastos' });
+  }
   for (const c of list('customers')) if (c.createdAt) items.push({ date: localDay(c.createdAt), kind: 'person', text: `Nuevo cliente: ${c.name}`, href: `#/clientes/${c.id}` });
   for (const l of list('leads')) {
     const who = leadName(l);

@@ -2,9 +2,9 @@
 // misma cuenta y los mismos datos que /cliente/ (Supabase, con sus reglas y
 // permisos), y /cliente-nuevo/?demo enseña la demostración. Por ahora es la vista
 // del cliente; el modo estudio sigue en /cliente/.
-import { useState } from 'react';
-import { ChartColumn, CircleExclamation, Folder, House, ListTimeline, Tray } from '@gravity-ui/icons';
-import { Alert, Avatar, Button, Card, Chip, Dropdown, FieldError, Form, Input, Label, TextField } from '@heroui/react';
+import { useEffect, useState } from 'react';
+import { ArrowRightFromSquare, ArrowUpRightFromSquare, Bell, ChartColumn, ChevronDown, CircleExclamation, Folder, Gear, House, ListTimeline, Tray } from '@gravity-ui/icons';
+import { Alert, Avatar, Button, Card, Chip, Description, Dropdown, FieldError, Form, Input, Label, TextField } from '@heroui/react';
 import { Loader, ShimmerText } from '../pro/index.js';
 import { Empty } from '../kit/parts.jsx';
 import { app, can, pendingTasks, toReview, unread, urlOf } from '../../portal/state.js';
@@ -115,77 +115,154 @@ function Screen({ route, onSignOut }) {
   }
 }
 
+/** true al bajar por la página (la cabecera se esconde); false al subir o arriba del todo. */
+function useHideOnScroll() {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    let last = scrollY;
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = scrollY;
+        if (y < 60) setHidden(false);
+        else if (y - last > 6) setHidden(true);
+        else if (last - y > 6) setHidden(false);
+        last = y;
+        ticking = false;
+      });
+    };
+    addEventListener('scroll', onScroll, { passive: true });
+    return () => removeEventListener('scroll', onScroll);
+  }, []);
+  return hidden;
+}
+
+const SECTION_TITLE = { inicio: 'Inicio', cronologia: 'Cronología', marketing: 'Marketing', recursos: 'Recursos', peticiones: 'Peticiones', perfil: 'Tu perfil' };
+
 function Shell({ onSignOut, demo }) {
   const [, v] = usePortal();
   const route = useRoute();
+  const hidden = useHideOnScroll();
   const section = route[0] || 'inicio';
   const tab = { calendario: 'marketing', documentos: 'recursos', tareas: 'peticiones' }[section] || section;
   const tabs = TABS.filter(visible);
+  const at = tabs.findIndex((t) => t.id === tab);
   const badge = { inicio: unread().length, marketing: toReview().length, peticiones: pendingTasks().length };
   const others = app.portals.filter((p) => p.client.id !== app.client.id);
+  const news = unread().length;
 
   return (
     <div className="min-h-dvh pb-28" data-v={v}>
-      <header className="sw-glass sticky top-0 z-30 border-x-0 border-t-0">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-2.5">
-          {others.length ? (
-            <Dropdown>
-              <Button variant="ghost" className="gap-2 px-1" aria-label="Cambiar de proyecto">
-                <Logo client={app.client} />
-                <span className="max-w-[40vw] truncate font-semibold">{app.client.name}</span>
-              </Button>
-              <Dropdown.Popover placement="bottom start">
-                <Dropdown.Menu aria-label="Proyectos" onAction={(id) => openPortal(app.portals.find((p) => p.client.id === id))}>
-                  {app.portals.map((p) => (
-                    <Dropdown.Item key={p.client.id} id={p.client.id} textValue={p.client.name}>
-                      <Logo client={p.client} />
-                      <Label>{p.client.name}</Label>
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown.Menu>
-              </Dropdown.Popover>
-            </Dropdown>
-          ) : (
-            <a href="#/" className="flex min-w-0 items-center gap-2">
+      {/* Cabecera flotante: el proyecto (y cambiar de proyecto), novedades y tu perfil. Se esconde al bajar. */}
+      <header className={`fixed inset-x-0 top-0 z-30 px-3 pt-[max(8px,env(safe-area-inset-top))] transition-transform duration-300 ease-out focus-within:translate-y-0 motion-reduce:transition-none ${hidden ? '-translate-y-[130%]' : ''}`}>
+        <div className="sw-glass mx-auto flex max-w-3xl items-center gap-1.5 rounded-full p-1.5 shadow-[var(--overlay-shadow)]">
+          <Dropdown>
+            <Button variant="ghost" className="h-auto min-w-0 gap-2.5 rounded-full py-1 ps-1 pe-3" aria-label={others.length ? 'Cambiar de proyecto' : app.client.name}>
               <Logo client={app.client} />
-              <span className="truncate font-semibold">{app.client.name}</span>
-            </a>
-          )}
+              <span className="flex min-w-0 flex-col items-start leading-tight">
+                <span className="max-w-[44vw] truncate text-sm font-semibold sm:max-w-xs">{app.client.name}</span>
+                <span className="text-[11px] text-muted">{SECTION_TITLE[tab] || 'Tu proyecto'}</span>
+              </span>
+              {others.length > 0 && <ChevronDown className="size-3.5 text-muted" />}
+            </Button>
+            <Dropdown.Popover placement="bottom start" className="min-w-64">
+              <Dropdown.Menu
+                aria-label="Proyectos"
+                selectionMode="single"
+                selectedKeys={new Set([app.client.id])}
+                onAction={(id) => id !== app.client.id && openPortal(app.portals.find((p) => p.client.id === id))}
+              >
+                {app.portals.map((p) => (
+                  <Dropdown.Item key={p.client.id} id={p.client.id} textValue={p.client.name}>
+                    <Logo client={p.client} />
+                    <Label>{p.client.name}</Label>
+                    <Dropdown.ItemIndicator />
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
           <span className="flex-1" />
           {demo && (
-            <Chip size="sm" variant="soft" color="warning">
+            <Chip size="sm" variant="soft" color="warning" className="hidden sm:inline-flex">
               Demostración
             </Chip>
           )}
-          <a href="#/perfil" aria-label="Tu perfil" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-focus">
-            <Avatar size="sm" color="accent" variant="soft">
-              {urlOf(app.member?.avatar_path) && <Avatar.Image alt="" src={urlOf(app.member.avatar_path)} />}
-              <Avatar.Fallback>{(app.member?.name || app.user?.email || '?').slice(0, 1).toUpperCase()}</Avatar.Fallback>
-            </Avatar>
+          <a
+            href="#/cronologia"
+            aria-label={news ? `${news} novedades` : 'Novedades'}
+            className="relative flex size-9 items-center justify-center rounded-full text-muted outline-none transition-colors hover:bg-default hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            <Bell className="size-5" />
+            {news > 0 && <span className="absolute end-1 top-1 flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold leading-4 text-danger-foreground">{news > 9 ? '9+' : news}</span>}
           </a>
+          <Dropdown>
+            <Button isIconOnly variant="ghost" className="rounded-full" aria-label="Tu perfil">
+              <Avatar size="sm" color="accent" variant="soft">
+                {urlOf(app.member?.avatar_path) && <Avatar.Image alt="" src={urlOf(app.member.avatar_path)} />}
+                <Avatar.Fallback>{(app.member?.name || app.user?.email || '?').slice(0, 1).toUpperCase()}</Avatar.Fallback>
+              </Avatar>
+            </Button>
+            <Dropdown.Popover placement="bottom end" className="min-w-60">
+              <Dropdown.Menu
+                aria-label="Tu cuenta"
+                onAction={(k) => {
+                  if (k === 'perfil') location.hash = '#/perfil';
+                  if (k === 'old') location.href = `/cliente/${location.search}`;
+                  if (k === 'out') onSignOut();
+                }}
+              >
+                <Dropdown.Item id="perfil" textValue="Perfil y ajustes">
+                  <Gear className="size-4 text-muted" />
+                  <div className="flex flex-col">
+                    <Label>Perfil y ajustes</Label>
+                    <Description>{app.member?.name || app.user?.email}</Description>
+                  </div>
+                </Dropdown.Item>
+                <Dropdown.Item id="old" textValue="Versión de siempre">
+                  <ArrowUpRightFromSquare className="size-4 text-muted" />
+                  <Label>Versión de siempre</Label>
+                </Dropdown.Item>
+                <Dropdown.Item id="out" textValue="Salir" variant="danger">
+                  <ArrowRightFromSquare className="size-4" />
+                  <Label>Salir</Label>
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-4 py-5">
+      <main className="mx-auto w-full max-w-3xl px-4 pb-6 pt-[calc(5rem+env(safe-area-inset-top))]">
         <Screen route={route} onSignOut={onSignOut} />
       </main>
 
+      {/* Barra de abajo: la sección abierta va en una píldora que se desliza de una a otra. */}
       <nav aria-label="Secciones" className="fixed inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-        <ul className="sw-glass flex w-full max-w-md items-stretch justify-around rounded-full p-1.5 shadow-[var(--overlay-shadow)]">
+        <ul className="sw-glass relative flex w-full max-w-md items-stretch rounded-full p-1.5 shadow-[var(--overlay-shadow)]">
+          {at >= 0 && (
+            <span
+              aria-hidden
+              className="absolute inset-y-1.5 start-1.5 rounded-full bg-foreground transition-transform duration-300 ease-out motion-reduce:transition-none"
+              style={{ width: `calc((100% - 0.75rem) / ${tabs.length})`, transform: `translateX(${at * 100}%)` }}
+            />
+          )}
           {tabs.map(({ id, label, icon: Icon, href }) => {
             const on = tab === id;
             const n = badge[id] || 0;
             return (
-              <li key={id} className="flex-1">
+              <li key={id} className="relative z-[1] min-w-0 flex-1">
                 <a
                   href={href}
                   aria-current={on ? 'page' : undefined}
-                  className={`relative flex flex-col items-center gap-0.5 rounded-full px-1 py-1.5 text-[10px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus ${
-                    on ? 'bg-foreground text-background' : 'text-muted hover:text-foreground'
+                  className={`relative flex flex-col items-center gap-0.5 rounded-full px-1 py-1.5 text-[10px] font-medium outline-none transition-colors duration-300 focus-visible:ring-2 focus-visible:ring-focus ${
+                    on ? 'text-background' : 'text-muted hover:text-foreground'
                   }`}
                 >
-                  <Icon className="size-5" />
-                  <span className="truncate">{label}</span>
+                  <Icon className={`size-5 transition-transform duration-300 ${on ? 'scale-110' : ''}`} />
+                  <span className="max-w-full truncate">{label}</span>
                   {n > 0 && !on && (
                     <span className="absolute end-[18%] top-0.5 flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-semibold leading-4 text-danger-foreground">
                       {n > 9 ? '9+' : n}

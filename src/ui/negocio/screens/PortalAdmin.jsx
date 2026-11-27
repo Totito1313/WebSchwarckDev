@@ -4,13 +4,14 @@
 // lado. Las reglas y las llamadas son las de negocio-portal.js, la versión de siempre.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRotateLeft, ArrowUpRightFromSquare, Copy, Key, Link as LinkIcon, Plus, Smartphone, TrashBin, Xmark } from '@gravity-ui/icons';
-import { Button, Chip, Input, Label, SearchField, Skeleton, Tabs, TextArea, TextField, toast } from '@heroui/react';
+import { Button, Chip, Input, Label, ScrollShadow, SearchField, Skeleton, Tabs, TextArea, TextField, toast } from '@heroui/react';
 import { find, state } from '../../../negocio-core.js';
 import { must, sb, studioSession } from '../../../negocio-puente.js';
 import { BUCKET, FUNCTION_URL, SUPABASE_KEY } from '../../../portal/config.js';
 import { COLORS, FONTS, HEROES, PERMS, RADII, ROLES, SECTION_PERM, THEMES, brandOf, loadFont, memberCan, permDefault, portalAllows, roleAllows } from '../../../portal/brand.js';
 import { claudeInstructions } from '../../../portal/importers.js';
 import { Empty, Person } from '../../kit/parts.jsx';
+import { Stepper } from '../../pro/index.js';
 import { copyText } from '../../kit/csv.js';
 import { SwitchField } from '../../kit/SwitchField.jsx';
 import { ConfirmDialog, FormModal, SelectField } from '../fields.jsx';
@@ -121,10 +122,22 @@ export function PortalLogo({ p, logos, size = 'size-10' }) {
  * Qué puede ver y hacer la gente de un portal (`portal`) o una persona en concreto (`member`,
  * con su rol). Lo de una persona son excepciones: lo que no toques sigue a su rol y a su portal.
  */
+// Atajos para un portal entero (a cada persona se le ponen excepciones aparte).
+const ALL_KEYS = PERMS.flatMap(([, list]) => list.map(([k]) => k));
+const PRESETS = [
+  ['ver', 'Solo ver', 'Ve todo; no aprueba, no comenta, no envía', () => Object.fromEntries(ALL_KEYS.map((k) => [k, k.endsWith('.view')]))],
+  ['base', 'Como viene', 'Ve, decide sobre el contenido y entrega', () => ({})],
+  ['colabora', 'Colaborar', 'Además propone, publica, sube y lleva sus leads', () => Object.fromEntries(ALL_KEYS.map((k) => [k, permDefault(k) || ['content.propose', 'posts.create', 'resources.upload', 'leads.add', 'leads.edit'].includes(k)]))],
+  ['todo', 'Todo', 'Cada permiso, encendido', () => Object.fromEntries(ALL_KEYS.map((k) => [k, true]))],
+];
+const sameDraft = (a, b) => ALL_KEYS.every((k) => (a[k] ?? permDefault(k)) === (b[k] ?? permDefault(k)));
+
 export function PermsDialog({ title, portal, member = null, onSave, onClose }) {
   const [role, setRole] = useState(member?.role || 'member');
   const [draft, setDraft] = useState(() => ({ ...hiddenAsPerms(member ? member.hidden : portal.hidden), ...((member ? member.perms : portal.perms) || {}) }));
+  const [group, setGroup] = useState(PERMS[0][0]);
   const value = (k) => (member ? memberCan({ role, perms: draft }, portal, k) : portalAllows({ perms: draft }, k));
+  const on = ALL_KEYS.filter((k) => value(k)).length;
   return (
     <FormModal
       title={title}
@@ -141,29 +154,78 @@ export function PermsDialog({ title, portal, member = null, onSave, onClose }) {
         <p className="text-sm text-muted">
           {member
             ? 'Lo marcado como «excepción» es solo para esta persona; lo demás sigue a su rol y a lo que permite su portal.'
-            : 'Lo que su gente puede ver y hacer. «Solo lectura» nunca hace más que ver; a cada persona le puedes poner excepciones en Accesos. La base lo aplica: no es solo esconderlo en la app.'}
+            : 'Lo que su gente puede ver y hacer. A cada persona le puedes poner excepciones en Accesos. La base lo aplica: no es solo esconderlo en la app.'}
         </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {PERMS.map(([groupTitle, list]) => (
-            <section key={groupTitle} className="flex flex-col gap-3 rounded-2xl bg-surface-secondary p-3">
-              <h3 className="sw-eyebrow">{groupTitle}</h3>
-              {list.map(([k, label, sub]) => {
-                const own = member && k in draft;
-                const why = member && !own && (!roleAllows(role, k) ? `${ROLES[role]?.[0] || 'Su rol'}: no lo incluye` : !portalAllows(portal, k) ? 'Su portal no lo permite' : null);
-                return (
-                  <SwitchField
-                    key={k}
-                    label={label}
-                    description={own ? 'Excepción para esta persona' : why || sub}
-                    isSelected={value(k)}
-                    onChange={(on) => setDraft((d) => ({ ...d, [k]: on }))}
-                    size="sm"
-                  />
-                );
-              })}
-            </section>
-          ))}
+        {!member && (
+          <div className="grid gap-2 sm:grid-cols-4" role="group" aria-label="Atajos">
+            {PRESETS.map(([id, label, text, make]) => {
+              const active = sameDraft(draft, make());
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setDraft(make())}
+                  className={`flex flex-col gap-0.5 rounded-2xl p-3 text-start outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus ${active ? 'bg-accent-soft ring-2 ring-accent' : 'bg-surface-secondary hover:bg-default'}`}
+                >
+                  <span className="text-sm font-medium">{label}</span>
+                  <span className="text-xs text-muted">{text}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm">
+            <b className="tabular-nums">{on}</b> <span className="text-muted">de {ALL_KEYS.length} permitidos</span>
+          </span>
         </div>
+        {/* Un grupo cada vez, con su cuenta; la lista se desliza con sombra. */}
+        <Tabs selectedKey={group} onSelectionChange={(k) => setGroup(String(k))}>
+          <ScrollShadow orientation="horizontal" hideScrollBar className="max-w-full">
+            <Tabs.ListContainer>
+              <Tabs.List aria-label="Grupos de permisos">
+                {PERMS.map(([groupTitle, list]) => (
+                  <Tabs.Tab key={groupTitle} id={groupTitle} className="gap-1.5 whitespace-nowrap">
+                    {groupTitle}
+                    <span className="rounded-full bg-default px-1.5 text-[11px] tabular-nums text-muted">
+                      {list.filter(([k]) => value(k)).length}/{list.length}
+                    </span>
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
+            </Tabs.ListContainer>
+          </ScrollShadow>
+          {PERMS.map(([groupTitle, list]) => (
+            <Tabs.Panel key={groupTitle} id={groupTitle} className="pt-3">
+              <div className="mb-2 flex justify-end gap-1">
+                <Button size="sm" variant="ghost" onPress={() => setDraft((d) => ({ ...d, ...Object.fromEntries(list.map(([k]) => [k, true])) }))}>
+                  Todo
+                </Button>
+                <Button size="sm" variant="ghost" onPress={() => setDraft((d) => ({ ...d, ...Object.fromEntries(list.map(([k]) => [k, false])) }))}>
+                  Nada
+                </Button>
+              </div>
+              <div className="grid gap-x-6 gap-y-4 rounded-2xl bg-surface-secondary p-4 sm:grid-cols-2">
+                {list.map(([k, label, sub]) => {
+                  const own = member && k in draft;
+                  const why = member && !own && (!roleAllows(role, k) ? `${ROLES[role]?.[0] || 'Su rol'}: no lo incluye` : !portalAllows(portal, k) ? 'Su portal no lo permite' : null);
+                  return (
+                    <SwitchField
+                      key={k}
+                      label={label}
+                      description={own ? 'Excepción para esta persona' : why || sub}
+                      isSelected={value(k)}
+                      onChange={(v) => setDraft((d) => ({ ...d, [k]: v }))}
+                      size="sm"
+                    />
+                  );
+                })}
+              </div>
+            </Tabs.Panel>
+          ))}
+        </Tabs>
         {Object.keys(draft).length > 0 && (
           <Button size="sm" variant="ghost" className="self-start" onPress={() => setDraft({})}>
             <ArrowRotateLeft />
@@ -301,58 +363,305 @@ export function ClaudeDialog({ p, onClose }) {
 
 /* ── Nuevo portal ───────────────────────────────────────────────────────── */
 
+const SECTORS = ['Restaurante', 'Tienda', 'Salud', 'Belleza', 'Servicios', 'Educación', 'Inmobiliaria', 'Tecnología'];
+const WELCOMES = [
+  ['Proyecto', (n) => `Hola, ${n}: aquí verás cada avance de tu proyecto, lo que necesitamos de ti y lo que viene.`],
+  ['Contenido', (n) => `Bienvenidos, equipo de ${n}. Aquí está el calendario de contenido: revisa, aprueba o pide cambios con un toque.`],
+  ['Cercano', (n) => `¡Qué bueno tenerte aquí, ${n}! Escríbenos por «Enviar» cuando quieras; te respondemos el mismo día.`],
+];
+const NEW_STEPS = [
+  { id: 'who', title: 'Cliente' },
+  { id: 'brand', title: 'Su marca' },
+  { id: 'can', title: 'Qué podrá hacer' },
+  { id: 'people', title: 'Su gente' },
+  { id: 'hello', title: 'Bienvenida' },
+];
+
+/** Nuevo portal, paso a paso: de quién es, su marca, qué podrá hacer su gente, quién entra y su bienvenida. */
 export function NewPortalDialog({ onClose }) {
+  const [step, setStep] = useState(0);
   const [crm, setCrm] = useState('');
   const [name, setName] = useState('');
+  const [query, setQuery] = useState('');
+  const [industry, setIndustry] = useState('');
   const [accent, setAccent] = useState(COLORS[0]);
+  const [preset, setPreset] = useState('base');
+  const [invite, setInvite] = useState(true);
+  const [person, setPerson] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('owner');
   const [welcome, setWelcome] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [creds, setCreds] = useState(null);
   const customers = [...state.customers].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const shown = customers.filter((c) => !query.trim() || `${c.name} ${c.company || ''}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 30);
+  const pick = (c) => {
+    setCrm(c?.id || '');
+    if (c) {
+      setName(c.company || c.name);
+      if (!email && c.email) setEmail(c.email);
+      if (!person && c.name) setPerson(c.name);
+    }
+  };
+  const check = (i) => {
+    if (i === 0 && !name.trim()) return 'Ponle el nombre que verá el cliente.';
+    if (i === 3 && invite && email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Ese correo no parece válido.';
+    return '';
+  };
+  const goTo = (to) => {
+    for (let i = step; i < to; i += 1) {
+      const msg = check(i);
+      if (msg) {
+        setStep(i);
+        setError(msg);
+        return;
+      }
+    }
+    setError('');
+    setStep(to);
+  };
+  const create = async () => {
+    for (let i = 0; i < NEW_STEPS.length; i += 1) {
+      const msg = check(i);
+      if (msg) {
+        setStep(i);
+        setError(msg);
+        return;
+      }
+    }
+    setBusy(true);
+    try {
+      const perms = PRESETS.find(([id]) => id === preset)?.[3]() || {};
+      const row = must(
+        await (await sb())
+          .from('portal_clients')
+          .insert({ name: name.trim(), crm_customer_id: crm || null, accent, welcome: welcome.trim() || null, industry: industry.trim() || null, perms })
+          .select()
+          .single(),
+      );
+      let invited = null;
+      if (invite && email.trim()) {
+        try {
+          invited = await fn('create_user', { email: email.trim(), name: person.trim(), portals: [{ client_id: row.id, role, perms: {} }] });
+        } catch (err) {
+          toast.warning(`El portal se creó, pero no la cuenta: ${err.message}`);
+        }
+      }
+      toast.success(`Portal de ${row.name} creado`);
+      if (invited?.password) setCreds({ u: invited.user, password: invited.password, portalName: row.name, id: row.id });
+      else {
+        if (invited) toast(`${invited.user.email} ya tenía cuenta: entra con su contraseña de siempre`);
+        onClose();
+        go(`#/portal/identidad/${row.id}`);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const last = step === NEW_STEPS.length - 1;
+
+  if (creds)
+    return (
+      <CredentialsDialog
+        u={creds.u}
+        password={creds.password}
+        portalName={creds.portalName}
+        onClose={() => {
+          onClose();
+          go(`#/portal/identidad/${creds.id}`);
+        }}
+      />
+    );
+
   return (
     <FormModal
       title="Nuevo portal"
-      submit="Crear portal"
+      size="sm:max-w-[720px]"
+      submit={last ? 'Crear portal' : 'Siguiente'}
       onClose={onClose}
+      extra={
+        step > 0 && (
+          <Button variant="ghost" onPress={() => goTo(step - 1)}>
+            Atrás
+          </Button>
+        )
+      }
       onSubmit={async () => {
-        if (!name.trim()) {
-          toast.warning('El portal necesita un nombre.');
+        if (!last) {
+          goTo(step + 1);
           return false;
         }
-        try {
-          const row = must(await (await sb()).from('portal_clients').insert({ name: name.trim(), crm_customer_id: crm || null, accent, welcome: welcome.trim() || null }).select().single());
-          toast.success('Portal creado. Dale acceso a su gente en Accesos.');
-          go(`#/portal/identidad/${row.id}`);
-          return true;
-        } catch (err) {
-          toast.danger(err.message);
-          return false;
-        }
+        await create();
+        return false;
       }}
     >
-      <SelectField
-        label="Cliente de Negocio"
-        value={crm || '_none'}
-        description="Enlazarlo deja mandar su trabajo de hoy desde Negocio."
-        className="sm:col-span-2"
-        onChange={(k) => {
-          const id = k === '_none' ? '' : k;
-          setCrm(id);
-          const c = id && find('customers', id);
-          if (c && !name.trim()) setName(c.company || c.name);
-        }}
-        options={[['_none', 'Sin enlazar'], ...customers.map((c) => [c.id, c.company ? `${c.name} · ${c.company}` : c.name])]}
-      />
-      <TextField value={name} onChange={setName} maxLength={120} isRequired className="sm:col-span-2">
-        <Label>Nombre que ve el cliente</Label>
-        <Input placeholder="Café Aroma" />
-      </TextField>
-      <div className="flex flex-col gap-1.5 sm:col-span-2">
-        <span className="text-sm font-medium">Color</span>
-        <Swatches value={accent} onChange={setAccent} />
+      <div className="flex min-h-[20rem] flex-col gap-5 sm:col-span-2">
+        <Stepper steps={NEW_STEPS} current={step} orientation="horizontal" onChange={(i) => goTo(i)} label="Pasos para crear el portal" />
+        {step === 0 && (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-medium">¿De qué cliente de Negocio es?</span>
+              <SearchField aria-label="Buscar cliente" value={query} onChange={setQuery} className="w-full sm:w-60">
+                <SearchField.Group>
+                  <SearchField.SearchIcon />
+                  <SearchField.Input placeholder="Buscar…" />
+                  <SearchField.ClearButton />
+                </SearchField.Group>
+              </SearchField>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                aria-pressed={!crm}
+                onClick={() => pick(null)}
+                className={`flex flex-col rounded-2xl p-3 text-start text-sm outline-none focus-visible:ring-2 focus-visible:ring-focus ${!crm ? 'bg-accent-soft ring-2 ring-accent' : 'bg-surface-secondary hover:bg-default'}`}
+              >
+                <span className="font-medium">Sin enlazar</span>
+                <span className="text-xs text-muted">Un portal suelto</span>
+              </button>
+              {shown.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  aria-pressed={crm === c.id}
+                  onClick={() => pick(c)}
+                  className={`flex items-center gap-2 rounded-2xl p-3 text-start text-sm outline-none focus-visible:ring-2 focus-visible:ring-focus ${crm === c.id ? 'bg-accent-soft ring-2 ring-accent' : 'bg-surface-secondary hover:bg-default'}`}
+                >
+                  <Person name={c.name} />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate font-medium">{c.name}</span>
+                    <span className="truncate text-xs text-muted">{c.company || 'Cliente'}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted">Enlazado, desde Negocio le llegan solos sus proyectos, sus documentos y el trabajo de cada día.</p>
+            <TextField value={name} onChange={setName} maxLength={120}>
+              <Label>Nombre que ve el cliente</Label>
+              <Input placeholder="Café Aroma" />
+            </TextField>
+          </>
+        )}
+        {step === 1 && (
+          <div className="grid gap-5 sm:grid-cols-[1fr_220px]">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium">¿A qué se dedica?</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {SECTORS.map((x) => (
+                    <button
+                      key={x}
+                      type="button"
+                      aria-pressed={industry === x}
+                      onClick={() => setIndustry(industry === x ? '' : x)}
+                      className={`rounded-full px-3 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-focus ${industry === x ? 'bg-foreground text-background' : 'bg-surface-secondary text-muted hover:text-foreground'}`}
+                    >
+                      {x}
+                    </button>
+                  ))}
+                </div>
+                <TextField aria-label="Otro sector" value={SECTORS.includes(industry) ? '' : industry} onChange={setIndustry} maxLength={80}>
+                  <Input placeholder="U otro: panadería artesanal…" />
+                </TextField>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium">Su color</span>
+                <Swatches value={accent} onChange={setAccent} />
+              </div>
+            </div>
+            {/* Así se verá arriba de su app. */}
+            <div className="flex flex-col overflow-hidden rounded-[1.75rem] bg-surface-secondary ring-1 ring-border" aria-label="Vista previa">
+              <div className="flex flex-col items-start gap-2 p-4 text-white" style={{ background: `linear-gradient(135deg, ${accent}, ${accent}cc)` }}>
+                <span className="flex size-10 items-center justify-center rounded-xl bg-white/20 text-sm font-bold">{initials(name)}</span>
+                <span className="text-sm font-semibold">{name || 'Su negocio'}</span>
+                <span className="text-xs opacity-80">{industry || 'Su sector'}</span>
+              </div>
+              <div className="flex flex-col gap-2 p-3">
+                {['Cronología', 'Calendario', 'Peticiones'].map((x) => (
+                  <span key={x} className="rounded-xl bg-surface px-3 py-2 text-xs">
+                    {x}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        {step === 2 && (
+          <>
+            <span className="text-sm font-medium">¿Qué podrá hacer su gente?</span>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {PRESETS.map(([id, label, text]) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={preset === id}
+                  onClick={() => setPreset(id)}
+                  className={`flex flex-col gap-0.5 rounded-2xl p-3 text-start outline-none focus-visible:ring-2 focus-visible:ring-focus ${preset === id ? 'bg-accent-soft ring-2 ring-accent' : 'bg-surface-secondary hover:bg-default'}`}
+                >
+                  <span className="text-sm font-medium">{label}</span>
+                  <span className="text-xs text-muted">{text}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted">Luego lo afinas en Permisos, y a cada persona le pones excepciones en Accesos.</p>
+          </>
+        )}
+        {step === 3 && (
+          <>
+            <SwitchField label="Darle acceso a alguien ya" description="Se crea su cuenta con una contraseña segura y te damos el mensaje listo para mandar." isSelected={invite} onChange={setInvite} />
+            {invite && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <TextField value={person} onChange={setPerson} maxLength={120}>
+                  <Label>Nombre</Label>
+                  <Input placeholder="Laura Méndez" />
+                </TextField>
+                <TextField value={email} onChange={setEmail} type="email">
+                  <Label>Correo</Label>
+                  <Input placeholder="correo@cliente.com" autoComplete="off" />
+                </TextField>
+                <div className="sm:col-span-2">
+                  <Seg label="Rol" value={role} onChange={setRole} options={Object.entries(ROLES).map(([k, [l]]) => [k, l])} />
+                  <p className="mt-1 text-xs text-muted">{ROLES[role]?.[1]}</p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+        {step === 4 && (
+          <>
+            <div className="flex flex-wrap gap-1.5">
+              {WELCOMES.map(([label, make]) => (
+                <Button key={label} size="sm" variant="tertiary" onPress={() => setWelcome(make(name.trim() || 'equipo'))}>
+                  {label}
+                </Button>
+              ))}
+            </div>
+            <TextField value={welcome} onChange={setWelcome} maxLength={2000}>
+              <Label>Bienvenida</Label>
+              <TextArea rows={3} placeholder="Sale arriba en el inicio de su app." />
+            </TextField>
+            <dl className="grid gap-x-6 gap-y-2 rounded-2xl bg-surface-secondary p-4 text-sm sm:grid-cols-2">
+              {[
+                ['Portal', name.trim() || '—'],
+                ['Cliente de Negocio', (crm && find('customers', crm)?.name) || 'Sin enlazar'],
+                ['Sector', industry || '—'],
+                ['Puede', PRESETS.find(([id]) => id === preset)?.[1]],
+                ['Entra', invite && email.trim() ? `${person.trim() || email.trim()} (${ROLES[role]?.[0]})` : 'Nadie todavía'],
+              ].map(([k, v]) => (
+                <div key={k} className="flex flex-col">
+                  <dt className="text-xs text-muted">{k}</dt>
+                  <dd className="font-medium">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </>
+        )}
+        {error && <p className="text-sm text-danger">{error}</p>}
+        {busy && <p className="text-sm text-muted">Creando…</p>}
       </div>
-      <TextField value={welcome} onChange={setWelcome} maxLength={2000} className="sm:col-span-2">
-        <Label>Bienvenida</Label>
-        <TextArea rows={3} placeholder="Aquí verás cada avance de tu proyecto… (sale arriba en su inicio)" />
-      </TextField>
     </FormModal>
   );
 }

@@ -37,7 +37,8 @@ import { base, change, fmt, money, periodRange, spent, within } from '../domain.
 import { CurrencyPicker } from '../currency.jsx';
 import { AmountField, ConfirmButton, ConfirmDialog, DateInput, FormModal, SelectField } from '../fields.jsx';
 import { downloadCsv } from '../../kit/csv.js';
-import { ActionBar, ListView } from '../../pro/index.js';
+import { ActionBar, ComposedChart, DonutChart, ListView, TrendChip, Widget } from '../../pro/index.js';
+import { compactNum, spentByMonth } from '../series.js';
 import { UploadButton } from '../upload.jsx';
 
 // Los colores de las categorías se guardan por nombre (los de CeroFiao).
@@ -334,7 +335,7 @@ export function Gastos({ tab }) {
       if (!months.has(k)) months.set(k, []);
       months.get(k).push(e);
     }
-    return { now, delta: prev ? change(now.sum, prev.sum) : null, count: list.length, byCat: [...byCat].sort((a, b) => b[1] - a[1]), months: [...months] };
+    return { now, delta: prev ? change(now.sum, prev.sum) : null, count: list.length, byCat: [...byCat].sort((a, b) => b[1] - a[1]), months: [...months], perMonth: spentByMonth(12), withReceipt: list.filter((e) => e.receipt).length };
   }, [state, v, period, query]);
 
   const top = data.byCat[0];
@@ -399,30 +400,50 @@ export function Gastos({ tab }) {
         <Categorias />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="Gastado" value={fmt(data.now.sum)} delta={data.delta} upIsGood={false} sub={data.now.skipped ? `${data.now.skipped} sin tasa` : `${data.count} gastos`} />
-            <Stat label="Mayor categoría" value={top ? find('categories', top[0])?.name || 'Sin categoría' : '—'} sub={top ? fmt(top[1]) : 'Sin gastos'} />
-            <Stat label="Proveedores" value={String((state.vendors || []).length)} sub="Se crean solos" />
-            <Stat label="Con recibo" value={`${(state.expenses || []).filter((e) => e.receipt).length}`} icon={Paperclip} sub={`de ${(state.expenses || []).length} gastos`} />
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Widget
+              title="Gastado por mes"
+              description={`Últimos 12 meses, en ${base()}`}
+              className="lg:col-span-2"
+              action={
+                <span className="flex items-center gap-2">
+                  En el periodo <b className="text-foreground tabular-nums">{fmt(data.now.sum)}</b>
+                  {data.delta != null && <TrendChip value={data.delta} upIsGood={false} />}
+                </span>
+              }
+              footer={`${data.count} ${data.count === 1 ? 'gasto' : 'gastos'} en el periodo · ${data.withReceipt} con recibo · ${(state.vendors || []).length} proveedores${data.now.skipped ? ` · ${data.now.skipped} sin tasa` : ''}`}
+            >
+              <ComposedChart
+                title="Gastado en cada uno de los últimos 12 meses"
+                xLabel="Mes"
+                height={220}
+                data={data.perMonth}
+                series={[{ key: 'out', name: 'Gastado', type: 'bar', color: 'var(--sw-chart-out)' }]}
+                format={(x) => money(x, base())}
+                compact={compactNum}
+                showLegend={false}
+              />
+            </Widget>
+            <Widget title="Por categoría" description={top ? `La mayor: ${find('categories', top[0])?.name || 'Sin categoría'}` : 'En el periodo'}>
+              {data.byCat.length ? (
+                <DonutChart
+                  title="Gastos del periodo por categoría"
+                  parts={data.byCat.map(([id, sum]) => {
+                    const c = find('categories', id);
+                    // Sin color propio (o en gris), el de la paleta de los gráficos.
+                    return { key: id || 'none', label: c?.name || 'Sin categoría', value: sum, color: c?.color && c.color !== 'body' && HEX[c.color] ? HEX[c.color] : undefined };
+                  })}
+                  format={(x) => money(x, base())}
+                  totalLabel="Gastado"
+                  size={150}
+                  layout="stack"
+                  max={6}
+                />
+              ) : (
+                <Empty icon={Wallet} title="Sin gastos" text="En este periodo no hay gastos." />
+              )}
+            </Widget>
           </div>
-          {data.byCat.length > 0 && (
-            <Panel title="Por categoría">
-              <div className="grid gap-3 sm:grid-cols-2">
-                {data.byCat.map(([id, sum]) => {
-                  const c = find('categories', id);
-                  return (
-                    <Meter key={id || 'none'} value={data.now.sum ? (sum / data.now.sum) * 100 : 0} size="sm" aria-label={c?.name || 'Sin categoría'}>
-                      <Label className="text-sm">{c?.name || 'Sin categoría'}</Label>
-                      <Meter.Output className="text-sm tabular-nums">{fmt(sum)}</Meter.Output>
-                      <Meter.Track>
-                        <Meter.Fill style={{ background: catHex(c) }} />
-                      </Meter.Track>
-                    </Meter>
-                  );
-                })}
-              </div>
-            </Panel>
-          )}
           <SearchField aria-label="Buscar gastos" value={query} onChange={setQuery} className="w-full sm:max-w-sm">
             <SearchField.Group>
               <SearchField.SearchIcon />

@@ -1,6 +1,11 @@
 import { toast } from '@heroui/react';
 import { mount } from '../kit/mount.jsx';
+import { registerWorker } from '../kit/install.js';
 import { NegocioApp } from './App.jsx';
+
+// Instalable como app de escritorio (Edge o Chrome › «Instalar Negocio»): abre al
+// momento y, sin conexión, enseña la última versión guardada.
+registerWorker('/admin/negocio/sw.js', '/admin/negocio/');
 
 // Algunas cuentas que se reutilizan del panel de siempre (negocio-core.js y
 // compañía) avisan escribiendo en un elemento [data-toast]. Aquí ese elemento

@@ -1,6 +1,7 @@
 // Leads: quien todavía no es cliente. Embudo por etapas (se mueve con el menú de
-// cada tarjeta), lista ordenable, análisis y la ficha con el siguiente paso, lo
-// hablado y «Pasar a cliente». Las reglas son las del panel de siempre.
+// cada tarjeta), lista ordenable, análisis y la ficha (una ventana amplia: a la
+// izquierda el siguiente paso, la etapa y los datos; a la derecha, lo hablado) con
+// «Pasar a cliente». Las reglas son las del panel de siempre.
 import { useMemo, useState } from 'react';
 import { ArrowRightArrowLeft, Circle, CircleCheck, CircleXmark, Clock, Comment, EllipsisVertical, Envelope, FileText, Funnel, Handset, PersonPlus, Persons, Plus, TrashBin } from '@gravity-ui/icons';
 import { getLocalTimeZone, parseDate, today as todayDate } from '@internationalized/date';
@@ -40,7 +41,8 @@ import { addDays, find, put, remove } from '../../../negocio-core.js';
 import { Empty, PageHeader, Panel, Person, Stat } from '../../kit/parts.jsx';
 import { go, useCrm } from '../store.js';
 import { useOpenAfterGesture } from '../../kit/hooks.js';
-import { Kanban, QuestionCard, Timeline } from '../../pro/index.js';
+import { ComposedChart, DonutChart, Kanban, KpiGroup, QuestionCard, Timeline, Widget } from '../../pro/index.js';
+import { monthKeys, monthLabel } from '../series.js';
 import {
   ACTIVITIES,
   LEAD_STAGES,
@@ -323,17 +325,42 @@ function Analysis({ leads }) {
       }, {}),
   ).sort((a, b) => b[1] - a[1]);
   const top = Math.max(1, funnel[0]?.n || 1);
+  // Mes a mes: los que entraron y los que se ganaron.
+  const months = monthKeys(12).map((key) => ({
+    key,
+    label: monthLabel(key),
+    nuevos: leads.filter((l) => (l.createdOn || '').slice(0, 7) === key).length,
+    ganados: leads.filter((l) => l.stage === 'won' && (l.wonAt || '').slice(0, 7) === key).length,
+  }));
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Nuevos este mes" value={String(nowNew)} delta={change(nowNew, prevNew)} sub="Frente al mismo tramo del mes pasado" />
-        <Stat label="Ganados este mes" value={String(nowWon)} delta={change(nowWon, prevWon)} sub="Pasaron a «Ganado»" />
-        <Stat label="Conversión" value={conv == null ? '—' : `${Math.round(conv * 100)} %`} sub={`${closed.length} cerrados (ganados o perdidos)`} />
-        <Stat label="Valor del embudo" value={fmt(pipeline.sum)} sub={pipeline.other ? `${pipeline.other} en otra moneda` : 'Ponderado por la probabilidad'} />
-      </div>
+      <Widget title="Este mes" action={<span>vs. el mismo tramo del mes pasado</span>}>
+        <KpiGroup
+          items={[
+            { label: 'Nuevos', value: String(nowNew), delta: change(nowNew, prevNew), trend: months.map((m) => m.nuevos), trendColor: 'var(--accent)' },
+            { label: 'Ganados', value: String(nowWon), delta: change(nowWon, prevWon), trend: months.map((m) => m.ganados), trendColor: 'var(--success)' },
+            { label: 'Conversión', value: conv == null ? '—' : `${Math.round(conv * 100)} %`, sub: `${closed.length} cerrados (ganados o perdidos)` },
+            { label: 'Valor del embudo', value: fmt(pipeline.sum), sub: pipeline.other ? `${pipeline.other} en otra moneda` : 'Ponderado por la probabilidad' },
+          ]}
+        />
+      </Widget>
+      <Widget title="Leads por mes" description="Los que entraron y los que se ganaron, en los últimos 12 meses">
+        <ComposedChart
+          title="Leads nuevos y ganados de los últimos 12 meses"
+          xLabel="Mes"
+          height={200}
+          data={months}
+          series={[
+            { key: 'nuevos', name: 'Nuevos', type: 'bar', color: 'var(--accent)' },
+            { key: 'ganados', name: 'Ganados', type: 'bar', color: 'var(--success)' },
+          ]}
+          format={(x) => String(x)}
+          compact={(x) => (Number.isInteger(x) ? String(x) : '')}
+        />
+      </Widget>
       <div className="grid gap-4 lg:grid-cols-3">
-        <Panel title="Embudo" description="Cuántos llegaron a cada etapa">
+        <Widget title="Embudo" description="Cuántos llegaron a cada etapa">
           <div className="flex flex-col gap-3">
             {funnel.map(({ s, n }) => (
               <Meter key={s} value={(n / top) * 100} color={s === 'won' ? 'success' : 'accent'} size="sm" aria-label={LEAD_STAGES[s][0]}>
@@ -345,41 +372,27 @@ function Analysis({ leads }) {
               </Meter>
             ))}
           </div>
-        </Panel>
-        <Panel title="Por fuente">
-          <ul className="flex flex-col gap-2 text-sm">
-            {bySource.length ? (
-              bySource.map(([src, n]) => (
-                <li key={src} className="flex items-center justify-between">
-                  <span>{SOURCES[src] || 'Otro'}</span>
-                  <span className="tabular-nums text-muted">{n}</span>
-                </li>
-              ))
-            ) : (
-              <li className="text-muted">Sin datos.</li>
-            )}
-          </ul>
-        </Panel>
-        <Panel title="Motivos de pérdida">
-          <ul className="flex flex-col gap-2 text-sm">
-            {reasons.length ? (
-              reasons.map(([why, n]) => (
-                <li key={why} className="flex items-center justify-between">
-                  <span>{why}</span>
-                  <span className="tabular-nums text-muted">{n}</span>
-                </li>
-              ))
-            ) : (
-              <li className="text-muted">Ninguno perdido.</li>
-            )}
-          </ul>
-        </Panel>
+        </Widget>
+        <Widget title="Por fuente" description="De dónde llegan">
+          {bySource.length ? (
+            <DonutChart title="Leads por fuente" parts={bySource.map(([src, n]) => ({ key: src, label: SOURCES[src] || 'Otro', value: n }))} format={(x) => String(x)} totalLabel="Leads" size={140} layout="stack" />
+          ) : (
+            <p className="text-sm text-muted">Sin datos.</p>
+          )}
+        </Widget>
+        <Widget title="Motivos de pérdida" description="Por qué no salieron">
+          {reasons.length ? (
+            <DonutChart title="Leads perdidos por motivo" parts={reasons.map(([why, n]) => ({ key: why, label: why, value: n }))} format={(x) => String(x)} totalLabel="Perdidos" size={140} layout="stack" />
+          ) : (
+            <p className="text-sm text-muted">Ninguno perdido.</p>
+          )}
+        </Widget>
       </div>
     </div>
   );
 }
 
-/** Ficha del lead, en un panel lateral. Cada cambio se guarda solo. */
+/** Ficha del lead, en una ventana. Cada cambio se guarda solo. */
 function LeadDrawer({ id, onLost }) {
   const [, v] = useCrm();
   const l = find('leads', id);
@@ -395,30 +408,52 @@ function LeadDrawer({ id, onLost }) {
   const isNew = !l.name && !l.company && !(l.activities || []).length;
 
   return (
-    <Drawer isOpen={ready} onOpenChange={(open) => ready && !open && go('#/leads')}>
-      <Drawer.Backdrop>
-        <Drawer.Content placement="right">
-          <Drawer.Dialog className="h-full w-full sm:max-w-[520px]">
-            <Drawer.CloseTrigger />
-            <Drawer.Header className="flex-row items-center gap-3">
+    <Modal isOpen={ready} onOpenChange={(open) => ready && !open && go('#/leads')}>
+      <Modal.Backdrop>
+        <Modal.Container>
+          <Modal.Dialog className="sm:max-w-[1040px]">
+            <Modal.CloseTrigger />
+            <Modal.Header className="flex-row flex-wrap items-center gap-3 pe-10">
               <Person name={leadName(l)} size="md" />
-              <div className="flex min-w-0 flex-col">
-                <Drawer.Heading className="truncate">{isNew ? 'Nuevo lead' : leadName(l)}</Drawer.Heading>
-                <span className="text-xs text-muted">Llegó el {shortDate(l.createdOn)} por {SOURCES[l.source] || 'otra vía'}</span>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <Modal.Heading className="truncate">{isNew ? 'Nuevo lead' : leadName(l)}</Modal.Heading>
+                <span className="text-xs text-muted">
+                  Llegó{l.createdOn ? ` el ${shortDate(l.createdOn)}` : ''} por {SOURCES[l.source] || 'otra vía'}
+                  {leadValue(l) ? ` · ${money(leadValue(l), l.currency || base())}` : ''}
+                </span>
               </div>
-            </Drawer.Header>
-            <Drawer.Body className="flex flex-col gap-5">
+              <StageChip lead={l} size="md" />
+            </Modal.Header>
+            <Modal.Body className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+              <div className="flex min-w-0 flex-col gap-5">
+              {/* La etapa, a la vista: un toque la cambia (Perdido pide el motivo). */}
+              <div className="flex flex-col gap-2">
+                <span className="sw-eyebrow">Etapa</span>
+                <div role="group" aria-label="Etapa del lead" className="flex flex-wrap gap-1 rounded-[1.25rem] bg-surface-secondary p-1">
+                  {STAGE_ORDER.map((st) => {
+                    const on = l.stage === st;
+                    return (
+                      <button
+                        key={st}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => {
+                          if (on) return;
+                          if (st === 'lost') return onLost(l);
+                          setLeadStage(l, st);
+                          toast(st === 'won' ? '¡Ganado! Pásalo a cliente.' : `${leadName(l)} → ${LEAD_STAGES[st][0]}`);
+                        }}
+                        className={`rounded-full px-3 py-1.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus ${
+                          on ? (st === 'won' ? 'bg-success text-success-foreground' : st === 'lost' ? 'bg-danger text-danger-foreground' : 'bg-foreground text-background') : 'text-muted hover:bg-surface hover:text-foreground'
+                        }`}
+                      >
+                        {LEAD_STAGES[st][0]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
-                <StageMenu
-                  lead={l}
-                  onLost={onLost}
-                  trigger={
-                    <Button size="sm" variant="secondary">
-                      <ArrowRightArrowLeft />
-                      {stageOf(l)[0]}
-                    </Button>
-                  }
-                />
                 {l.customerId ? (
                   <Button size="sm" variant="tertiary" onPress={() => go(`#/clientes/${l.customerId}`)}>
                     Ver cliente
@@ -512,23 +547,25 @@ function LeadDrawer({ id, onLost }) {
                   <Label>Teléfono</Label>
                   <Input />
                 </TextField>
-                <Select selectedKey={l.source || 'other'} onSelectionChange={(k) => save({ source: String(k) })}>
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
                   <Label>De dónde llegó</Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {Object.entries(SOURCES).map(([k, label]) => (
-                        <ListBox.Item key={k} id={k} textValue={label}>
+                  <div role="group" aria-label="De dónde llegó" className="flex flex-wrap gap-1.5">
+                    {Object.entries(SOURCES).map(([k, label]) => {
+                      const on = (l.source || 'other') === k;
+                      return (
+                        <button
+                          key={k}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() => save({ source: k })}
+                          className={`rounded-full px-3 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus ${on ? 'bg-accent font-medium text-accent-foreground' : 'bg-surface-secondary text-muted hover:text-foreground'}`}
+                        >
                           {label}
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <NumberField value={Number(l.value) || 0} minValue={0} onChange={(n) => save({ value: Number.isFinite(n) ? n : 0 })} formatOptions={{ maximumFractionDigits: 2 }}>
                   <Label>Valor ({l.currency || base()})</Label>
                   <NumberField.Group>
@@ -555,8 +592,8 @@ function LeadDrawer({ id, onLost }) {
                 </TextField>
               </div>
 
-              <Separator />
-              <div className="flex flex-col gap-3">
+              </div>
+              <div className="flex min-w-0 flex-col gap-3 lg:border-s lg:border-border lg:ps-6">
                 <span className="sw-eyebrow">Lo hablado</span>
                 <Form
                   className="flex flex-col gap-2"
@@ -595,8 +632,8 @@ function LeadDrawer({ id, onLost }) {
                   />
                 )}
               </div>
-            </Drawer.Body>
-            <Drawer.Footer className="justify-between">
+            </Modal.Body>
+            <Modal.Footer className="justify-between">
               <AlertDialog>
                 <Button variant="danger-soft" size="sm">
                   <TrashBin />
@@ -632,11 +669,11 @@ function LeadDrawer({ id, onLost }) {
               <Button slot="close" variant="secondary">
                 Listo
               </Button>
-            </Drawer.Footer>
-          </Drawer.Dialog>
-        </Drawer.Content>
-      </Drawer.Backdrop>
-    </Drawer>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
   );
 }
 

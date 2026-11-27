@@ -23,7 +23,7 @@ import {
   TrashBin,
 } from '@gravity-ui/icons';
 import { Button, ButtonGroup, Card, Checkbox, Chip, Input, Label, Meter, Tabs, TextArea, TextField, toast } from '@heroui/react';
-import { dateText, find, put, remove, shortDate, todayISO, uid } from '../../../negocio-core.js';
+import { addDays, dateText, find, put, remove, shortDate, todayISO, uid } from '../../../negocio-core.js';
 import { PERIODS, change, fileUrl, periodRange, uploadFile, within } from '../../../negocio-gastos.js';
 import {
   CAMPAIGN_COLORS,
@@ -46,6 +46,8 @@ import {
 } from '../../../negocio-contenido.js';
 import { newLead } from '../../../negocio-leads.js';
 import { Empty, Panel, Stat } from '../../kit/parts.jsx';
+import { SwitchField } from '../../kit/SwitchField.jsx';
+import { ComposedChart, DonutChart, KpiGroup, Widget } from '../../pro/index.js';
 import { copyText } from '../../kit/csv.js';
 import { go, useCrm } from '../store.js';
 import { LEAD_STAGES, money } from '../domain.js';
@@ -180,12 +182,16 @@ export function Resultados({ brandId = 'all' }) {
           </Tabs.List>
         </Tabs.ListContainer>
       </Tabs>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Publicadas" value={String(d.published.length)} delta={change(d.published.length, d.before.length)} sub={d.missing ? `${d.missing} sin resultados apuntados` : 'Con sus resultados'} />
-        <Stat label="Alcance" value={bigNum(d.reach)} delta={change(d.reach, d.reachBefore)} sub={d.follows ? `${bigNum(d.follows)} seguidores nuevos` : 'Personas a las que llegaste'} />
-        <Stat label="Interacción media" value={pctText(d.avgEng)} icon={Heart} sub={d.measured.length ? `De ${d.measured.length} con alcance` : 'Apunta el alcance y los me gusta'} />
-        <Stat label="Leads de redes" value={String(d.social.length)} icon={Funnel} sub={`${plural(d.won.length, 'ganado', 'ganados')} de ${d.leads.length} en total`} />
-      </div>
+      <Widget title="En el periodo">
+        <KpiGroup
+          items={[
+            { label: 'Publicadas', value: String(d.published.length), delta: change(d.published.length, d.before.length), sub: d.missing ? `${d.missing} sin resultados apuntados` : 'Con sus resultados' },
+            { label: 'Alcance', value: bigNum(d.reach), delta: change(d.reach, d.reachBefore), sub: d.follows ? `${bigNum(d.follows)} seguidores nuevos` : 'Personas a las que llegaste' },
+            { label: 'Interacción media', value: pctText(d.avgEng), sub: d.measured.length ? `De ${d.measured.length} con alcance` : 'Apunta el alcance y los me gusta' },
+            { label: 'Leads de redes', value: String(d.social.length), sub: `${plural(d.won.length, 'ganado', 'ganados')} de ${d.leads.length} en total` },
+          ]}
+        />
+      </Widget>
       <Panel title="Las que mejor funcionaron" description="Primero las que trajeron leads; luego, por interacción.">
         {d.ranked.length ? (
           <ul className="flex flex-col">
@@ -267,6 +273,27 @@ export function Feed({ brandId = 'all' }) {
     .filter((p) => p.brandId === b.id && p.date >= todayISO() && p.status !== 'publicado')
     .sort(byDate)
     .slice(0, 4);
+  // Las últimas 8 semanas (de lunes a domingo): publicadas y programadas, frente a la cadencia de la marca.
+  const today = todayISO();
+  const dow = (new Date(`${today}T12:00:00`).getDay() + 6) % 7;
+  const monday = addDays(today, -dow);
+  const cadence = Number(b.cadence) || 0;
+  const brandPosts = list(state, 'posts').filter((p) => p.brandId === b.id && p.date);
+  const weeks = Array.from({ length: 8 }, (_, i) => {
+    const from = addDays(monday, (i - 6) * 7);
+    const to = addDays(from, 6);
+    const inWeek = brandPosts.filter((p) => p.date >= from && p.date <= to);
+    return {
+      key: from,
+      label: shortDate(from),
+      done: inWeek.filter((p) => p.status === 'publicado').length,
+      planned: inWeek.filter((p) => p.status !== 'publicado' && ['aprobado', 'programado'].includes(p.status)).length,
+      goal: cadence,
+    };
+  });
+  const measured = brandPosts.filter((p) => p.status === 'publicado' && hasMetrics(p));
+  const reachAvg = measured.length ? measured.reduce((sum, p) => sum + (Number(p.metrics?.reach) || 0), 0) / measured.length : 0;
+  const engAvg = measured.length ? measured.reduce((sum, p) => sum + (engagement(p) || 0), 0) / measured.length : null;
 
   // Arrastrar una casilla sobre otra intercambia sus fechas: así se planea el orden de la cuadrícula.
   const swap = (target) => {
@@ -283,7 +310,12 @@ export function Feed({ brandId = 'all' }) {
 
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[380px_minmax(0,1fr)]">
-      <div className="mx-auto w-full max-w-[380px] rounded-[2.5rem] bg-[#0b0b0c] p-2.5 shadow-[var(--overlay-shadow)]">
+      <div className="mx-auto flex w-full max-w-[380px] flex-col gap-3 lg:sticky lg:top-24">
+      <div className="flex items-center justify-between gap-3 px-2">
+        <span className="text-xs text-muted">Arrastra una casilla sobre otra para cambiar sus fechas.</span>
+        <SwitchField label="Borradores" isSelected={drafts} onChange={setDrafts} size="sm" />
+      </div>
+      <div className="w-full rounded-[2.5rem] bg-[#0b0b0c] p-2.5 shadow-[var(--overlay-shadow)]">
         <div className="flex min-h-[640px] flex-col gap-3 overflow-hidden rounded-[2rem] bg-white pb-3 text-[#111]">
           <div className="px-4 pt-4 text-center text-sm font-bold">{(b.handle || b.name).replace(/^@/, '')}</div>
           <div className="flex items-center gap-5 px-4">
@@ -361,21 +393,48 @@ export function Feed({ brandId = 'all' }) {
           )}
         </div>
       </div>
-      <div className="flex min-w-0 flex-col gap-4">
-        <Panel title="Así se verá tu perfil" description="Lo más nuevo arriba a la izquierda, como en Instagram. Arrastra una casilla sobre otra para intercambiar sus fechas. Las historias no entran en la cuadrícula.">
-          <Checkbox isSelected={drafts} onChange={setDrafts}>
-            <Checkbox.Content>
-              <Checkbox.Control>
-                <Checkbox.Indicator />
-              </Checkbox.Control>
-              Incluir ideas y borradores
-            </Checkbox.Content>
-          </Checkbox>
-        </Panel>
-        <Panel title="Equilibrio del embudo" description={`Publicaciones de ${b.name} este mes, por su papel.`}>
-          <Bars rows={mix.map((x) => ({ key: x.k, label: `${x.r[0]} (${x.r[1]})`, title: x.r[3], color: ROLE_HEX[x.k], pct: x.n ? Math.max(4, (x.n / top) * 100) : 0, value: String(x.n), note: thisMonth.length ? `${Math.round((x.n / thisMonth.length) * 100)} %` : '' }))} />
-        </Panel>
-        <Panel title="Lo próximo">
+      </div>
+      <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+        <Widget title={b.name} description="Lo más nuevo arriba a la izquierda, como en Instagram. Las historias no entran en la cuadrícula." className="xl:col-span-2">
+          <KpiGroup
+            items={[
+              { label: 'En el perfil', value: String(posts.length), sub: drafts ? 'Con ideas y borradores' : 'Aprobadas, programadas y publicadas' },
+              { label: 'Este mes', value: String(thisMonth.length), sub: cadence ? `Cadencia: ${cadence} por semana` : 'Sin cadencia en la marca' },
+              { label: 'Alcance medio', value: measured.length ? bigNum(reachAvg) : '—', sub: measured.length ? `De ${plural(measured.length, 'publicación', 'publicaciones')} medidas` : 'Apunta los resultados' },
+              { label: 'Interacción media', value: engAvg == null ? '—' : pctText(engAvg), sub: 'Me gusta, comentarios y guardados sobre el alcance' },
+            ]}
+          />
+        </Widget>
+        <Widget title="Ritmo" description={cadence ? `Por semana, frente a tu cadencia de ${cadence}` : 'Publicaciones por semana'} className="xl:col-span-2">
+          <ComposedChart
+            title="Publicaciones por semana"
+            xLabel="Semana"
+            height={190}
+            data={weeks}
+            series={[
+              { key: 'done', name: 'Publicadas', type: 'bar', color: 'var(--sw-chart-in)' },
+              { key: 'planned', name: 'Programadas', type: 'bar', color: 'var(--sw-cat-other)' },
+              ...(cadence ? [{ key: 'goal', name: 'Cadencia', type: 'line', color: 'var(--foreground)' }] : []),
+            ]}
+            format={(x) => String(x)}
+            compact={(x) => (Number.isInteger(x) ? String(x) : '')}
+          />
+        </Widget>
+        <Widget title="Equilibrio del embudo" description={`Este mes, por su papel`}>
+          {thisMonth.length ? (
+            <DonutChart
+              title="Publicaciones del mes por papel en el embudo"
+              parts={mix.map((x) => ({ key: x.k, label: `${x.r[0]} (${x.r[1]})`, value: x.n, color: ROLE_HEX[x.k] }))}
+              format={(x) => String(x)}
+              totalLabel="Este mes"
+              size={140}
+              layout="stack"
+            />
+          ) : (
+            <p className="text-sm text-muted">Nada planeado este mes.</p>
+          )}
+        </Widget>
+        <Widget title="Lo próximo" bodyClassName="p-2">
           {next.length ? (
             <ul className="flex flex-col">
               {next.map((p) => (
@@ -394,9 +453,9 @@ export function Feed({ brandId = 'all' }) {
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted">Nada programado.</p>
+            <p className="p-2 text-sm text-muted">Nada programado.</p>
           )}
-        </Panel>
+        </Widget>
       </div>
     </div>
   );

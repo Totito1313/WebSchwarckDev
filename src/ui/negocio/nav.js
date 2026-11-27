@@ -83,6 +83,28 @@ export const AREAS = [
   },
 ];
 
+// Lo que se puede crear, por zona. La de la sección abierta es el botón principal de «Crear».
+export const CREATE = {
+  ventas: [
+    ['factura', 'Nueva factura'],
+    ['cotizacion', 'Nueva cotización'],
+    ['propuesta', 'Nueva propuesta'],
+    ['lead', 'Nuevo lead'],
+    ['cliente', 'Nuevo cliente'],
+    ['servicio', 'Nuevo servicio'],
+  ],
+  trabajo: [
+    ['tarea', 'Nueva tarea'],
+    ['proyecto', 'Nuevo proyecto'],
+    ['horas', 'Registrar horas'],
+    ['pagina', 'Nueva página'],
+  ],
+  dinero: [['gasto', 'Nuevo gasto']],
+  crecer: [['publicacion', 'Nueva publicación']],
+};
+// Dónde vive cada cosa que se crea: de ahí sale su icono.
+export const CREATE_HOME = { factura: 'facturas', cotizacion: 'cotizaciones', propuesta: 'propuestas', lead: 'leads', cliente: 'clientes', servicio: 'catalogo', tarea: 'tareas', proyecto: 'proyectos', horas: 'horas', pagina: 'paginas', gasto: 'gastos', publicacion: 'marketing' };
+
 export const SECTIONS = AREAS.flatMap((a) => a.sections.map((s) => ({ ...s, area: a.id })));
 export const sectionOf = (id) => SECTIONS.find((s) => s.id === id) || null;
 export const areaOf = (sectionId) => AREAS.find((a) => a.sections.some((s) => s.id === sectionId)) || AREAS[0];

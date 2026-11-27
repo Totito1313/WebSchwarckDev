@@ -1,12 +1,15 @@
-// Dinero › Cobros: lo que falta por cobrar (con «Registrar» en cada factura) y el
-// historial de todo lo cobrado, con la tasa del día de cada pago.
+// Dinero › Cobros: arriba, lo cobrado mes a mes frente a lo facturado y lo que falta
+// por cobrar según lo atrasado que está; debajo, lo pendiente (con «Registrar» en
+// cada factura) y el historial de todo lo cobrado, con la tasa del día de cada pago.
 import { useMemo, useState } from 'react';
 import { CircleDollar, Receipt } from '@gravity-ui/icons';
 import { Button, Chip, Table, Tabs } from '@heroui/react';
 import { paymentBase } from '../../../negocio-core.js';
-import { Empty, PageHeader, Stat, StatusChip } from '../../kit/parts.jsx';
+import { Empty, PageHeader, StatusChip } from '../../kit/parts.jsx';
+import { ComposedChart, DonutChart, Widget } from '../../pro/index.js';
+import { aging, billedAndCollected, compactNum } from '../series.js';
 import { go, useCrm } from '../store.js';
-import { DOC_STATUS, collected, customerName, docStatus, fmt, invoices, money, periodRange, receivable, shortDate, todayISO, totals } from '../domain.js';
+import { DOC_STATUS, base, collected, customerName, docStatus, fmt, invoices, money, periodRange, receivable, shortDate, todayISO, totals } from '../domain.js';
 import { PaymentForm } from '../payments.jsx';
 
 export function Cobros() {
@@ -22,18 +25,52 @@ export function Cobros() {
     const history = invoices()
       .flatMap((d) => (d.payments || []).map((p) => ({ d, p, base: paymentBase(d, p) })))
       .sort((a, b) => (b.p.date || '').localeCompare(a.p.date || ''));
-    return { rec, month, year, open, history };
+    return { rec, month, year, open, history, months: billedAndCollected(state.docs), aging: aging(rec.open) };
   }, [state, v]);
   const today = todayISO();
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader eyebrow="Dinero" title="Cobros" description="Lo que te deben y lo que ya entró. Cada pago cuenta con su tasa del día." />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Por cobrar" value={fmt(data.rec.sum)} icon={CircleDollar} sub={`${data.rec.open.length} facturas abiertas${data.rec.skipped ? ` · ${data.rec.skipped} en otra moneda` : ''}`} />
-        <Stat label="Vencido" value={String(data.rec.overdue.length)} tone={data.rec.overdue.length ? 'var(--danger)' : undefined} sub={data.rec.overdue.length ? 'facturas pasadas de fecha' : 'Nada vencido'} />
-        <Stat label="Cobrado este mes" value={fmt(data.month.sum)} sub={`${data.month.count} cobros`} />
-        <Stat label="Cobrado este año" value={fmt(data.year.sum)} sub={data.year.skipped ? `${data.year.skipped} sin tasa` : `${data.year.count} cobros`} />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Widget
+          title="Cobrado y facturado"
+          description={`Últimos 12 meses, en ${base()}`}
+          className="lg:col-span-2"
+          action={
+            <span className="flex gap-4">
+              <span>
+                Este mes <b className="text-foreground tabular-nums">{fmt(data.month.sum)}</b>
+              </span>
+              <span>
+                Este año <b className="text-foreground tabular-nums">{fmt(data.year.sum)}</b>
+              </span>
+            </span>
+          }
+        >
+          <ComposedChart
+            title="Facturado y cobrado de los últimos 12 meses"
+            xLabel="Mes"
+            height={220}
+            data={data.months}
+            series={[
+              { key: 'billed', name: 'Facturado', type: 'bar', color: 'var(--sw-cat-other)' },
+              { key: 'collected', name: 'Cobrado', type: 'bar', color: 'var(--sw-chart-in)' },
+            ]}
+            format={(x) => money(x, base())}
+            compact={compactNum}
+          />
+        </Widget>
+        <Widget
+          title="Por cobrar"
+          description={data.rec.skipped ? `${data.rec.skipped} en otra moneda sin equivalencia` : `${data.rec.open.length} ${data.rec.open.length === 1 ? 'factura abierta' : 'facturas abiertas'}`}
+        >
+          {data.rec.open.length ? (
+            <DonutChart title="Por cobrar según el atraso" parts={data.aging} format={(x) => money(x, base())} totalLabel="Por cobrar" size={150} layout="stack" max={4} />
+          ) : (
+            <Empty icon={CircleDollar} title="Nada por cobrar" text="Todo lo facturado está cobrado." />
+          )}
+        </Widget>
       </div>
       <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
         <Tabs.ListContainer>

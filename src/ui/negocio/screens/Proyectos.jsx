@@ -50,6 +50,7 @@ import { CurrencyPicker } from '../currency.jsx';
 import { AmountField, ConfirmButton, DateInput, FormModal, SelectField } from '../fields.jsx';
 import { RichView, Stepper, Timeline } from '../../pro/index.js';
 import { PagesPanel } from './Paginas.jsx';
+import { NuevoProyecto } from './NuevoProyecto.jsx';
 
 const STATUS_COLOR = { pending: 'warning', active: 'accent', paused: 'default', completed: 'success' };
 const TASK_COLOR = { request: 'accent', todo: 'default', doing: 'accent', review: 'warning', done: 'success' };
@@ -258,13 +259,14 @@ export function Proyectos({ isNew }) {
           )}
         </>
       )}
+      {/* Crear es un asistente por pasos; editar sigue en ProjectForm. */}
       {showForm && (
-        <ProjectForm
+        <NuevoProyecto
           onClose={() => {
             setCreating(false);
             if (isNew) go('#/proyectos');
           }}
-          onSaved={(p) => setTimeout(() => go(`#/proyectos/${p.id}`), 0)}
+          onCreated={(p) => setTimeout(() => go(`#/proyectos/${p.id}`), 0)}
         />
       )}
     </div>
