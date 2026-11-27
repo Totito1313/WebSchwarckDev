@@ -60,7 +60,7 @@ import { AmountField, ConfirmButton, DateInput, FormModal, SelectField } from '.
 import { Kanban } from '../../pro/index.js';
 import { Pieza } from './Pieza.jsx';
 import { Segment } from '../../kit/Segment.jsx';
-import { CampanaPage, Campanas, Feed, MARCA_KEY, MarcaPage, Marcas, Resultados } from './MarketingMas.jsx';
+import { BrandMark, CampanaPage, Campanas, Feed, MARCA_KEY, MarcaPage, Marcas, Resultados } from './MarketingMas.jsx';
 
 const ROLE_HEX = { tof: '#00b8d4', mof: '#8e5bd6', bof: '#34c759', com: '#f97316' };
 const STATUS_COLOR = { idea: 'default', guion: 'accent', diseno: 'accent', aprobado: 'success', programado: 'warning', publicado: 'success' };
@@ -348,6 +348,52 @@ function Copias({ posts }) {
   );
 }
 
+/** Moverse entre marcas: anterior, la elegida (con su menú) y siguiente. */
+function BrandSwitcher({ value, onChange, allowAll = true }) {
+  const list = brands();
+  const opts = [...(allowAll ? [{ id: 'all', name: 'Todas las marcas' }] : []), ...list];
+  if (!opts.length) return null;
+  const i = Math.max(0, opts.findIndex((o) => o.id === value));
+  const cur = opts[i];
+  const step = (d) => onChange(opts[(i + d + opts.length) % opts.length].id);
+  const mark = (o) =>
+    o.id === 'all' ? (
+      <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-default text-[10px] font-bold">{list.length}</span>
+    ) : (
+      <BrandMark b={o} size="size-5" rounded="rounded-md" />
+    );
+  return (
+    <ButtonGroup size="sm" variant="secondary">
+      <Button size="sm" variant="secondary" isIconOnly aria-label="Marca anterior" onPress={() => step(-1)}>
+        <ChevronLeft />
+      </Button>
+      <Dropdown>
+        <Button size="sm" variant="secondary" aria-label="Elegir marca">
+          <ButtonGroup.Separator />
+          {mark(cur)}
+          <span className="max-w-40 truncate">{cur.name}</span>
+          <ChevronDown className="size-3.5" />
+        </Button>
+        <Dropdown.Popover placement="bottom end" className="min-w-60">
+          <Dropdown.Menu aria-label="Marca" selectionMode="single" selectedKeys={new Set([cur.id])} onAction={(k) => onChange(String(k))}>
+            {opts.map((o) => (
+              <Dropdown.Item key={o.id} id={o.id} textValue={o.name}>
+                {mark(o)}
+                <Label>{o.name}</Label>
+                <Dropdown.ItemIndicator />
+              </Dropdown.Item>
+            ))}
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
+      <Button size="sm" variant="secondary" isIconOnly aria-label="Marca siguiente" onPress={() => step(1)}>
+        <ButtonGroup.Separator />
+        <ChevronRight />
+      </Button>
+    </ButtonGroup>
+  );
+}
+
 /** La ficha de una publicación. Cada cambio se guarda solo. */
 export function Marketing({ tab, arg }) {
   const [state, v] = useCrm();
@@ -412,18 +458,11 @@ export function Marketing({ tab, arg }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Segment items={TAB_ITEMS} value={view} label="Vistas de marketing" className="max-w-full" />
         {view !== 'marcas' && (
-          <ScrollShadow orientation="horizontal" hideScrollBar className="max-w-full">
-          <TagGroup aria-label="Marca" selectionMode="single" disallowEmptySelection selectedKeys={view === 'feed' && chosen === 'all' && brands()[0] ? new Set([brands()[0].id]) : brand} onSelectionChange={setBrand} size="sm">
-            <TagGroup.List>
-              {view !== 'feed' && <Tag id="all">Todas</Tag>}
-              {brands().map((b) => (
-                <Tag key={b.id} id={b.id}>
-                  {b.name}
-                </Tag>
-              ))}
-            </TagGroup.List>
-          </TagGroup>
-          </ScrollShadow>
+          <BrandSwitcher
+            value={view === 'feed' && chosen === 'all' && brands()[0] ? brands()[0].id : chosen}
+            allowAll={view !== 'feed'}
+            onChange={(id) => setBrand(new Set([id]))}
+          />
         )}
       </div>
       {view === 'calendario' && <Calendario posts={posts} ym={ym} setYm={setYm} />}

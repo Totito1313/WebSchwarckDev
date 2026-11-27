@@ -29,11 +29,12 @@ import {
   snapshotPayment,
   state,
   strongest,
+  taxOf,
   totals,
   uid,
   unitName,
 } from '../../../negocio-core.js';
-import { ACCENTS, acceptance } from '../../../negocio-sheet.js';
+import { acceptance, accentColor } from '../../../negocio-sheet.js';
 import { BLOCKS, block } from '../../../negocio-propuesta.js';
 import { PointMenu } from '../../pro/ContextMenu.jsx';
 import { PointPicker, below } from '../../kit/PointPicker.jsx';
@@ -473,7 +474,7 @@ export function Hoja({ doc, touch, redraw }) {
       ? []
       : [
           !doc.discount && ['Descuento', () => { doc.discount = { type: 'percent', value: 10 }; }],
-          !doc.tax && ['Impuesto', () => { doc.tax = { label: 'IVA', rate: 16 }; }],
+          !doc.tax && ['Impuesto', () => { doc.tax = taxOf(); }],
           !doc.withholding && ['Retención', () => { doc.withholding = { rate: 75, on: 'tax' }; }],
           !doc.shipping && ['Otro cargo', () => { doc.shipping = { label: 'Envío', amount: 0 }; }],
           !doc.equiv && ['Equivalencia', () => { doc.equiv = { currency: cur === 'VES' ? 'USD' : 'VES', rate: 0, source: 'BCV' }; }],
@@ -714,7 +715,7 @@ export function Hoja({ doc, touch, redraw }) {
         data-font={st.font}
         data-cover={st.cover}
         data-type={doc.type}
-        style={{ '--accent': ACCENTS[st.accent] || ACCENTS.ink, '--logo': `${Math.max(20, Math.min(120, Number(st.logoSize) || 44))}px` }}
+        style={{ '--accent': accentColor(st.accent), '--logo': `${Math.max(20, Math.min(120, Number(st.logoSize) || 44))}px` }}
       >
         {st.cover !== 'none' && (
           <div className="sh-cover" aria-hidden>

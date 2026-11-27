@@ -42,6 +42,10 @@ export function useSession() {
     try {
       await loadAll();
       setPhase('ready');
+      // La copia del día en la carpeta elegida (Drive, OneDrive…), si hay una y con permiso.
+      setTimeout(() => {
+        import('./screens/Copia.jsx').then((m) => m.autoFolderBackup()).catch(() => {});
+      }, 4000);
     } catch (err) {
       if (err.status === 401) setPhase('login');
       else {

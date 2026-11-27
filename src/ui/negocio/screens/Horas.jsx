@@ -14,6 +14,7 @@ import {
   entryValue,
   isUnbilled,
   newEntry,
+  newTask,
   pauseTimer,
   projectName,
   resumeTimer,
@@ -116,65 +117,196 @@ function Timer() {
   );
 }
 
+const QUICK = [15, 30, 45, 60, 90, 120, 180, 240];
+const NEW_TASK = '_new';
+let lineSeq = 0;
+const blankLine = (taskId = '_none', minutes = 0, note = '') => ({ key: (lineSeq += 1), taskId, title: '', dur: minutes ? durationText(minutes) : '', note });
+
+/**
+ * Registrar horas: el día, el proyecto y una o varias tareas, cada una con su
+ * tiempo. Si la tarea aún no existe se crea aquí mismo; y «Cronometrar» arranca el
+ * temporizador con ella en vez de apuntar un tiempo a mano.
+ */
 function EntryForm({ entry, onClose }) {
   const [state] = useCrm();
   const q = routeQuery();
   const fromTask = q.get('t') && find('tasks', q.get('t'));
   const [e] = useState(() => (entry ? { ...entry } : newEntry({ projectId: fromTask?.projectId || q.get('p') || '', taskId: fromTask?.id || '' })));
   const [projectId, setProjectId] = useState(e.projectId || '');
-  const [taskId, setTaskId] = useState(e.taskId || '_none');
   const [date, setDate] = useState(e.date || todayISO());
-  const [dur, setDur] = useState(e.minutes ? durationText(e.minutes) : '');
+  const [lines, setLines] = useState(() => [blankLine(e.taskId || '_none', e.minutes, e.note || '')]);
   const [billable, setBillable] = useState(e.billable !== false);
   const [rate, setRate] = useState(e.rate ?? 0);
+  const [doneNew, setDoneNew] = useState(false);
   const [error, setError] = useState('');
-  const minutes = parseDuration(dur);
+  const today = todayISO();
+  const yesterday = addDays(today, -1);
+  const total = lines.reduce((s, l) => s + (parseDuration(l.dur) || 0), 0);
+  const setLine = (key, patch) => {
+    setLines((list) => list.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+    setError('');
+  };
+  const options = [...taskOptions(state.tasks, projectId), [NEW_TASK, '+ Nueva tarea…', 'Se crea al guardar']];
+
+  /** La tarea de una línea: la elegida, o la nueva (se crea ahora). */
+  const resolveTask = (l) => {
+    if (l.taskId === NEW_TASK) {
+      const title = l.title.trim();
+      if (!title) return '';
+      const t = { ...newTask({ projectId }), title, status: doneNew ? 'done' : 'doing' };
+      put('tasks', t);
+      return t.id;
+    }
+    return l.taskId === '_none' ? '' : l.taskId;
+  };
+  const check = () => {
+    const bad = lines.find((l) => l.taskId === NEW_TASK && !l.title.trim());
+    if (bad) return 'Ponle un nombre a la tarea nueva.';
+    return '';
+  };
 
   return (
     <FormModal
       title={entry ? 'Editar horas' : 'Registrar horas'}
+      size="sm:max-w-[680px]"
+      submit={entry ? 'Guardar' : total ? `Registrar ${durationText(total)}` : 'Registrar'}
       onClose={onClose}
-      onSubmit={(f) => {
-        if (!minutes) {
-          setError('Escribe cuánto: «1:30», «90 min», «2 h» o «1,5».');
+      extra={
+        !entry && (
+          <Button
+            variant="secondary"
+            onPress={() => {
+              const why = check();
+              if (why) return setError(why);
+              const first = lines[0];
+              const taskId = resolveTask(first);
+              const t = taskId && find('tasks', taskId);
+              startTimer({ projectId: t?.projectId || projectId, taskId, note: first.note.trim() });
+              toast.success('Temporizador en marcha');
+              onClose();
+              return undefined;
+            }}
+          >
+            <Play />
+            Cronometrar
+          </Button>
+        )
+      }
+      onSubmit={() => {
+        const why = check();
+        if (why) {
+          setError(why);
           return false;
         }
-        put('time', {
-          ...e,
-          projectId,
-          taskId: taskId === '_none' ? '' : taskId,
-          date,
-          minutes,
-          note: String(f.note || '').trim(),
-          billable,
-          rate: rate > 0 ? rate : null,
+        const filled = lines.filter((l) => parseDuration(l.dur));
+        if (!filled.length) {
+          setError('Escribe cuánto tiempo: «1:30», «90 min», «2 h» o «1,5», o toca un atajo.');
+          return false;
+        }
+        const missing = lines.find((l) => !parseDuration(l.dur) && (l.taskId !== '_none' || l.note.trim()));
+        if (missing) {
+          setError('A una de las tareas le falta su tiempo.');
+          return false;
+        }
+        filled.forEach((l, i) => {
+          const taskId = resolveTask(l);
+          const t = taskId && find('tasks', taskId);
+          put('time', {
+            ...(entry && i === 0 ? e : newEntry()),
+            projectId: t?.projectId || projectId,
+            taskId,
+            date,
+            minutes: parseDuration(l.dur),
+            note: l.note.trim(),
+            billable,
+            rate: rate > 0 ? rate : null,
+          });
         });
-        toast.success(entry ? 'Horas guardadas' : `Registradas ${durationText(minutes)}`);
+        const sum = filled.reduce((s, l) => s + parseDuration(l.dur), 0);
+        toast.success(entry ? 'Horas guardadas' : filled.length > 1 ? `Registradas ${durationText(sum)} en ${filled.length} tareas` : `Registradas ${durationText(sum)}`);
         return true;
       }}
     >
-      <DateInput label="Día" value={date} onChange={setDate} />
-      <TextField value={dur} onChange={(x) => { setDur(x); setError(''); }} isInvalid={Boolean(error)} autoFocus>
-        <Label>Tiempo</Label>
-        <Input placeholder="1:30, 90 min, 2 h…" />
-        {minutes ? <span className="text-xs text-muted">{durationText(minutes)}</span> : null}
-      </TextField>
+      <div className="flex flex-col gap-1.5">
+        <DateInput label="Día" value={date} onChange={setDate} />
+        <div className="flex gap-1.5">
+          {[
+            [today, 'Hoy'],
+            [yesterday, 'Ayer'],
+          ].map(([d, label]) => (
+            <Button key={label} size="sm" variant={date === d ? 'secondary' : 'ghost'} onPress={() => setDate(d)}>
+              {label}
+            </Button>
+          ))}
+        </div>
+      </div>
       <SelectField
         label="Proyecto"
         value={projectId || '_none'}
         onChange={(id) => {
           setProjectId(id === '_none' ? '' : id);
-          setTaskId('_none');
+          setLines((list) => list.map((l) => ({ ...l, taskId: l.taskId === NEW_TASK ? NEW_TASK : '_none' })));
         }}
         options={[['_none', 'Sin proyecto'], ...state.projects.map((p) => [p.id, p.name || 'Sin nombre'])]}
       />
-      <SelectField label="Tarea" value={taskId} onChange={setTaskId} options={taskOptions(state.tasks, projectId).concat(e.taskId && !state.tasks.some((t) => t.id === e.taskId) ? [] : [])} />
-      <TextField name="note" defaultValue={e.note} maxLength={300} className="sm:col-span-2">
-        <Label>Nota</Label>
-        <Input placeholder="Qué hiciste" />
-      </TextField>
-      <AmountField label={`Tarifa propia (${base()})`} value={rate} onChange={setRate} description="Vacía: la de la tarea, el proyecto o Ajustes." />
-      <SwitchField isSelected={billable} onChange={setBillable} className="self-end pb-2" label="Facturable" />
+
+      <div className="flex flex-col gap-3 sm:col-span-2">
+        {lines.map((l, i) => {
+          const minutes = parseDuration(l.dur);
+          return (
+            <section key={l.key} className="flex flex-col gap-3 rounded-2xl bg-surface-secondary p-3">
+              <div className="flex items-center gap-2">
+                <span className="sw-eyebrow flex-1">{lines.length > 1 ? `Tarea ${i + 1}` : 'Tarea'}</span>
+                {minutes ? <span className="text-xs font-medium tabular-nums text-muted">{durationText(minutes)}</span> : null}
+                {lines.length > 1 && (
+                  <Button isIconOnly size="sm" variant="ghost" aria-label="Quitar esta tarea" onPress={() => setLines((list) => list.filter((x) => x.key !== l.key))}>
+                    <TrashBin className="size-4" />
+                  </Button>
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SelectField ariaLabel="Tarea" value={l.taskId} onChange={(id) => setLine(l.key, { taskId: id })} options={options} />
+                {l.taskId === NEW_TASK ? (
+                  <TextField value={l.title} onChange={(x) => setLine(l.key, { title: x })} maxLength={200} autoFocus aria-label="Nombre de la tarea nueva">
+                    <Input placeholder="Nombre de la tarea nueva" />
+                  </TextField>
+                ) : (
+                  <TextField value={l.note} onChange={(x) => setLine(l.key, { note: x })} maxLength={300} aria-label="Nota">
+                    <Input placeholder="Qué hiciste (opcional)" />
+                  </TextField>
+                )}
+              </div>
+              {l.taskId === NEW_TASK && (
+                <TextField value={l.note} onChange={(x) => setLine(l.key, { note: x })} maxLength={300} aria-label="Nota">
+                  <Input placeholder="Qué hiciste (opcional)" />
+                </TextField>
+              )}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <TextField value={l.dur} onChange={(x) => setLine(l.key, { dur: x })} isInvalid={Boolean(error) && !minutes} autoFocus={i === 0 && !entry && !fromTask} aria-label="Tiempo" className="w-36">
+                  <Input placeholder="1:30, 2 h…" />
+                </TextField>
+                {QUICK.map((m) => (
+                  <Button key={m} size="sm" variant={minutes === m ? 'secondary' : 'ghost'} className="tabular-nums" onPress={() => setLine(l.key, { dur: durationText(m) })}>
+                    {durationText(m)}
+                  </Button>
+                ))}
+              </div>
+            </section>
+          );
+        })}
+        {!entry && (
+          <Button size="sm" variant="tertiary" className="self-start" onPress={() => setLines((list) => [...list, blankLine()])}>
+            <Plus />
+            Añadir otra tarea
+          </Button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-3 sm:col-span-2">
+        <SwitchField isSelected={billable} onChange={setBillable} label="Facturable" />
+        {lines.some((l) => l.taskId === NEW_TASK) && <SwitchField isSelected={doneNew} onChange={setDoneNew} label="La tarea nueva ya está hecha" />}
+        <AmountField label={`Tarifa propia (${base()})`} value={rate} onChange={setRate} description="0: la de la tarea, el proyecto o Ajustes." className="w-56" />
+      </div>
       {error && <p className="text-sm text-danger sm:col-span-2">{error}</p>}
     </FormModal>
   );

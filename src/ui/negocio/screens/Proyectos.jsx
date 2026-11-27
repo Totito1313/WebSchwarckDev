@@ -24,7 +24,7 @@ import {
   TextField,
   toast,
 } from '@heroui/react';
-import { CURRENCIES, durationText, find, money, put, shortDate } from '../../../negocio-core.js';
+import { durationText, find, money, put, shortDate } from '../../../negocio-core.js';
 import {
   BILL_PERIODS,
   PROJECT_STATUS,
@@ -46,7 +46,8 @@ import {
 import { Empty, PageHeader, Panel, Stat, StatusChip } from '../../kit/parts.jsx';
 import { go, useCrm } from '../store.js';
 import { DOC_STATUS, DOC_WORD, docStatus, totals } from '../domain.js';
-import { AmountField, ConfirmButton, DateInput, FormModal, SelectField, currencyOptions } from '../fields.jsx';
+import { CurrencyPicker } from '../currency.jsx';
+import { AmountField, ConfirmButton, DateInput, FormModal, SelectField } from '../fields.jsx';
 import { RichView, Stepper, Timeline } from '../../pro/index.js';
 import { PagesPanel } from './Paginas.jsx';
 
@@ -147,7 +148,7 @@ export function ProjectForm({ project, onClose, onSaved }) {
         options={state.customers.map((c) => [c.id, c.name])}
         placeholder="¿De quién es?"
       />
-      <SelectField label="Moneda" value={currency} onChange={setCurrency} options={currencyOptions(CURRENCIES)} />
+      <CurrencyPicker label="Moneda" value={currency} onChange={setCurrency} showName={false} className="sm:col-span-2" />
       <AmountField label={`Presupuesto (${currency})`} value={budget} onChange={setBudget} />
       <AmountField label={`Tarifa por hora (${currency})`} value={rate} onChange={setRate} description="La de sus tareas y horas, si no tienen otra." />
       <DateInput label="Empieza" value={start} onChange={setStart} />

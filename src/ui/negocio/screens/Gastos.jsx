@@ -20,7 +20,7 @@ import {
   Description,
   toast,
 } from '@heroui/react';
-import { CURRENCIES, convert, dateText, find, monthText, put, remove, round2, strongest, todayISO, uid, unitName } from '../../../negocio-core.js';
+import { convert, dateText, find, monthText, put, remove, round2, strongest, todayISO, uid, unitName } from '../../../negocio-core.js';
 import {
   PERIODS,
   SOURCES as RATE_SOURCES,
@@ -34,7 +34,8 @@ import {
 import { Empty, PageHeader, Panel, Stat } from '../../kit/parts.jsx';
 import { go, useCrm } from '../store.js';
 import { base, change, fmt, money, periodRange, spent, within } from '../domain.js';
-import { AmountField, ConfirmButton, ConfirmDialog, DateInput, FormModal, SelectField, currencyOptions } from '../fields.jsx';
+import { CurrencyPicker } from '../currency.jsx';
+import { AmountField, ConfirmButton, ConfirmDialog, DateInput, FormModal, SelectField } from '../fields.jsx';
 import { downloadCsv } from '../../kit/csv.js';
 import { ActionBar, ListView } from '../../pro/index.js';
 import { UploadButton } from '../upload.jsx';
@@ -149,7 +150,7 @@ export function ExpenseForm({ expense, onClose }) {
         <Input placeholder="Suscripción de Figma" />
       </TextField>
       <AmountField label="Importe" value={amount} onChange={(n) => { setAmount(n); setError(''); }} />
-      <SelectField label="Moneda" value={currency} onChange={setCurrency} options={currencyOptions(CURRENCIES)} />
+      <CurrencyPicker label="Moneda" value={currency} onChange={setCurrency} showName={false} className="sm:col-span-2" />
       {needsRate && (
         <>
           <AmountField

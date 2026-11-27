@@ -30,7 +30,6 @@ import {
   Form,
   Header,
   Input,
-  Kbd,
   Label,
   ListBox,
   Modal,
@@ -94,6 +93,9 @@ const CREATE = {
 const PRIMARY = { inicio: 'factura', ventas: 'factura', trabajo: 'tarea', dinero: 'gasto', crecer: 'publicacion', negocio: 'factura' };
 const SECTION_PRIMARY = { leads: 'lead', clientes: 'cliente', propuestas: 'propuesta', cotizaciones: 'cotizacion', facturas: 'factura', catalogo: 'servicio', proyectos: 'proyecto', tareas: 'tarea', horas: 'horas', paginas: 'pagina' };
 const LABEL = Object.fromEntries(Object.values(CREATE).flat());
+// Dónde vive cada cosa que se crea: de ahí sale su icono.
+const HOME_OF = { factura: 'facturas', cotizacion: 'cotizaciones', propuesta: 'propuestas', lead: 'leads', cliente: 'clientes', servicio: 'catalogo', tarea: 'tareas', proyecto: 'proyectos', horas: 'horas', pagina: 'paginas', gasto: 'gastos', publicacion: 'marketing' };
+const iconOf = (k) => sectionOf(HOME_OF[k])?.icon;
 
 function Login({ onLogin, expired }) {
   const [error, setError] = useState('');
@@ -215,7 +217,7 @@ function CreateButton({ area, section, onCreate }) {
   const main = SECTION_PRIMARY[section] || PRIMARY[area] || 'factura';
   return (
     <ButtonGroup size="sm">
-      <Button onPress={() => onCreate(main)}>
+      <Button size="sm" onPress={() => onCreate(main)}>
         <Plus />
         <span className="hidden sm:inline">{LABEL[main]}</span>
       </Button>
@@ -229,11 +231,15 @@ function CreateButton({ area, section, onCreate }) {
             {Object.entries(CREATE).map(([zone, items]) => (
               <Dropdown.Section key={zone}>
                 <Header>{AREAS.find((a) => a.id === zone)?.label}</Header>
-                {items.map(([k, label]) => (
-                  <Dropdown.Item key={k} id={k} textValue={label}>
-                    <Label>{label}</Label>
-                  </Dropdown.Item>
-                ))}
+                {items.map(([k, label]) => {
+                  const Icon = iconOf(k);
+                  return (
+                    <Dropdown.Item key={k} id={k} textValue={label}>
+                      {Icon && <Icon className="size-4 shrink-0 text-muted" />}
+                      <Label>{label}</Label>
+                    </Dropdown.Item>
+                  );
+                })}
               </Dropdown.Section>
             ))}
           </Dropdown.Menu>
@@ -275,14 +281,45 @@ function Account({ onLogout }) {
 }
 
 /** La isla flotante: zonas a la izquierda (en el teléfono, un menú) y herramientas a la derecha. */
+/** true al bajar por la página (la isla se esconde); false al subir o arriba del todo. */
+function useHideOnScroll() {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    let last = scrollY;
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = scrollY;
+        const delta = y - last;
+        if (y < 80) setHidden(false);
+        else if (delta > 6) setHidden(true);
+        else if (delta < -6) setHidden(false);
+        last = y;
+        ticking = false;
+      });
+    };
+    addEventListener('scroll', onScroll, { passive: true });
+    return () => removeEventListener('scroll', onScroll);
+  }, []);
+  useEffect(() => {
+    document.documentElement.dataset.island = hidden ? 'hidden' : 'shown';
+  }, [hidden]);
+  return hidden;
+}
+
 function Island({ area, section, onSearch, onCreate, onLogout }) {
+  const hidden = useHideOnScroll();
   const current = AREAS.find((a) => a.id === area) || AREAS[0];
   const CurIcon = current.icon;
   // Cada zona abre la última sección que se usó en ella.
   const zoneItems = useMemo(() => AREAS.map((a) => ({ id: a.id, label: a.label, href: `#/${lastSection(a)}`, icon: a.icon })), [area, section]);
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-40 flex justify-center px-2 pt-2 sm:px-4 sm:pt-3">
-      <nav aria-label="Zonas" className="sw-glass pointer-events-auto flex w-full max-w-[1180px] items-center gap-1 rounded-full p-1.5 shadow-[var(--overlay-shadow)]">
+    <div
+      className={`pointer-events-none fixed inset-x-0 top-0 z-40 flex justify-center px-2 pt-2 transition-transform duration-300 ease-out focus-within:translate-y-0 motion-reduce:transition-none sm:px-4 sm:pt-3 lg:px-8 ${hidden ? '-translate-y-[130%]' : ''}`}
+    >
+      <nav aria-label="Zonas" className="sw-glass pointer-events-auto flex w-full max-w-[1640px] items-center gap-1 rounded-full p-1.5 shadow-[var(--overlay-shadow)]">
         <a href="#/inicio" aria-label="Inicio" className="shrink-0 rounded-full p-1 outline-none focus-visible:ring-2 focus-visible:ring-focus">
           <img src="/favicon.svg" alt="" width="30" height="30" />
         </a>
@@ -321,13 +358,12 @@ function Island({ area, section, onSearch, onCreate, onLogout }) {
         </Dropdown>
 
         <span className="flex-1" />
-        <Button variant="ghost" size="sm" onPress={onSearch} aria-label="Buscar" className="gap-2">
-          <Magnifier />
-          <Kbd variant="light" className="hidden md:inline-flex">
-            <Kbd.Abbr keyValue="ctrl" />
-            <Kbd.Content>K</Kbd.Content>
-          </Kbd>
-        </Button>
+        <Tooltip delay={400}>
+          <Button isIconOnly variant="ghost" size="sm" onPress={onSearch} aria-label="Buscar (Ctrl K)">
+            <Magnifier />
+          </Button>
+          <Tooltip.Content>Buscar · Ctrl K</Tooltip.Content>
+        </Tooltip>
         <TimerPill />
         <SaveStatus />
         <CreateButton area={area} section={section} onCreate={onCreate} />
@@ -461,7 +497,7 @@ function Screen({ route }) {
     case 'formas-de-cobro':
     case 'biblioteca':
     case 'copia':
-      return <Ajustes section={section} />;
+      return <Ajustes section={section} tab={id} />;
     default:
       return <Empty title="Esta sección no existe" action={<Button onPress={() => go('#/inicio')}>Ir al inicio</Button>} />;
   }
@@ -522,8 +558,9 @@ function Shell({ onLogout }) {
   return (
     <div className="min-h-screen">
       <Island area={area} section={section} onSearch={() => setSearchOpen(true)} onCreate={create} onLogout={onLogout} />
-      <main className="mx-auto w-full max-w-[1240px] px-4 pb-16 pt-20 sm:px-6 sm:pt-24">
-        <AreaTabs area={area} section={section} />
+      <main className="mx-auto w-full max-w-[1680px] px-4 pb-16 pt-20 sm:px-6 sm:pt-24 lg:px-8">
+        {/* En el editor de un documento la barra del propio editor ya dice dónde estás. */}
+        {!(route[0] === 'doc' || (route[0] === 'documentos' && route[2] === 'editar')) && <AreaTabs area={area} section={section} />}
         <Screen route={route} />
       </main>
       <CommandPalette isOpen={searchOpen} onOpenChange={setSearchOpen} />

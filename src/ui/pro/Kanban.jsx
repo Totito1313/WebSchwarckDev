@@ -6,8 +6,11 @@
 //    Cerca de los bordes, el tablero se desliza solo.
 //  · Sin ratón: Alt+← / Alt+→ pasan la tarjeta enfocada a la columna de al lado, y el
 //    menú «⋮» (o clic derecho, o la tecla de menú) tiene «Mover a…».
+//  · Con selección (selected + onToggleSelect): Ctrl/⌘ o Mayús + clic, el círculo de
+//    la esquina o la barra espaciadora marcan tarjetas; con alguna marcada, un clic
+//    marca o desmarca en vez de abrir. La barra de acciones la pone quien lo usa.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { EllipsisVertical } from '@gravity-ui/icons';
+import { ArrowRight, Check, CircleCheck, EllipsisVertical } from '@gravity-ui/icons';
 import { Avatar, AvatarGroup, Button, Chip, Dropdown, ProgressBar, ScrollShadow } from '@heroui/react';
 import { PointMenu, menuNodes, pointFrom } from './ContextMenu.jsx';
 
@@ -19,9 +22,27 @@ const HOLD_MS = 220;
  * renderCard(item) → contenido de la tarjeta (mejor con <KanbanCard>)
  * onMove(key, toColumn, toIndex), onOpen?(item)
  * cardMenu?(item) → acciones extra; onCardMenu(id, item)
+ * moveAsSubmenu: «Mover a ›» como submenú (si no, una opción por columna)
+ * selected?: Set de claves marcadas; onToggleSelect?(key)
  * columnFooter?(column) → por ejemplo, un botón para añadir
  */
-export function Kanban({ columns, items, getKey = (i) => i.id, getColumn, renderCard, onMove, onOpen, cardMenu, onCardMenu, columnFooter, label = 'Tablero', columnWidth = 288 }) {
+export function Kanban({
+  columns,
+  items,
+  getKey = (i) => i.id,
+  getColumn,
+  renderCard,
+  onMove,
+  onOpen,
+  cardMenu,
+  onCardMenu,
+  moveAsSubmenu = false,
+  selected,
+  onToggleSelect,
+  columnFooter,
+  label = 'Tablero',
+  columnWidth = 288,
+}) {
   const board = useRef(null);
   const press = useRef(null); // { key, x, y, pointerType, timer, el, started }
   const beginRef = useRef(null);
@@ -36,14 +57,22 @@ export function Kanban({ columns, items, getKey = (i) => i.id, getColumn, render
   const find = (key) => items.find((i) => String(getKey(i)) === String(key));
 
   const moveItems = (item) => [
-    ...columns.filter((c) => c.id !== getColumn(item)).map((c) => ({ id: `move:${c.id}`, label: `Mover a ${c.title}`, icon: c.icon })),
+    ...columns.filter((c) => c.id !== getColumn(item)).map((c) => ({ id: `move:${c.id}`, label: moveAsSubmenu ? c.title : `Mover a ${c.title}`, icon: c.icon })),
   ];
+  const isSel = (item) => Boolean(selected?.has(String(getKey(item))));
+  const selecting = Boolean(onToggleSelect && selected?.size);
   const fullMenu = (item) => {
     const extra = cardMenu ? cardMenu(item) : [];
-    return [...(onOpen ? [{ id: 'open', label: 'Abrir' }] : []), ...extra, ...(extra.length || onOpen ? ['-'] : []), ...moveItems(item)];
+    const head = [
+      ...(onOpen ? [{ id: 'open', label: 'Abrir' }] : []),
+      ...(onToggleSelect ? [{ id: 'select', label: isSel(item) ? 'Quitar de la selección' : 'Seleccionar', icon: CircleCheck }] : []),
+    ];
+    if (moveAsSubmenu) return [...head, { id: 'move', label: 'Mover a', icon: ArrowRight, items: moveItems(item) }, '-', ...extra];
+    return [...head, ...extra, ...(extra.length || head.length ? ['-'] : []), ...moveItems(item)];
   };
   const runMenu = (id, item) => {
     if (id === 'open') return onOpen?.(item);
+    if (id === 'select') return onToggleSelect?.(String(getKey(item)));
     if (id.startsWith('move:')) {
       const col = id.slice(5);
       return onMove(String(getKey(item)), col, byCol(col).length);
@@ -187,6 +216,9 @@ export function Kanban({ columns, items, getKey = (i) => i.id, getColumn, render
     } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
       e.preventDefault();
       setMenu({ at: pointFrom(e), item });
+    } else if (e.key === ' ' && onToggleSelect && e.target === e.currentTarget) {
+      e.preventDefault();
+      onToggleSelect(key);
     }
   };
 
@@ -219,6 +251,7 @@ export function Kanban({ columns, items, getKey = (i) => i.id, getColumn, render
             <div data-kanban-list={col.id} className="flex min-h-16 flex-1 flex-col gap-2">
               {visible.map((item, i) => {
                 const key = String(getKey(item));
+                const sel = isSel(item);
                 return [
                   i === showSlotAt && <div key="__slot" className="sw-drop-slot shrink-0" style={{ height: drag.h }} aria-hidden />,
                   <div
@@ -227,19 +260,42 @@ export function Kanban({ columns, items, getKey = (i) => i.id, getColumn, render
                     tabIndex={0}
                     role="button"
                     aria-roledescription="tarjeta movible"
-                    aria-description="Alt y flechas para cambiarla de columna; tecla de menú para más acciones."
+                    aria-description={`Alt y flechas para cambiarla de columna; tecla de menú para más acciones${onToggleSelect ? '; espacio para seleccionarla' : ''}.`}
+                    aria-pressed={onToggleSelect ? sel : undefined}
                     onPointerDown={(e) => onPointerDown(e, item)}
-                    onClick={() => {
-                      if (!suppressClick.current) onOpen?.(item);
+                    onClick={(e) => {
+                      if (suppressClick.current) return;
+                      if (onToggleSelect && (e.ctrlKey || e.metaKey || e.shiftKey || selecting)) {
+                        e.preventDefault();
+                        onToggleSelect(key);
+                        return;
+                      }
+                      onOpen?.(item);
                     }}
                     onKeyDown={(e) => onCardKey(e, item)}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       setMenu({ at: pointFrom(e), item });
                     }}
-                    className="group relative cursor-grab touch-manipulation rounded-[1.25rem] bg-surface text-start shadow-[var(--surface-shadow)] outline-none transition-transform focus-visible:ring-2 focus-visible:ring-focus active:scale-[0.99]"
+                    className={`group relative cursor-grab touch-manipulation select-none rounded-[1.25rem] bg-surface text-start shadow-[var(--surface-shadow)] outline-none transition-[transform,box-shadow] focus-visible:ring-2 focus-visible:ring-focus active:scale-[0.99] ${sel ? 'ring-2 ring-accent' : ''}`}
                   >
                     {renderCard(item)}
+                    {onToggleSelect && (
+                      <button
+                        type="button"
+                        data-no-drag
+                        aria-label={sel ? 'Quitar de la selección' : 'Seleccionar'}
+                        aria-pressed={sel}
+                        tabIndex={-1}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleSelect(key);
+                        }}
+                        className={`absolute -top-1.5 -left-1.5 z-10 flex size-6 items-center justify-center rounded-full border-2 border-[var(--surface-secondary)] shadow-sm transition-opacity ${sel ? 'bg-accent text-accent-foreground' : `bg-surface text-transparent hover:text-muted ${selecting ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}`}
+                      >
+                        <Check className="size-3.5" />
+                      </button>
+                    )}
                     <div className="absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100" data-no-drag>
                       <Dropdown>
                         <Button isIconOnly size="sm" variant="tertiary" aria-label="Acciones de la tarjeta" className="size-7 min-w-7 bg-surface/90 backdrop-blur">
@@ -247,7 +303,7 @@ export function Kanban({ columns, items, getKey = (i) => i.id, getColumn, render
                         </Button>
                         <Dropdown.Popover placement="bottom end" className="min-w-52">
                           <Dropdown.Menu aria-label="Acciones de la tarjeta" onAction={(id) => runMenu(String(id), item)}>
-                            {menuNodes(fullMenu(item))}
+                            {menuNodes(fullMenu(item), (id) => runMenu(String(id), item))}
                           </Dropdown.Menu>
                         </Dropdown.Popover>
                       </Dropdown>

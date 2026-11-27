@@ -3,11 +3,12 @@
 import { useMemo, useState } from 'react';
 import { Box, Pencil, Plus, TrashBin } from '@gravity-ui/icons';
 import { Button, ButtonGroup, Card, Input, Label, SearchField, TextArea, TextField, toast } from '@heroui/react';
-import { CURRENCIES, money, put, remove, uid } from '../../../negocio-core.js';
+import { money, put, remove, uid } from '../../../negocio-core.js';
 import { Empty, PageHeader } from '../../kit/parts.jsx';
 import { go, useCrm } from '../store.js';
 import { base } from '../domain.js';
-import { AmountField, ConfirmButton, FormModal, SelectField, currencyOptions } from '../fields.jsx';
+import { CurrencyPicker } from '../currency.jsx';
+import { AmountField, ConfirmButton, FormModal } from '../fields.jsx';
 import { UploadButton } from '../upload.jsx';
 
 const plain = (s = '') => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -42,7 +43,7 @@ export function ServiceForm({ item, prefill, onClose, onSaved }) {
         <TextArea rows={2} placeholder="Lo que incluye, en una línea." />
       </TextField>
       <AmountField label="Precio" value={price} onChange={setPrice} />
-      <SelectField label="Moneda" value={currency} onChange={setCurrency} options={currencyOptions(CURRENCIES)} />
+      <CurrencyPicker label="Moneda" value={currency} onChange={setCurrency} showName={false} className="sm:col-span-2" />
       <div className="flex items-center gap-3 sm:col-span-2">
         <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-surface-secondary">
           {image ? <img src={image} alt="" className="size-full object-cover" /> : <Box className="size-6 text-muted" />}

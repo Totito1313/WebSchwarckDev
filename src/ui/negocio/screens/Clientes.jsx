@@ -12,16 +12,15 @@ import {
   Input,
   Label,
   Link,
-  ListBox,
   Modal,
   SearchField,
-  Select,
   Table,
   TextArea,
   TextField,
   toast,
 } from '@heroui/react';
-import { CURRENCIES, CURRENCY_CODES, find, put, remove, uid } from '../../../negocio-core.js';
+import { find, put, remove, uid } from '../../../negocio-core.js';
+import { CurrencyPicker } from '../currency.jsx';
 import { Empty, PageHeader, Panel, Person, Stat, StatusChip } from '../../kit/parts.jsx';
 import { go, useCrm } from '../store.js';
 import { copyText, downloadCsv } from '../../kit/csv.js';
@@ -90,23 +89,7 @@ export function CustomerForm({ customer, isOpen, onOpenChange, onSaved }) {
                       <Label>Dirección</Label>
                       <TextArea rows={2} />
                     </TextField>
-                    <Select selectedKey={currency} onSelectionChange={(k) => setCurrency(String(k))} className="sm:col-span-2">
-                      <Label>Moneda en la que le facturas</Label>
-                      <Select.Trigger>
-                        <Select.Value />
-                        <Select.Indicator />
-                      </Select.Trigger>
-                      <Select.Popover>
-                        <ListBox>
-                          {CURRENCY_CODES.map((k) => (
-                            <ListBox.Item key={k} id={k} textValue={`${k} · ${CURRENCIES[k].label}`}>
-                              {k} · {CURRENCIES[k].label}
-                              <ListBox.ItemIndicator />
-                            </ListBox.Item>
-                          ))}
-                        </ListBox>
-                      </Select.Popover>
-                    </Select>
+                    <CurrencyPicker label="Moneda en la que le facturas" value={currency} onChange={setCurrency} showName={false} className="sm:col-span-2" />
                     <TextField name="notes" defaultValue={c.notes} maxLength={4000} className="sm:col-span-2">
                       <Label>Notas</Label>
                       <TextArea rows={2} />

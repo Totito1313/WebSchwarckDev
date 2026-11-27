@@ -7,23 +7,52 @@
 // · PointMenu es el menú suelto, abierto en unas coordenadas: lo usan la tabla y el
 //   tablero, que deciden ellos sobre qué fila o tarjeta se abrió.
 import { useRef, useState } from 'react';
+import { Check, ChevronRight } from '@gravity-ui/icons';
 import { Dropdown, Kbd, Label, Separator } from '@heroui/react';
 
-/** Convierte la lista de acciones en elementos del menú ('-' separa grupos). */
-export function menuNodes(items) {
+/**
+ * Convierte la lista de acciones en elementos del menú ('-' separa grupos).
+ * Un elemento con `items` abre un submenú (Mover a ›, Prioridad ›…); `checked`
+ * marca la opción actual con un ✓; `dot` pone un punto de color delante.
+ * onAction: el mismo del menú de fuera. React Aria no se lo pasa a los submenús,
+ * así que va explícito a cada uno.
+ */
+export function menuNodes(items, onAction) {
   const nodes = [];
   items.forEach((it, i) => {
     if (!it) return;
     if (it === '-') {
-      if (nodes.length && i < items.length - 1) nodes.push(<Separator key={`sep-${i}`} />);
+      if (nodes.length && i < items.length - 1 && items[i + 1] !== '-') nodes.push(<Separator key={`sep-${i}`} />);
       return;
     }
     const Icon = it.icon;
+    const lead = it.dot ? <span className="size-2.5 shrink-0 rounded-full" style={{ background: it.dot }} aria-hidden /> : Icon ? <Icon className="size-4 shrink-0" /> : null;
+    if (it.items) {
+      const subs = it.items.filter(Boolean);
+      nodes.push(
+        <Dropdown.SubmenuTrigger key={it.id}>
+          <Dropdown.Item id={it.id} textValue={it.label} isDisabled={it.isDisabled || !subs.length}>
+            {lead}
+            <Label>{it.label}</Label>
+            <Dropdown.SubmenuIndicator>
+              <ChevronRight className="size-3.5" />
+            </Dropdown.SubmenuIndicator>
+          </Dropdown.Item>
+          <Dropdown.Popover className="min-w-48">
+            <Dropdown.Menu aria-label={it.label} onAction={onAction}>
+              {menuNodes(subs, onAction)}
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown.SubmenuTrigger>,
+      );
+      return;
+    }
     nodes.push(
       <Dropdown.Item key={it.id} id={it.id} textValue={it.label} variant={it.danger ? 'danger' : undefined} isDisabled={it.isDisabled}>
-        {Icon && <Icon className="size-4 shrink-0" />}
+        {lead}
         <Label>{it.label}</Label>
         {it.shortcut && <Kbd slot="keyboard">{it.shortcut}</Kbd>}
+        {it.checked && <Check className="ms-auto size-4 shrink-0 text-accent" aria-label="actual" />}
       </Dropdown.Item>,
     );
   });
@@ -44,6 +73,10 @@ export function pointFrom(e) {
 export function PointMenu({ at, items, onAction, onClose, label = 'Acciones' }) {
   const x = Math.min(at?.x ?? 0, window.innerWidth - 8);
   const y = Math.min(at?.y ?? 0, window.innerHeight - 8);
+  const run = (k) => {
+    onClose?.();
+    onAction?.(String(k));
+  };
   return (
     <Dropdown
       isOpen={!!at}
@@ -54,14 +87,8 @@ export function PointMenu({ at, items, onAction, onClose, label = 'Acciones' }) 
       {/* Ancla invisible en el punto del clic: el menú se abre ahí. */}
       <Dropdown.Trigger aria-label={label} excludeFromTabOrder className="pointer-events-none fixed size-px opacity-0" style={{ left: x, top: y }} />
       <Dropdown.Popover placement="bottom start" offset={4} className="min-w-52">
-        <Dropdown.Menu
-          aria-label={label}
-          onAction={(k) => {
-            onClose?.();
-            onAction?.(String(k));
-          }}
-        >
-          {menuNodes(items || [])}
+        <Dropdown.Menu aria-label={label} onAction={run}>
+          {menuNodes(items || [], run)}
         </Dropdown.Menu>
       </Dropdown.Popover>
     </Dropdown>

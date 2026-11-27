@@ -58,6 +58,10 @@ export default {
       return fail(500, 'Algo falló en el servidor.');
     }
   },
+  // Cron (wrangler.jsonc › triggers): la copia de seguridad diaria de Negocio.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(scheduledBackup(env).catch((err) => console.error('copia automática', err)));
+  },
 };
 
 class HttpError extends Error {
@@ -607,6 +611,132 @@ async function crmFile(request, env, method, id) {
   throw new HttpError(405, 'Método no permitido.');
 }
 
+// ── Copias de seguridad ──
+//
+// Una copia es todo lo de Negocio (lo que devuelve readCrm) en una clave
+// crm:backup:<fecha>, con lo justo en sus metadatos (cuándo, de qué tipo, cuánto
+// pesa, su huella y cuántos elementos tiene cada lista) para listarlas sin
+// abrirlas. Las automáticas las hace el cron del Worker (wrangler.jsonc, una vez al
+// día) solo si algo cambió desde la última, y se guardan las últimas `keep` (14 si
+// no se dice otra cosa, de 3 a 60). Antes de restaurar se guarda siempre lo que
+// había. Los archivos (recibos, documentos de marca) no van dentro: siguen en sus
+// claves y la copia solo los nombra.
+
+const BACKUP_PREFIX = 'crm:backup:';
+const BACKUP_ID = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/;
+const BACKUP_KEEP = 14;
+const BACKUP_OTHERS = 20; // a mano y de antes de restaurar
+const BACKUP_BYTES = 24_000_000;
+
+const keepOf = (settings) => Math.max(3, Math.min(60, Math.round(Number(settings?.backup?.keep)) || BACKUP_KEEP));
+
+async function listBackups(env) {
+  const out = [];
+  let cursor;
+  do {
+    const page = await env.SITE.list({ prefix: BACKUP_PREFIX, cursor });
+    for (const k of page.keys) out.push({ id: k.name.slice(BACKUP_PREFIX.length), ...(k.metadata || {}) });
+    cursor = page.list_complete ? null : page.cursor;
+  } while (cursor);
+  return out.sort((a, b) => (a.id < b.id ? 1 : -1));
+}
+
+async function makeBackup(env, kind, { onlyIfChanged = false } = {}) {
+  const data = await readCrm(env);
+  const text = JSON.stringify(data);
+  const hash = b64url(await crypto.subtle.digest('SHA-256', enc.encode(text))).slice(0, 22);
+  const list = await listBackups(env);
+  if (onlyIfChanged && list[0]?.hash === hash) return { skipped: true, backup: list[0] };
+  const bytes = enc.encode(text).length;
+  if (bytes > BACKUP_BYTES) throw new HttpError(413, 'Tus datos pasan de lo que cabe en una copia del servidor. Descárgala desde el panel.');
+  const at = new Date().toISOString();
+  const id = at.replace(/[:.]/g, '-');
+  const meta = { at, kind, hash, bytes, counts: Object.fromEntries(Object.keys(CRM).map((name) => [name, data[name].length])) };
+  await env.SITE.put(BACKUP_PREFIX + id, `{"version":1,"kind":"${kind}","at":"${at}","data":${text}}`, { metadata: meta });
+  // Las automáticas más viejas que las últimas `keep` se van; las demás, a partir de 20.
+  const all = [{ id, ...meta }, ...list];
+  const autos = all.filter((b) => b.kind === 'auto');
+  const others = all.filter((b) => b.kind !== 'auto');
+  const old = [...autos.slice(keepOf(data.settings)), ...others.slice(BACKUP_OTHERS)];
+  await Promise.all(old.map((b) => env.SITE.delete(BACKUP_PREFIX + b.id)));
+  return { backup: { id, ...meta } };
+}
+
+/** Lo que llega para restaurar (una copia del servidor o un archivo descargado del panel), limpio y con sus topes. */
+function cleanBackup(input) {
+  const src = isRecord(input?.data) ? input.data : input;
+  if (!isRecord(src) || !Object.keys(CRM).some((name) => Array.isArray(src[name]))) throw new HttpError(400, 'Ese archivo no es una copia de Negocio.');
+  const out = { settings: null };
+  if (isRecord(src.settings)) {
+    const { updatedAt, ...settings } = tidy(src.settings);
+    if (enc.encode(JSON.stringify(settings)).length > CRM_SETTINGS_BYTES) throw new HttpError(413, 'Los datos del negocio de la copia pesan demasiado.');
+    out.settings = settings;
+  }
+  for (const [name, spec] of Object.entries(CRM)) {
+    const list = Array.isArray(src[name]) ? src[name].filter(isRecord) : [];
+    if (list.length > spec.max) throw new HttpError(400, `La copia trae más elementos de los que admite una lista (${name}).`);
+    const seen = new Set();
+    out[name] = [];
+    for (const raw of list) {
+      const item = tidy(raw);
+      if (!CRM_ID.test(String(item.id ?? '')) || seen.has(item.id)) continue;
+      if (enc.encode(JSON.stringify(item)).length > (spec.bytes || CRM_ITEM_BYTES)) throw new HttpError(413, 'Un elemento de la copia pesa demasiado.');
+      seen.add(item.id);
+      out[name].push(item);
+    }
+  }
+  return out;
+}
+
+async function restoreCrm(env, data) {
+  const before = await makeBackup(env, 'restore');
+  const writes = Object.keys(CRM).map((name) => env.SITE.put(CRM[name].key, JSON.stringify(data[name])));
+  if (data.settings) writes.push(env.SITE.put('crm:settings', JSON.stringify({ ...data.settings, updatedAt: new Date().toISOString() })));
+  // La numeración no retrocede: el último número de cada serie sigue siendo el mayor conocido.
+  const seq = (await env.SITE.get('crm:seq', 'json')) || {};
+  for (const doc of data.docs) {
+    const m = /^([A-Z]{3}-\d{4})-(\d+)$/.exec(String(doc.number || ''));
+    if (m) seq[m[1]] = Math.max(Number(seq[m[1]]) || 0, Number(m[2]));
+  }
+  writes.push(env.SITE.put('crm:seq', JSON.stringify(seq)));
+  await Promise.all(writes);
+  return { ok: true, before: before.backup, counts: Object.fromEntries(Object.keys(CRM).map((name) => [name, data[name].length])) };
+}
+
+async function crmBackups(request, env, path, method) {
+  if (path === '/crm/backups' && method === 'GET') return json({ backups: await listBackups(env), keep: keepOf(await env.SITE.get('crm:settings', 'json')) });
+  if (path === '/crm/backups' && method === 'POST') return json(await makeBackup(env, 'manual'), 201);
+  if (path === '/crm/restore' && method === 'POST') return json(await restoreCrm(env, cleanBackup(await readJson(request, BACKUP_BYTES))));
+  const one = /^\/crm\/backups\/([0-9TZ-]{24})(\/restore)?$/.exec(path);
+  if (!one || !BACKUP_ID.test(one[1])) return null;
+  const key = BACKUP_PREFIX + one[1];
+  if (!one[2] && method === 'GET') {
+    const text = await env.SITE.get(key);
+    if (!text) throw new HttpError(404, 'Esa copia ya no existe.');
+    return new Response(text, {
+      headers: { 'content-type': 'application/json; charset=utf-8', 'content-disposition': `attachment; filename="negocio-${one[1].slice(0, 10)}.json"`, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' },
+    });
+  }
+  if (!one[2] && method === 'DELETE') {
+    await env.SITE.delete(key);
+    return json({ ok: true });
+  }
+  if (one[2] && method === 'POST') {
+    const saved = await env.SITE.get(key, 'json');
+    if (!saved) throw new HttpError(404, 'Esa copia ya no existe.');
+    return json(await restoreCrm(env, cleanBackup(saved)));
+  }
+  throw new HttpError(405, 'Método no permitido.');
+}
+
+/** El cron diario: una copia si hay algo nuevo (y si no se apagaron en el panel). */
+async function scheduledBackup(env) {
+  if (!env.SITE) return;
+  const settings = await env.SITE.get('crm:settings', 'json');
+  if (settings?.backup?.auto === false) return;
+  await makeBackup(env, 'auto', { onlyIfChanged: true });
+}
+
 // ── Enlaces públicos de documentos ──
 //
 // Un enlace es un token largo y aleatorio: crm:share:<token> guarda a qué
@@ -883,6 +1013,10 @@ async function admin(request, env, url) {
     return new Response(bytes, { headers: { 'content-type': 'image/png', 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' } });
   }
   if (path === '/crm/batch' && method === 'POST') return json(await writeCrm(env, (await readJson(request, 2_000_000)).ops));
+  if (path === '/crm/backups' || path === '/crm/restore' || path.startsWith('/crm/backups/')) {
+    const res = await crmBackups(request, env, path, method);
+    if (res) return res;
+  }
   const file = /^\/crm\/files\/([A-Za-z0-9_-]{6,64})$/.exec(path);
   if (file) return crmFile(request, env, method, file[1]);
 

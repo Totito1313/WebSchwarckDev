@@ -50,18 +50,22 @@ export function Diseno({ doc, change }) {
       <div className="flex flex-col gap-1.5">
         <span className="text-sm font-medium">Color</span>
         <div role="radiogroup" aria-label="Color de acento" className="flex flex-wrap gap-2">
-          {Object.entries(ACCENTS).map(([key, color]) => {
+          {[
+            ...Object.entries(ACCENTS).map(([key, color]) => [key, color, ACCENT_NAMES[key]]),
+            // Los colores de tu marca (Mi negocio › Identidad de marca) también valen.
+            ...(state.settings.brand?.colors || []).filter((c) => /^#[0-9a-f]{6}$/i.test(c.hex || '')).map((c) => [c.hex, c.hex, `${c.name || 'Color de marca'} · ${c.hex}`]),
+          ].map(([key, color, name], i) => {
             const on = st.accent === key;
             return (
               <button
-                key={key}
+                key={`${key}-${i}`}
                 type="button"
                 role="radio"
                 aria-checked={on}
-                aria-label={ACCENT_NAMES[key]}
-                title={ACCENT_NAMES[key]}
+                aria-label={name}
+                title={name}
                 onClick={() => restyle('accent')(key)}
-                className={`size-9 rounded-full border border-border outline-none ring-offset-2 ring-offset-surface transition-shadow focus-visible:ring-2 focus-visible:ring-focus ${on ? 'ring-2 ring-foreground' : ''}`}
+                className={`size-9 rounded-full border border-border outline-none ring-offset-2 ring-offset-surface transition-shadow focus-visible:ring-2 focus-visible:ring-focus ${on ? 'ring-2 ring-foreground' : ''} ${key.startsWith('#') ? 'rounded-xl' : ''}`}
                 style={{ background: color }}
               />
             );

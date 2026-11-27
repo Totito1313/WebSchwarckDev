@@ -460,6 +460,10 @@ export function snapshotPayment(t) {
   return { templateId: t.id, method: t.method, name: t.name || methodLabel(t.method), fields: (t.fields || []).map((f) => ({ ...f })), link: t.link || '' };
 }
 
+/** El impuesto de Mi negocio › Facturación: en las facturas y cotizaciones nuevas solo si está pedido. */
+export const taxOf = (s = state.settings) => ({ label: String(s.taxLabel || 'IVA').trim() || 'IVA', rate: Number.isFinite(Number(s.taxRate)) ? Number(s.taxRate) : 16 });
+const defaultTax = (type, s) => (s.autoTax && (type === 'invoice' || type === 'quote') ? taxOf(s) : null);
+
 export function newDoc(type, customer = null) {
   const s = state.settings;
   const today = todayISO();
@@ -479,7 +483,7 @@ export function newDoc(type, customer = null) {
     from: snapshotBusiness(s),
     items: [{ id: uid(), name: '', description: '', qty: 1, price: 0 }],
     discount: null,
-    tax: null,
+    tax: defaultTax(type, s),
     withholding: null,
     shipping: null,
     payment: snapshotPayment(template),

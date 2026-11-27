@@ -12,14 +12,19 @@ import { PointMenu, menuNodes } from './ContextMenu.jsx';
 const PAGE = 50;
 
 function SelectBox({ label }) {
+  // Con un ratón de verdad la casilla ya frena el puntero. Con un lector de pantalla
+  // (React Aria lo llama «virtual») lo deja pasar, y la fila lo tomaría como «abrir»
+  // (onRowAction): tocar la casilla abriría la fila en vez de marcarla. Aquí se frena.
   return (
-    <Checkbox aria-label={label} slot="selection" variant="secondary">
-      <Checkbox.Content>
-        <Checkbox.Control>
-          <Checkbox.Indicator />
-        </Checkbox.Control>
-      </Checkbox.Content>
-    </Checkbox>
+    <span className="inline-flex" onPointerDown={(e) => e.stopPropagation()}>
+      <Checkbox aria-label={label} slot="selection" variant="secondary">
+        <Checkbox.Content>
+          <Checkbox.Control>
+            <Checkbox.Indicator />
+          </Checkbox.Control>
+        </Checkbox.Content>
+      </Checkbox>
+    </span>
   );
 }
 
@@ -95,7 +100,8 @@ export function DataGrid({
 
   const openRowMenu = (e) => {
     if (!rowMenu) return;
-    const tr = e.target.closest?.('[data-key]');
+    // Las celdas también llevan data-key: se busca la fila.
+    const tr = e.target.closest?.('[role="row"][data-key]');
     const row = tr && byKey(tr.getAttribute('data-key'));
     if (!row) return;
     e.preventDefault();
@@ -304,7 +310,7 @@ export function DataGrid({
                                 </Button>
                                 <Dropdown.Popover placement="bottom end" className="min-w-52">
                                   <Dropdown.Menu aria-label="Acciones de la fila" onAction={(id) => onRowMenu?.(String(id), r)}>
-                                    {menuNodes(rowMenu(r))}
+                                    {menuNodes(rowMenu(r), (id) => onRowMenu?.(String(id), r))}
                                   </Dropdown.Menu>
                                 </Dropdown.Popover>
                               </Dropdown>

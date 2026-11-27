@@ -23,7 +23,7 @@ import {
   TrashBin,
 } from '@gravity-ui/icons';
 import { Button, ButtonGroup, Card, Checkbox, Chip, Input, Label, Meter, Tabs, TextArea, TextField, toast } from '@heroui/react';
-import { CURRENCY_CODES, dateText, find, put, remove, shortDate, todayISO, uid } from '../../../negocio-core.js';
+import { dateText, find, put, remove, shortDate, todayISO, uid } from '../../../negocio-core.js';
 import { PERIODS, change, fileUrl, periodRange, uploadFile, within } from '../../../negocio-gastos.js';
 import {
   CAMPAIGN_COLORS,
@@ -49,6 +49,7 @@ import { Empty, Panel, Stat } from '../../kit/parts.jsx';
 import { copyText } from '../../kit/csv.js';
 import { go, useCrm } from '../store.js';
 import { LEAD_STAGES, money } from '../domain.js';
+import { CurrencyPicker } from '../currency.jsx';
 import { AmountField, ConfirmButton, ConfirmDialog, DateInput, FormModal, SelectField } from '../fields.jsx';
 
 export const ROLE_HEX = { tof: '#00b8d4', mof: '#8e5bd6', bof: '#34c759', com: '#f97316' };
@@ -479,7 +480,7 @@ export function CampaignForm({ campaign, onClose, onSaved, over = {} }) {
       </TextField>
       <AmountField label="Presupuesto" value={budget} onChange={setBudget} />
       <AmountField label="Gastado hasta hoy" value={spent} onChange={setSpent} description="En anuncios, diseño…" />
-      <SelectField label="Moneda" value={currency} onChange={setCurrency} options={CURRENCY_CODES.map((k) => [k, k])} />
+      <CurrencyPicker label="Moneda" value={currency} onChange={setCurrency} showName={false} className="sm:col-span-2" />
       <AmountField label="Leads que esperas" value={target} onChange={setTarget} step={1} description="Para ver el avance y el coste por lead." />
       <TextField name="notes" defaultValue={c.notes} maxLength={4000} className="sm:col-span-2">
         <Label>Notas</Label>

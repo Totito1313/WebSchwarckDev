@@ -306,6 +306,60 @@ html {
   border: 1px solid var(--sw-glass-border);
 }
 
+/* Lo que se queda pegado arriba al bajar (la barra del editor de documentos): bajo la
+   isla cuando se ve, y arriba del todo cuando la isla se esconde al hacer scroll. */
+.sw-sticky-top {
+  position: sticky;
+  top: 5rem;
+  transition: top 300ms ease-out;
+}
+[data-island='hidden'] .sw-sticky-top {
+  top: 0.5rem;
+}
+@media (min-width: 640px) {
+  .sw-sticky-top { top: 5.5rem; }
+  [data-island='hidden'] .sw-sticky-top { top: 0.75rem; }
+}
+
+/* El cielo del editor de documentos, como en la versión de siempre: manchas de color
+   muy suaves detrás de la hoja. */
+.sw-sky {
+  position: absolute;
+  inset: -2rem -1rem auto;
+  height: 460px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+.sw-sky i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.45;
+}
+.sw-sky i:nth-child(1) { top: 10%; left: 4%; width: 38%; height: 70%; background: #86e6f2; }
+.sw-sky i:nth-child(2) { top: 0; right: 6%; width: 34%; height: 60%; background: #95bcff; }
+.sw-sky i:nth-child(3) { top: 40%; left: 38%; width: 30%; height: 55%; background: #ffe3a3; opacity: 0.35; }
+.dark .sw-sky i, [data-theme='dark'] .sw-sky i { opacity: 0.16; }
+
+/* Botones del NumberStepper (pro/NumberStepper.jsx), como en HeroUI Pro: resaltan
+   sobre el carril gris; blancos con sombra en claro y oscuros en oscuro. */
+.sw-stepper__btn {
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: var(--field-shadow);
+  transition: background-color 150ms ease, transform 150ms ease;
+}
+.sw-stepper__btn[data-hovered='true'] {
+  background: color-mix(in oklab, var(--surface) 88%, var(--foreground));
+}
+[data-theme='dark'] .sw-stepper__btn, .dark .sw-stepper__btn {
+  background: var(--background);
+}
+[data-theme='dark'] .sw-stepper__btn[data-hovered='true'], .dark .sw-stepper__btn[data-hovered='true'] {
+  background: color-mix(in oklab, var(--background) 80%, var(--foreground));
+}
+
 .sw-logo-gradient {
   background: var(--sw-grad-logo);
 }

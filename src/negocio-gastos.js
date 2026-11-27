@@ -159,20 +159,21 @@ async function shrink(file) {
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('No se pudo leer la imagen.'))), 'image/webp', 0.82));
 }
 
-export async function uploadFile(file) {
-  if (!file.type.startsWith('image/') && file.type !== 'application/pdf') throw new Error('El recibo tiene que ser una imagen o un PDF.');
+/** Sube un recibo (o cualquier imagen o PDF: noun dice cómo llamarlo en los avisos). */
+export async function uploadFile(file, { noun = 'El recibo' } = {}) {
+  if (!file.type.startsWith('image/') && file.type !== 'application/pdf') throw new Error(`${noun} tiene que ser una imagen o un PDF.`);
   let blob;
   try {
     blob = await shrink(file);
   } catch {
     throw new Error('No se pudo leer esa imagen. Prueba con JPG, PNG o PDF.');
   }
-  if (blob.size > 3_000_000) throw new Error('El recibo pasa de 3 MB.');
+  if (blob.size > 3_000_000) throw new Error(`${noun} pasa de 3 MB.`);
   const id = uid();
   const res = await fetch(fileUrl(id), { method: 'PUT', headers: { 'content-type': blob.type || 'image/png' }, body: blob, credentials: 'same-origin' });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'No se pudo subir el recibo.');
+    throw new Error(data.error || `No se pudo subir: ${noun.toLowerCase()}.`);
   }
   return { id, type: blob.type || 'image/png', name: file.name, size: blob.size };
 }

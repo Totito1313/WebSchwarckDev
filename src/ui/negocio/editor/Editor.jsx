@@ -31,8 +31,6 @@ import {
 } from '@gravity-ui/icons';
 import { Button, ButtonGroup, Chip, Drawer, Dropdown, Label, Tooltip, toast } from '@heroui/react';
 import {
-  CURRENCIES,
-  CURRENCY_CODES,
   DEFAULT_STYLE,
   addDays,
   docStatus,
@@ -55,6 +53,7 @@ import { Empty, Person } from '../../kit/parts.jsx';
 import { PointPicker, below } from '../../kit/PointPicker.jsx';
 import { menuNodes } from '../../pro/ContextMenu.jsx';
 import { DOC_STATUS } from '../domain.js';
+import { CurrencyMenu } from '../currency.jsx';
 import { ConfirmDialog, FormModal } from '../fields.jsx';
 import { setDocStatus, toInvoice } from '../payments.jsx';
 import { CustomerForm } from '../screens/Clientes.jsx';
@@ -342,9 +341,14 @@ export function DocEditor({ id }) {
   const panelTitle = panels.find((p) => p.id === open)?.label;
 
   return (
-    <div className="flex flex-col gap-4" data-v={v}>
-      {/* La barra: de dónde viene, qué es, para quién y qué se puede hacer */}
-      <div className="flex flex-wrap items-center gap-2 rounded-[1.75rem] bg-surface p-2 shadow-[var(--surface-shadow)] print:hidden">
+    <div className="relative isolate flex flex-col gap-4" data-v={v}>
+      <div className="sw-sky print:hidden" aria-hidden>
+        <i />
+        <i />
+        <i />
+      </div>
+      {/* La barra: de dónde viene, qué es, para quién y qué se puede hacer. Se queda arriba al bajar. */}
+      <div className="sw-glass sw-sticky-top z-30 flex flex-wrap items-center gap-2 rounded-[1.75rem] p-2 shadow-[var(--overlay-shadow)] print:hidden">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
           <Tooltip delay={400}>
             <Button isIconOnly size="sm" variant="ghost" aria-label={`Volver a ${LIST_NAME[doc.type]}`} onPress={() => go(LIST[doc.type])}>
@@ -425,33 +429,12 @@ export function DocEditor({ id }) {
                   <ChevronDown className="size-3.5" />
                 </Button>
               )}
-              <Dropdown>
-                <Button size="sm" variant="tertiary" aria-label="Moneda">
-                  {doc.currency}
-                  {paid ? <Lock className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-                </Button>
-                <Dropdown.Popover className="min-w-56">
-                  <Dropdown.Menu
-                    aria-label="Moneda"
-                    selectionMode="single"
-                    selectedKeys={new Set([doc.currency])}
-                    disabledKeys={paid ? CURRENCY_CODES.filter((k) => k !== doc.currency) : []}
-                    onAction={(k) => {
-                      if (paid) return toast.warning('Esta factura ya tiene pagos en esta moneda. Para otra moneda, duplícala.');
-                      return k !== doc.currency && change(() => changeCurrency(doc, String(k)));
-                    }}
-                  >
-                    {CURRENCY_CODES.map((k) => (
-                      <Dropdown.Item key={k} id={k} textValue={k}>
-                        <Label>
-                          {k} · {CURRENCIES[k].label}
-                        </Label>
-                        <Dropdown.ItemIndicator />
-                      </Dropdown.Item>
-                    ))}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
+              <CurrencyMenu
+                value={doc.currency}
+                locked={paid}
+                onLocked={() => toast.warning('Esta factura ya tiene pagos en esta moneda. Para otra moneda, duplícala.')}
+                onChange={(k) => change(() => changeCurrency(doc, k))}
+              />
             </>
           )}
           {locked && who && (

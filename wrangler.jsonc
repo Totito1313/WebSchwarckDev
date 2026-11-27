@@ -25,5 +25,7 @@
     { "name": "AI_LIMIT", "namespace_id": "1003", "simple": { "limit": 30, "period": 60 } }
   ],
   // Workers AI, para el modelo en línea de CeroFiao (/api/cerofiao/ai). Se cobra en la cuenta de Cloudflare.
-  "ai": { "binding": "AI" }
+  "ai": { "binding": "AI" },
+  // La copia de seguridad diaria de Negocio (worker › scheduledBackup): 07:00 UTC, las 3 de la madrugada en Caracas.
+  "triggers": { "crons": ["0 7 * * *"] }
 }

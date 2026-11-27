@@ -8,6 +8,8 @@ import { totals, money, amountText, numText, dateText, round2, strongest, unitNa
 import { renderBlocks } from './negocio-propuesta.js';
 
 export const ACCENTS = { ink: '#16181b', cyan: '#0096b0', blue: '#0071bc', green: '#1f9d46', violet: '#7c4dc9', orange: '#e0620c' };
+/** El color de acento de la hoja: uno de los de siempre o uno de tu marca (#rrggbb). */
+export const accentColor = (key) => ACCENTS[key] || (/^#[0-9a-f]{6}$/i.test(String(key || '')) ? key : ACCENTS.ink);
 export const DOC_TITLE = { invoice: 'Factura', quote: 'Cotización', receipt: 'Recibo', proposal: 'Propuesta' };
 
 const dfStamp = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -37,7 +39,7 @@ export function acceptance(response, drawnSrc) {
 export function renderSheet(doc, { logo = '', response = null, drawnSrc = '' } = {}) {
   const st = { ...DEFAULT_STYLE, ...doc.style };
   const sheet = el('article', { class: 'ng-sheet is-static', data: { layout: st.layout, font: st.font, cover: st.cover, type: doc.type } });
-  sheet.style.setProperty('--accent', ACCENTS[st.accent] || ACCENTS.ink);
+  sheet.style.setProperty('--accent', accentColor(st.accent));
   sheet.style.setProperty('--logo', `${Math.max(20, Math.min(120, Number(st.logoSize) || 44))}px`);
   const cur = doc.currency;
   const t = totals(doc);
