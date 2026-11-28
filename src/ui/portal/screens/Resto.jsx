@@ -1,8 +1,9 @@
 // Recursos (con facturas y documentos, y subir los tuyos si tu portal lo deja) y
 // Peticiones (con filtros por tipo, plazo y prioridad, «Entregar», lo que ya
-// mandaste para cada una y su conversación).
+// mandaste para cada una y su conversación). El estudio añade y edita recursos, pide
+// cosas al cliente, las edita y da por buenas las que le entregó.
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDownToLine, ArrowUpFromLine, ArrowUpRightFromSquare, Check, Comments, Eye, Folder, PaperPlane, Sliders, TrashBin, Tray } from '@gravity-ui/icons';
+import { ArrowDownToLine, ArrowUpFromLine, ArrowUpRightFromSquare, Check, Comments, Eye, Folder, PaperPlane, Pencil, Plus, Sliders, TrashBin, Tray } from '@gravity-ui/icons';
 import { Button, Card, Chip, Disclosure, Label, SearchField, Slider, Tabs, Tag, TagGroup, toast } from '@heroui/react';
 import { Empty } from '../../kit/parts.jsx';
 import { KpiGroup, Widget } from '../../pro/index.js';
@@ -12,6 +13,7 @@ import { go, refresh, save, usePortal } from '../store.js';
 import { ConfirmDialog } from '../../negocio/fields.jsx';
 import { Bubble, Ico, Tone, openFile, sizeOf } from '../ui.jsx';
 import { RecursoModal } from './Crear.jsx';
+import { approveTask, edit } from '../estudio/Editores.jsx';
 
 const plain = (s = '') => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -59,6 +61,12 @@ export function Recursos() {
           <h1 className="text-3xl font-semibold tracking-tight">Recursos</h1>
           <p className="text-sm text-muted">Guías, manuales, fotos, vídeos, enlaces y tus documentos.</p>
         </div>
+        {app.studio && (
+          <Button onPress={() => edit('resource')}>
+            <Plus />
+            Añadir recurso
+          </Button>
+        )}
         {canUpload && (
           <Button variant="secondary" onPress={() => setUploading(true)}>
             <ArrowUpFromLine />
@@ -161,6 +169,11 @@ export function Recursos() {
                   )}
                 </div>
               </Wrap>
+              {app.studio && (
+                <Button isIconOnly size="sm" variant="secondary" aria-label={`Editar «${r.title}»`} onPress={() => edit('resource', { resource: r })} className="absolute end-2 top-2 rounded-full">
+                  <Pencil />
+                </Button>
+              )}
               {own && (
                 <Button isIconOnly size="sm" variant="secondary" aria-label={`Quitar «${r.title}»`} onPress={() => setRemoving(r)} className="absolute end-2 top-2 rounded-full">
                   <TrashBin />
@@ -341,9 +354,17 @@ export function Peticiones({ tab }) {
 
   return (
     <div className="flex flex-col gap-5" data-v={v}>
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Peticiones</h1>
-        <p className="text-sm text-muted">Lo que el estudio necesita de ti para avanzar.</p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Peticiones</h1>
+          <p className="text-sm text-muted">{app.studio ? 'Lo que le pides al cliente para avanzar.' : 'Lo que el estudio necesita de ti para avanzar.'}</p>
+        </div>
+        {app.studio && (
+          <Button onPress={() => edit('task')}>
+            <Plus />
+            Pedir algo
+          </Button>
+        )}
       </header>
       <Widget title="En resumen">
         <KpiGroup
@@ -431,7 +452,7 @@ export function Peticiones({ tab }) {
                   {t.client_note && <p className="rounded-2xl bg-surface-secondary px-3 py-2 text-sm">«{t.client_note}»</p>}
                   {sent.length > 0 && (
                     <div className="flex flex-col rounded-2xl bg-surface-secondary px-3 py-1">
-                      <span className="pt-2 text-xs font-medium text-muted">Lo que enviaste</span>
+                      <span className="pt-2 text-xs font-medium text-muted">{app.studio ? 'Lo que envió' : 'Lo que enviaste'}</span>
                       <ul className="flex flex-col divide-y divide-border">
                         {sent.map((x) => (
                           <SentRow key={x.id} s={x} onRemove={!app.studio ? setDropping : null} />
@@ -440,13 +461,25 @@ export function Peticiones({ tab }) {
                     </div>
                   )}
                   <div className="flex flex-wrap items-center gap-2">
-                    {t.status === 'pending' && can('tasks.submit') && t.expects !== 'none' && can('send') && (
+                    {app.studio && t.status === 'submitted' && (
+                      <Button onPress={() => approveTask(t)}>
+                        <Check />
+                        Dar por buena
+                      </Button>
+                    )}
+                    {app.studio && (
+                      <Button variant="secondary" onPress={() => edit('task', { task: t })}>
+                        <Pencil />
+                        Editar
+                      </Button>
+                    )}
+                    {!app.studio && t.status === 'pending' && can('tasks.submit') && t.expects !== 'none' && can('send') && (
                       <Button onPress={() => go(`#/enviar/${t.id}`)}>
                         <PaperPlane />
                         Entregar
                       </Button>
                     )}
-                    {t.status === 'pending' && can('tasks.submit') && (
+                    {!app.studio && t.status === 'pending' && can('tasks.submit') && (
                       <Button variant={t.expects === 'none' ? 'primary' : 'secondary'} isPending={busy === t.id} onPress={() => submit(t)}>
                         <Check />
                         {t.expects === 'none' ? 'Hecho' : 'Ya lo envié'}
@@ -462,7 +495,7 @@ export function Peticiones({ tab }) {
             })
           )}
           {current !== 'hechas' && loose.length > 0 && (
-            <Widget title="Lo que nos has enviado" description="Mensajes, enlaces y archivos sin petición">
+            <Widget title={app.studio ? 'Lo que te ha enviado' : 'Lo que nos has enviado'} description="Mensajes, enlaces y archivos sin petición">
               <ul className="flex flex-col divide-y divide-border">
                 {loose.slice(0, 30).map((x) => (
                   <SentRow key={x.id} s={x} onRemove={!app.studio ? setDropping : null} />

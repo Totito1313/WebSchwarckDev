@@ -1,12 +1,15 @@
 // Portal nuevo (/cliente-nuevo/): la app del cliente rehecha con HeroUI. Usa la
 // misma cuenta y los mismos datos que /cliente/ (Supabase, con sus reglas y
-// permisos), y /cliente-nuevo/?demo enseña la demostración. Es la vista del
-// cliente; el modo estudio sigue en /cliente/ (y en Negocio › Portal de clientes).
+// permisos), y /cliente-nuevo/?demo enseña la demostración (?demo=estudio, la del
+// estudio). Con la cuenta de Schwarck entra en modo estudio (estudio/): su Inicio, la
+// bandeja «Para revisar», «Hoy en todos» y el botón «+» para crear y editar lo de cada
+// portal. Los portales, accesos, permisos e identidad siguen en Negocio › Portal de clientes.
 //
 // Algunas rutas se abren como hojas encima de la pantalla en la que se estaba
-// (OVERLAYS en store.js): una conversación, Enviar, Buscar, Novedades y Valorar.
+// (OVERLAYS en store.js): una conversación, Enviar, Buscar, Novedades, Valorar y, al
+// estudio, Para revisar y Hoy en todos.
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRightFromSquare, ArrowUpRightFromSquare, Bell, ChartColumn, ChevronDown, CircleExclamation, Folder, Gear, House, ListTimeline, Magnifier, PaperPlane, Tray } from '@gravity-ui/icons';
+import { ArrowRightFromSquare, ArrowUpRightFromSquare, Bell, Briefcase, ChartColumn, ChevronDown, CircleExclamation, Folder, Gear, House, ListTimeline, Magnifier, PaperPlane, Sun, Tray } from '@gravity-ui/icons';
 import { Alert, Avatar, Button, Card, Chip, Description, Dropdown, FieldError, Form, Input, Label, TextField, Tooltip } from '@heroui/react';
 import { Loader, ShimmerText } from '../pro/index.js';
 import { Empty } from '../kit/parts.jsx';
@@ -26,6 +29,8 @@ import { EnviarHoja } from './screens/Enviar.jsx';
 import { BuscarHoja } from './screens/Buscar.jsx';
 import { NovedadesHoja } from './screens/Novedades.jsx';
 import { ValorarHoja } from './screens/Valoracion.jsx';
+import { CrearBoton, InicioEstudio, RevisarHoja, TodosHoja } from './estudio/Estudio.jsx';
+import { Editores } from './estudio/Editores.jsx';
 
 const TABS = [
   { id: 'inicio', label: 'Inicio', icon: House, href: '#/' },
@@ -122,7 +127,7 @@ function Screen({ route, onSignOut }) {
       return <Informe month={a} />;
     case '':
     case 'inicio':
-      return <Inicio />;
+      return app.studio ? <InicioEstudio /> : <Inicio />;
     default:
       return <Empty title="Esto no existe" text="El enlace no lleva a ninguna parte de tu proyecto." action={<Button onPress={() => (location.hash = '#/')}>Ir a Inicio</Button>} />;
   }
@@ -136,6 +141,8 @@ function Overlay({ route, onClose }) {
   if (section === 'buscar') return <BuscarHoja onClose={onClose} />;
   if (section === 'novedades') return <NovedadesHoja onClose={onClose} />;
   if (section === 'valorar') return <ValorarHoja preset={a} onClose={onClose} />;
+  if (section === 'revisar' && app.studio) return <RevisarHoja onClose={onClose} />;
+  if (section === 'todos' && app.studio) return <TodosHoja onClose={onClose} />;
   return null;
 }
 
@@ -163,7 +170,7 @@ function useHideOnScroll() {
   return hidden;
 }
 
-const SECTION_TITLE = { inicio: 'Inicio', cronologia: 'Cronología', marketing: 'Marketing', recursos: 'Recursos', peticiones: 'Peticiones', perfil: 'Tu perfil', proyecto: 'Proyecto', reuniones: 'Reuniones', informe: 'Informe del mes' };
+const SECTION_TITLE = { revisar: 'Para revisar', todos: 'Hoy en todos', inicio: 'Inicio', cronologia: 'Cronología', marketing: 'Marketing', recursos: 'Recursos', peticiones: 'Peticiones', perfil: 'Tu perfil', proyecto: 'Proyecto', reuniones: 'Reuniones', informe: 'Informe del mes' };
 
 function Shell({ onSignOut, demo }) {
   const [, v] = usePortal();
@@ -217,7 +224,7 @@ function Shell({ onSignOut, demo }) {
               <Logo client={app.client} />
               <span className="flex min-w-0 flex-col items-start leading-tight">
                 <span className="max-w-[44vw] truncate text-sm font-semibold sm:max-w-xs">{app.client.name}</span>
-                <span className="text-[11px] text-muted">{SECTION_TITLE[tab] || 'Tu proyecto'}</span>
+                <span className="text-[11px] text-muted">{app.studio ? `Estudio · ${SECTION_TITLE[tab] || 'Portal'}` : SECTION_TITLE[tab] || 'Tu proyecto'}</span>
               </span>
               {others.length > 0 && <ChevronDown className="size-3.5 text-muted" />}
             </Button>
@@ -231,7 +238,10 @@ function Shell({ onSignOut, demo }) {
                 {app.portals.map((p) => (
                   <Dropdown.Item key={p.client.id} id={p.client.id} textValue={p.client.name}>
                     <Logo client={p.client} />
-                    <Label>{p.client.name}</Label>
+                    <Label className={p.client.archived ? 'text-muted' : ''}>{p.client.name}</Label>
+                    {app.studio && p.alerts > 0 && (
+                      <span className="ms-auto flex min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold leading-5 text-danger-foreground">{p.alerts}</span>
+                    )}
                     <Dropdown.ItemIndicator />
                   </Dropdown.Item>
                 ))}
@@ -250,9 +260,17 @@ function Shell({ onSignOut, demo }) {
             </Button>
             <Tooltip.Content>Buscar · /</Tooltip.Content>
           </Tooltip>
+          {app.studio && app.portals.length > 1 && (
+            <Tooltip delay={400}>
+              <Button isIconOnly variant="ghost" className="rounded-full text-muted" aria-label="Hoy en todos tus clientes" onPress={() => (location.hash = '#/todos')}>
+                <Sun className="size-5" />
+              </Button>
+              <Tooltip.Content>Hoy en todos tus clientes</Tooltip.Content>
+            </Tooltip>
+          )}
           <a
-            href="#/novedades"
-            aria-label={news ? `${news} novedades` : 'Novedades'}
+            href={app.studio ? '#/revisar' : '#/novedades'}
+            aria-label={app.studio ? (news ? `${news} para revisar` : 'Para revisar') : news ? `${news} novedades` : 'Novedades'}
             className="relative flex size-9 items-center justify-center rounded-full text-muted outline-none transition-colors hover:bg-default hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus"
           >
             <Bell className="size-5" />
@@ -271,6 +289,7 @@ function Shell({ onSignOut, demo }) {
                 onAction={(k) => {
                   if (k === 'perfil') location.hash = '#/perfil';
                   if (k === 'old') location.href = `/cliente/${location.search}`;
+                  if (k === 'negocio') window.open('/admin/negocio/#/portal/clientes', '_blank', 'noopener');
                   if (k === 'out') onSignOut();
                 }}
               >
@@ -281,6 +300,15 @@ function Shell({ onSignOut, demo }) {
                     <Description>{app.member?.name || app.user?.email}</Description>
                   </div>
                 </Dropdown.Item>
+                {app.studio && (
+                  <Dropdown.Item id="negocio" textValue="Portales y accesos">
+                    <Briefcase className="size-4 text-muted" />
+                    <div className="flex flex-col">
+                      <Label>Portales y accesos</Label>
+                      <Description>En Negocio: crear portales, cuentas, permisos e identidad</Description>
+                    </div>
+                  </Dropdown.Item>
+                )}
                 <Dropdown.Item id="old" textValue="Versión de siempre">
                   <ArrowUpRightFromSquare className="size-4 text-muted" />
                   <Label>Versión de siempre</Label>
@@ -299,6 +327,10 @@ function Shell({ onSignOut, demo }) {
         <Screen route={under} onSignOut={onSignOut} />
       </main>
       {overlay && <Overlay route={route} onClose={closeOverlay} />}
+
+      {/* Al estudio, el botón «+» para crear lo que sea en el portal abierto. */}
+      {app.studio && !overlay && route[1] !== 'pieza' && <CrearBoton />}
+      <Editores />
 
       {/* Enviar a Schwarck: mensajes, enlaces y archivos (si su acceso lo permite). */}
       {!app.studio && can('send') && !overlay && !['pieza', 'pedir'].includes(route[1]) && (

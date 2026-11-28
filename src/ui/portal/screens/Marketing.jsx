@@ -2,13 +2,14 @@
 // equilibrio entre atracción, autoridad, conversión y comunidad), el rendimiento
 // frente al mes anterior en cifras y gráficos, y los leads. Cada publicación se abre en una hoja con todo lo que lleva, y lo que está
 // para revisar se aprueba o se piden cambios desde ahí, con su conversación debajo. Si el portal lo permite,
-// el cliente propone publicaciones y añade o mueve leads.
+// el cliente propone publicaciones y añade o mueve leads. El estudio crea, edita, mueve,
+// duplica y cambia de estado las publicaciones, sube las cifras del mes y lleva los leads.
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, CircleCheck, Copy, Pencil, Plus, Sparkles, Xmark } from '@gravity-ui/icons';
+import { ArrowUpFromLine, ArrowUpRightFromSquare, Calendar, ChevronLeft, ChevronRight, CircleCheck, Copy, Link as LinkIcon, Pencil, Plus, Sparkles, TrashBin, Xmark } from '@gravity-ui/icons';
 import { Button, Card, Chip, Form, Label, Meter, ScrollShadow, Sheet, Tabs, TextArea, TextField, ToggleButton, ToggleButtonGroup, toast } from '@heroui/react';
 import { BarsChart } from '../../kit/BarsChart.jsx';
 import { Empty, Panel, Stat } from '../../kit/parts.jsx';
-import { cap, compact, dayDate, fDay, fMonth, fMonthShort, money, num, todayKey } from '../../../portal/kit.js';
+import { cap, compact, dayDate, fDay, fMonth, fMonthShort, hostOf, money, num, safeUrl, todayKey } from '../../../portal/kit.js';
 import {
   CHANNEL,
   CONTENT_STATUS,
@@ -22,14 +23,18 @@ import {
   can,
   channelsOf,
   isMine,
+  removeLocal,
+  urlOf,
   visibleContent,
 } from '../../../portal/state.js';
-import { go, save, usePortal } from '../store.js';
+import { go, refresh, save, usePortal } from '../store.js';
 import { Tone } from '../ui.jsx';
 import { useOpenAfterGesture } from '../../kit/hooks.js';
 import { ApprovalCard, ComposedChart, DonutChart, KpiGroup, Stepper, Widget } from '../../pro/index.js';
 import { Conversacion } from './Hilo.jsx';
 import { LeadModal, ProponerModal } from './Crear.jsx';
+import { ConfirmDialog, SelectField } from '../../negocio/fields.jsx';
+import { duplicateContent, edit, setContentStatus } from '../estudio/Editores.jsx';
 
 const TABS = [
   ['calendario', 'Calendario', 'calendario'],
@@ -160,7 +165,7 @@ function Calendario({ month }) {
                     pickView('dia');
                   }}
                   className={`flex min-h-14 flex-col items-center gap-1 rounded-xl p-1 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus sm:min-h-20 ${out ? 'opacity-40' : 'bg-surface-secondary hover:bg-default'}`}
-                  aria-label={`${cap(fDay.format(dayDate(day)))}: ${list.length ? `${list.length} publicaciones` : 'nada'}`}
+                  aria-label={`${cap(fDay.format(dayDate(day)))}: ${list.length ? `${list.length} ${list.length === 1 ? 'publicación' : 'publicaciones'}` : 'nada'}`}
                 >
                   <span className={`flex size-6 items-center justify-center rounded-full text-xs tabular-nums ${today ? 'bg-accent font-semibold text-accent-foreground' : ''}`}>{Number(day.slice(8))}</span>
                   <span className="flex flex-wrap justify-center gap-0.5">
@@ -223,7 +228,18 @@ function Calendario({ month }) {
             ))}
           </div>
         ) : (
-          <Empty title="Nada este día" text="Prueba con otro día o mira la semana." />
+          <Empty
+            title="Nada este día"
+            text={app.studio ? 'Añade una publicación para este día.' : 'Prueba con otro día o mira la semana.'}
+            action={
+              app.studio && (
+                <Button onPress={() => edit('content', { date: anchor })}>
+                  <Plus />
+                  Añadir publicación
+                </Button>
+              )
+            }
+          />
         ))}
 
       {view === 'mes' && items.length === 0 && <Empty title="Nada programado este mes" text="Cuando el estudio prepare publicaciones, aparecerán aquí con su fecha." />}
@@ -234,7 +250,13 @@ function Calendario({ month }) {
 function Rendimiento() {
   const [, v] = usePortal();
   const rows = useMemo(() => (app.data.metrics || []).filter((m) => m.channel === 'total').sort((a, b) => b.month.localeCompare(a.month)), [v]);
-  if (!rows.length) return <Empty title="Todavía no hay resultados" text="El estudio sube los del mes al cerrarlo." />;
+  const upload = app.studio && (
+    <Button variant="secondary" className="self-start" onPress={() => edit('metrics', { month: rows[0]?.month })}>
+      <ArrowUpFromLine />
+      Subir las cifras del mes
+    </Button>
+  );
+  if (!rows.length) return <Empty title="Todavía no hay resultados" text={app.studio ? 'Sube las cifras del mes para que el cliente vea cómo le va.' : 'El estudio sube los del mes al cerrarlo.'} action={upload} />;
   const [now, prev] = rows;
   const six = rows.slice(0, 6).reverse();
   const kpi = (key, label, fmt = num) => ({ label, value: fmt(now[key] || 0), delta: prev ? change(now[key] || 0, prev[key] || 0) : null, trend: six.map((m) => m[key] || 0) });
@@ -243,6 +265,7 @@ function Rendimiento() {
   const byChannel = (app.data.metrics || []).filter((m) => m.month === now.month && m.channel !== 'total' && (m.reach || 0) > 0);
   return (
     <div className="flex flex-col gap-4">
+      {upload}
       <Widget title={cap(fMonth.format(dayDate(now.month)))} action={prev ? <span>vs. el mes anterior</span> : null}>
         <KpiGroup items={[kpi('reach', 'Alcance', compact), kpi('followers', 'Seguidores', compact), kpi('leads', 'Leads'), kpi('sales', 'Ventas', money)]} />
       </Widget>
@@ -306,11 +329,13 @@ function Leads() {
   const [, v] = usePortal();
   const [editing, setEditing] = useState(null);
   const leads = useMemo(() => [...(app.data.leads || [])].sort((a, b) => (b.date || '').localeCompare(a.date || '')), [v]);
-  const canAdd = !app.studio && can('leads.add');
-  const canEdit = !app.studio && can('leads.edit');
+  const canAdd = app.studio || can('leads.add');
+  const canEdit = app.studio || can('leads.edit');
+  // Al estudio, el formulario que además deja borrar.
+  const open = (l) => (app.studio ? edit('lead', { lead: l === 'nuevo' ? null : l }) : setEditing(l));
   const modal = editing && <LeadModal lead={editing === 'nuevo' ? null : editing} onClose={() => setEditing(null)} />;
   const add = canAdd && (
-    <Button variant="secondary" className="self-start" onPress={() => setEditing('nuevo')}>
+    <Button variant="secondary" className="self-start" onPress={() => open('nuevo')}>
       <Plus />
       Nuevo lead
     </Button>
@@ -337,7 +362,7 @@ function Leads() {
         {leads.map((l) => (
           <li
             key={l.id}
-            {...(canEdit ? { role: 'button', tabIndex: 0, onClick: () => setEditing(l), onKeyDown: (e) => e.key === 'Enter' && setEditing(l) } : {})}
+            {...(canEdit ? { role: 'button', tabIndex: 0, onClick: () => open(l), onKeyDown: (e) => e.key === 'Enter' && open(l) } : {})}
             className={`flex items-center gap-3 rounded-2xl bg-surface px-3 py-2.5 shadow-[var(--surface-shadow)] ${canEdit ? 'cursor-pointer outline-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-focus' : ''}`}
           >
             <span className="flex min-w-0 flex-1 flex-col">
@@ -366,17 +391,54 @@ async function copy(text, done) {
   }
 }
 
+// Qué se prepara en cada formato (lo mismo que el formulario del estudio).
+const KIND_OF = { post: 'design', carrusel: 'slides', historia: 'frames', reel: 'video', video: 'video', articulo: 'article' };
+
+/** Un bloque de la ficha: su título pequeño y lo que lleva. */
+function Block({ title, action, children }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="sw-eyebrow">{title}</span>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 /** La ficha de una publicación, en una hoja que sube desde abajo. */
 function Pieza({ id }) {
   const [, v] = usePortal();
   const c = (app.data.content || []).find((x) => x.id === id);
   const [asking, setAsking] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [changing, setChanging] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
   const ready = useOpenAfterGesture();
   if (!c) return null;
   const client = !app.studio;
   const ownIdea = c.origin === 'client' && isMine(c);
-  const canDecide = client && c.status === 'review' && !c.client_verdict && can('content.approve');
+  // Mientras esté para revisar, quien aprueba puede cambiar su respuesta.
+  const canAnswer = client && c.status === 'review' && can('content.approve');
+  const canDecide = canAnswer && (!c.client_verdict || changing);
+  const canWithdraw = client && ownIdea && c.status === 'idea';
+  const media = [...(c.assets || [])];
+  if (!media.length && c.image_url) media.push({ path: c.image_url, kind: 'image' });
+  const prod = c.production || {};
+  const kind = KIND_OF[c.format] || 'other';
+  const link = safeUrl(c.link);
+  const withdraw = async () => {
+    try {
+      await app.backend.remove('content', c.id);
+      removeLocal('content', c.id);
+      refresh();
+      toast('Idea retirada');
+      go('#/marketing');
+    } catch (err) {
+      toast.danger('No se retiró', { description: err.message });
+    }
+  };
   const canReject = client && !ownIdea && can('content.reject') && !['scheduled', 'published'].includes(c.status) && c.client_verdict !== 'rejected';
   const at = STATUS_ORDER.indexOf(c.status);
   const verdict = VERDICT[c.client_verdict];
@@ -390,6 +452,7 @@ function Pieza({ id }) {
       await save('content', { id: c.id, client_verdict: kind, client_note: note || null });
       toast.success(kind === 'approved' ? '¡Aprobada! El estudio ya lo sabe.' : kind === 'changes' ? 'Le pediste cambios al estudio.' : 'Rechazada.');
       setAsking(null);
+      setChanging(false);
     } catch (err) {
       toast.danger('No se guardó', { description: err.message });
     } finally {
@@ -413,14 +476,40 @@ function Pieza({ id }) {
                   {FORMAT[c.format] || 'Post'}
                 </Chip>
                 {c.funnel && <Tone label={FUNNEL[c.funnel]?.[0]} color={FUNNEL[c.funnel]?.[1]} />}
+                {c.pillar && (
+                  <Chip size="sm" variant="tertiary">
+                    {c.pillar}
+                  </Chip>
+                )}
+                {c.campaign && (
+                  <Chip size="sm" variant="soft" color="accent">
+                    {c.campaign}
+                  </Chip>
+                )}
               </div>
               <Sheet.Heading className="text-xl font-semibold">{c.title}</Sheet.Heading>
               <span className="text-sm text-muted">
                 {cap(fDay.format(dayDate(c.date)))}
                 {c.time ? `, ${c.time.slice(0, 5)}` : ''}
+                {kind === 'video' && c.duration ? ` · ${c.duration}` : ''}
               </span>
             </Sheet.Header>
             <Sheet.Body className="flex flex-col gap-4 overflow-y-auto pb-2">
+              {media.length > 0 && (
+                <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1">
+                  {media.map((a, i) => {
+                    const src = urlOf(a.path || a.url);
+                    if (!src) return null;
+                    return a.kind === 'video' ? (
+                      <video key={i} src={src} controls playsInline preload="metadata" className="h-60 shrink-0 snap-start rounded-2xl bg-black" />
+                    ) : (
+                      <a key={i} href={src} target="_blank" rel="noopener noreferrer" className="shrink-0 snap-start">
+                        <img src={src} alt={a.name || `Imagen ${i + 1}`} className="h-60 rounded-2xl object-cover" />
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
               <ScrollShadow orientation="horizontal" hideScrollBar className="-mx-1 px-1">
                 <Stepper
                   orientation="horizontal"
@@ -452,8 +541,13 @@ function Pieza({ id }) {
               {verdict && (
                 <p className="flex items-center gap-2 rounded-2xl bg-surface-secondary px-3 py-2 text-sm">
                   <span className="size-2 rounded-full" style={{ background: verdict[3] }} />
-                  {client && c.client_verdict_by === app.user?.id ? verdict[1] : `${c.client_verdict_name || 'Tu equipo'} ${verdict[2]}`}
+                  {client && c.client_verdict_by === app.user?.id ? verdict[1] : `${c.client_verdict_name || (client ? 'Tu equipo' : 'El cliente')} ${verdict[2]}`}
                   {c.client_note && <span className="text-muted">«{c.client_note}»</span>}
+                  {canAnswer && !changing && (
+                    <Button size="sm" variant="ghost" className="ms-auto" onPress={() => setChanging(true)}>
+                      Cambiar
+                    </Button>
+                  )}
                 </p>
               )}
               {[
@@ -503,11 +597,62 @@ function Pieza({ id }) {
                   </ol>
                 </div>
               )}
-              {c.production?.headline && (
-                <div className="flex flex-col gap-1">
-                  <span className="sw-eyebrow">Texto en la pieza</span>
-                  <p className="text-lg font-semibold">{c.production.headline}</p>
-                </div>
+              {prod.headline && (
+                <Block title="Texto en la pieza">
+                  <p className="text-lg font-semibold">{prod.headline}</p>
+                </Block>
+              )}
+              {[
+                ['slides', 'Diapositivas'],
+                ['frames', 'Pantallas'],
+              ].map(
+                ([k, label]) =>
+                  kind === k &&
+                  prod[k]?.length > 0 && (
+                    <Block key={k} title={`${label} (${prod[k].length})`}>
+                      <ol className="flex flex-col gap-1 text-sm">
+                        {prod[k].map((t, i) => (
+                          <li key={i} className="flex gap-2 rounded-xl bg-surface-secondary px-3 py-1.5">
+                            <b className="tabular-nums">{i + 1}</b>
+                            <span>{t}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </Block>
+                  ),
+              )}
+              {prod.design_notes && ['design', 'slides', 'frames'].includes(kind) && (
+                <Block title="Diseño">
+                  <p className="whitespace-pre-line text-sm">{prod.design_notes}</p>
+                </Block>
+              )}
+              {kind === 'article' && prod.outline && (
+                <Block title="Esquema">
+                  <p className="whitespace-pre-line text-sm">{prod.outline}</p>
+                  {prod.keyword && (
+                    <Chip size="sm" variant="tertiary" className="self-start">
+                      {prod.keyword}
+                    </Chip>
+                  )}
+                </Block>
+              )}
+              {(c.refs?.length > 0 || link) && (
+                <Block title={['design', 'slides', 'frames'].includes(kind) ? 'Inspiración y enlaces' : 'Enlaces'}>
+                  <div className="flex flex-col gap-1 text-sm">
+                    {link && (
+                      <a href={link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-medium text-accent hover:underline">
+                        <ArrowUpRightFromSquare className="size-3.5" />
+                        Ver la pieza
+                      </a>
+                    )}
+                    {(c.refs || []).map((r, i) => (
+                      <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:underline">
+                        <LinkIcon className="size-3.5 text-muted" />
+                        {r.label || hostOf(r.url)}
+                      </a>
+                    ))}
+                  </div>
+                </Block>
               )}
               {asking && (
                 <Form
@@ -531,9 +676,9 @@ function Pieza({ id }) {
                   </div>
                 </Form>
               )}
-              {c.notes && c.origin === 'client' && (
+              {c.notes && (
                 <div className="flex flex-col gap-1">
-                  <span className="sw-eyebrow">La idea</span>
+                  <span className="sw-eyebrow">{c.origin === 'client' ? 'La idea' : kind === 'video' ? 'Notas de grabación' : 'Notas'}</span>
                   <p className="whitespace-pre-line text-sm">{c.notes}</p>
                 </div>
               )}
@@ -541,6 +686,30 @@ function Pieza({ id }) {
                 <Conversacion target="content" id={c.id} />
               </div>
             </Sheet.Body>
+            {app.studio && (
+              <Sheet.Footer className="flex flex-wrap items-end gap-2">
+                <SelectField label="Estado" value={c.status} onChange={(s) => s && s !== c.status && setContentStatus(c, s)} options={STATUS_ORDER.map((k) => [k, CONTENT_STATUS[k][0]])} className="min-w-40 flex-1" />
+                <Button isIconOnly variant="ghost" aria-label="Duplicar como idea" onPress={() => duplicateContent(c)}>
+                  <Copy />
+                </Button>
+                <Button variant="secondary" onPress={() => edit('move', { content: c })}>
+                  <Calendar />
+                  Mover
+                </Button>
+                <Button onPress={() => edit('content', { content: c })}>
+                  <Pencil />
+                  Editar
+                </Button>
+              </Sheet.Footer>
+            )}
+            {canWithdraw && (
+              <Sheet.Footer className="flex flex-wrap gap-2">
+                <Button variant="danger-soft" onPress={() => setWithdrawing(true)}>
+                  <TrashBin />
+                  Retirar mi idea
+                </Button>
+              </Sheet.Footer>
+            )}
             {!canDecide && canReject && !asking && (
               <Sheet.Footer className="flex flex-wrap gap-2">
                 {canReject && (
@@ -551,6 +720,7 @@ function Pieza({ id }) {
                 )}
               </Sheet.Footer>
             )}
+            <ConfirmDialog open={withdrawing} title="¿Retirar tu idea?" text="El estudio deja de verla." confirm="Retirar" onConfirm={withdraw} onClose={() => setWithdrawing(false)} />
           </Sheet.Dialog>
         </Sheet.Content>
       </Sheet.Backdrop>
@@ -571,8 +741,20 @@ export function Marketing({ tab, arg }) {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Marketing</h1>
-          <p className="text-sm text-muted">Tu calendario de contenido y cómo le va a tu marca.</p>
+          <p className="text-sm text-muted">{app.studio ? 'Su calendario de contenido, sus cifras y sus leads.' : 'Tu calendario de contenido y cómo le va a tu marca.'}</p>
         </div>
+        {app.studio && (
+          <div className="flex gap-2">
+            <Button variant="secondary" onPress={() => edit('import')}>
+              <Sparkles />
+              Importar de Claude
+            </Button>
+            <Button onPress={() => edit('content')}>
+              <Plus />
+              Nueva publicación
+            </Button>
+          </div>
+        )}
         {canPropose && (
           <Button variant="secondary" onPress={() => setProposing(true)}>
             <Sparkles />

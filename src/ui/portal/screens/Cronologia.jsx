@@ -3,19 +3,20 @@
 // avances, contenido, resultados y lo que mandó el propio cliente. Lo nuevo desde
 // su última visita sale marcado. Mantener pulsado (o el clic derecho) sobre algo
 // abre su menú: abrirlo, copiarlo, compartirlo y, si es tuyo o eres del estudio,
-// editarlo o borrarlo.
+// editarlo o borrarlo. Al estudio, además, tocar una tarea del reporte la edita.
 import { useMemo, useState } from 'react';
-import { ArrowShapeTurnUpRight, ArrowUpRightFromSquare, CircleCheck, Clock, Comments, Copy, Pencil, Plus, Thunderbolt, TrashBin } from '@gravity-ui/icons';
-import { Button, Card, Chip, Disclosure, Input, Label, Tabs, TextArea, TextField, toast } from '@heroui/react';
+import { ArrowShapeTurnUpRight, ArrowUpRightFromSquare, CircleCheck, Clock, Comments, Copy, ListCheck, Pencil, Plus, Thunderbolt, TrashBin } from '@gravity-ui/icons';
+import { Button, Card, Chip, Disclosure, Tabs, toast } from '@heroui/react';
 import { Empty } from '../../kit/parts.jsx';
 import { useLongPress } from '../../kit/hooks.js';
 import { ago, dayLabel, localDay, minutesText } from '../../../portal/kit.js';
 import { app, can, commentsOf, feed, isMine, removeLocal, unread } from '../../../portal/state.js';
-import { go, refresh, save, usePortal } from '../store.js';
+import { go, refresh, usePortal } from '../store.js';
 import { PointMenu, Timeline } from '../../pro/index.js';
-import { ConfirmDialog, FormModal } from '../../negocio/fields.jsx';
+import { ConfirmDialog } from '../../negocio/fields.jsx';
 import { Ico } from '../ui.jsx';
 import { AnuncioModal } from './Crear.jsx';
+import { edit } from '../estudio/Editores.jsx';
 
 /** Lo que se puede hacer con algo de la cronología. */
 function itemMenu(it) {
@@ -34,37 +35,6 @@ function itemMenu(it) {
 }
 const textOf = (it) => [it.title, it.body, it.report && it.report.done.map((w) => `· ${w.title}`).join('\n')].filter(Boolean).join('\n');
 
-/** Editar un anuncio o un avance (solo el estudio). */
-function EditPost({ post, onClose }) {
-  return (
-    <FormModal
-      title="Editar"
-      onClose={onClose}
-      onSubmit={async (f) => {
-        const title = String(f.title || '').trim();
-        if (!title) return false;
-        try {
-          await save('posts', { id: post.id, title, body: String(f.body || '').trim() || null });
-          toast.success('Guardado');
-          return true;
-        } catch (err) {
-          toast.danger('No se guardó', { description: err.message });
-          return false;
-        }
-      }}
-    >
-      <TextField name="title" defaultValue={post.title} maxLength={200} isRequired className="sm:col-span-2">
-        <Label>Título</Label>
-        <Input />
-      </TextField>
-      <TextField name="body" defaultValue={post.body || ''} maxLength={5000} className="sm:col-span-2">
-        <Label>Texto</Label>
-        <TextArea rows={5} />
-      </TextField>
-    </FormModal>
-  );
-}
-
 const FILTERS = [
   ['todo', 'Todo'],
   ['reportes', 'Reportes'],
@@ -73,6 +43,16 @@ const FILTERS = [
   ['anuncios', 'Anuncios'],
   ['tuyo', 'Lo tuyo'],
 ];
+
+/** El título de una tarea del reporte; al estudio, un botón que la edita. */
+function WorkTitle({ w }) {
+  if (!app.studio) return <span className="flex-1">{w.title}</span>;
+  return (
+    <button type="button" onClick={() => edit('work', { work: w })} className="flex-1 text-start outline-none hover:underline focus-visible:underline">
+      {w.title}
+    </button>
+  );
+}
 
 function Report({ item, fresh }) {
   const { done, items, minutes, meta } = item.report;
@@ -96,14 +76,14 @@ function Report({ item, fresh }) {
         {done.map((w) => (
           <li key={w.id} className="flex items-start gap-2">
             <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
-            <span className="flex-1">{w.title}</span>
+            <WorkTitle w={w} />
             {w.minutes ? <span className="shrink-0 text-xs text-muted">{minutesText(w.minutes)}</span> : null}
           </li>
         ))}
         {doing.map((w) => (
           <li key={w.id} className="flex items-start gap-2">
             <Thunderbolt className="mt-0.5 size-4 shrink-0 text-warning" />
-            <span className="flex-1">{w.title}</span>
+            <WorkTitle w={w} />
             <span className="shrink-0 text-xs text-muted">en curso</span>
           </li>
         ))}
@@ -146,7 +126,6 @@ function Report({ item, fresh }) {
 export function Cronologia({ filter = 'todo' }) {
   const [, v] = usePortal();
   const [menu, setMenu] = useState(null); // { at, it }
-  const [editing, setEditing] = useState(null);
   const [removing, setRemoving] = useState(null);
   const [posting, setPosting] = useState(false);
   const current = FILTERS.some(([k]) => k === filter) ? filter : 'todo';
@@ -178,7 +157,7 @@ export function Cronologia({ filter = 'todo' }) {
       }
     }
     if (id === 'share') navigator.share?.({ title: it.title, text: textOf(it) }).catch(() => {});
-    if (id === 'edit') setEditing(it.ref.row);
+    if (id === 'edit') edit('post', { post: it.ref.row });
     if (id === 'delete') setRemoving(it.ref.row);
   };
 
@@ -189,6 +168,18 @@ export function Cronologia({ filter = 'todo' }) {
           <h1 className="text-3xl font-semibold tracking-tight">Cronología</h1>
           <p className="text-sm text-muted">Todo lo que pasó en tu proyecto, por días.</p>
         </div>
+        {app.studio && (
+          <div className="flex gap-2">
+            <Button variant="secondary" onPress={() => edit('report')}>
+              <ListCheck />
+              Reporte
+            </Button>
+            <Button onPress={() => edit('post')}>
+              <Plus />
+              Publicar
+            </Button>
+          </div>
+        )}
         {!app.studio && can('posts.create') && (
           <Button variant="secondary" onPress={() => setPosting(true)}>
             <Plus />
@@ -261,7 +252,6 @@ export function Cronologia({ filter = 'todo' }) {
         ))
       )}
       <PointMenu at={menu?.at} items={menu ? itemMenu(menu.it) : []} onClose={() => setMenu(null)} onAction={run} label="Acciones" />
-      {editing && <EditPost post={editing} onClose={() => setEditing(null)} />}
       <ConfirmDialog
         open={Boolean(removing)}
         title="¿Borrarlo de la cronología?"

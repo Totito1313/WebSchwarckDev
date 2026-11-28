@@ -117,7 +117,7 @@ export async function save(table, row) {
 }
 
 /** Las rutas que se abren encima de la pantalla en la que se estaba (como hojas). */
-export const OVERLAYS = new Set(['hilo', 'enviar', 'buscar', 'novedades', 'valorar']);
+export const OVERLAYS = new Set(['hilo', 'enviar', 'buscar', 'novedades', 'valorar', 'revisar', 'todos']);
 
 export function useRoute() {
   const read = () => location.hash.replace(/^#\/?/, '').split('?')[0].split('/').map(decodeURIComponent);

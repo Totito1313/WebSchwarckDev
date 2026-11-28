@@ -1,9 +1,10 @@
 // Reuniones (#/reuniones): el cliente pide una (tema, cómo, cuánto y hasta tres
 // horarios que le vienen bien) y el estudio la confirma con uno de ellos o propone otra
 // hora. La próxima sale en Inicio con «Unirse» y «Añadir al calendario» (un .ics con
-// aviso 15 minutos antes). Quien la pidió la puede cancelar.
+// aviso 15 minutos antes). Quien la pidió la puede cancelar. El estudio agenda, confirma la
+// pedida (o dice que no puede), la edita, la marca como hecha o la cancela.
 import { useState } from 'react';
-import { Calendar, Clock, FileText, Handset, MapPin, Play, Plus, Video } from '@gravity-ui/icons';
+import { Calendar, Check, Clock, FileText, Handset, MapPin, Pencil, Play, Plus, Video, Xmark } from '@gravity-ui/icons';
 import { Button, Chip, Input, Label, TextArea, TextField, ToggleButton, ToggleButtonGroup, toast } from '@heroui/react';
 import { ago, cap, fDay, fTime } from '../../../portal/kit.js';
 import { MEETING_MODE, MEETING_STATUS, app, can, has, isMine, myName, nextMeeting, upsertLocal } from '../../../portal/state.js';
@@ -11,6 +12,7 @@ import { go, refresh, usePortal } from '../store.js';
 import { ConfirmDialog, FormModal } from '../../negocio/fields.jsx';
 import { Empty, Panel } from '../../kit/parts.jsx';
 import { Hoja, Tone } from '../ui.jsx';
+import { edit, setMeetingStatus } from '../estudio/Editores.jsx';
 
 const DURATIONS = [30, 45, 60, 90];
 const durText = (n) => (n < 60 ? `${n} min` : n === 60 ? '1 h' : `1 h ${n - 60}`);
@@ -64,7 +66,7 @@ export function MeetingCard() {
   usePortal();
   if (!has('meetings')) return null;
   const next = nextMeeting();
-  const asked = app.data.meetings.filter((m) => m.status === 'requested' && isMine(m));
+  const asked = app.data.meetings.filter((m) => m.status === 'requested' && !app.studio && isMine(m));
   if (!next && !asked.length) return null;
   if (!next) {
     return (
@@ -224,7 +226,7 @@ function ReunionHoja({ m, onClose }) {
   const [confirm, setConfirm] = useState(false);
   const [state, color] = MEETING_STATUS[m.status] || MEETING_STATUS.requested;
   const Icon = MODE_ICON[m.mode] || Calendar;
-  const mine = isMine(m) && ['requested', 'confirmed'].includes(m.status) && !isPast(m);
+  const mine = !app.studio && isMine(m) && ['requested', 'confirmed'].includes(m.status) && !isPast(m);
   const cancel = async () => {
     try {
       upsertLocal('meetings', await app.backend.save('meetings', { id: m.id, status: 'cancelled' }));
@@ -242,6 +244,26 @@ function ReunionHoja({ m, onClose }) {
       onClose={onClose}
       footer={
         <>
+          {app.studio && m.status === 'confirmed' && (
+            <>
+              <Button variant="danger-soft" onPress={() => setMeetingStatus(m, 'cancelled', 'Reunión cancelada').then(onClose)}>
+                <Xmark />
+                Cancelar
+              </Button>
+              {isPast(m) && (
+                <Button variant="secondary" onPress={() => setMeetingStatus(m, 'done', 'Reunión hecha').then(onClose)}>
+                  <Check />
+                  Hecha
+                </Button>
+              )}
+            </>
+          )}
+          {app.studio && (
+            <Button variant="secondary" onPress={() => edit('meeting', { meeting: m })}>
+              <Pencil />
+              Editar
+            </Button>
+          )}
           {mine && (
             <Button variant="danger-soft" onPress={() => setConfirm(true)}>
               Cancelar la reunión
@@ -281,7 +303,7 @@ function ReunionHoja({ m, onClose }) {
       )}
       {!m.starts_at && m.options?.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <span className="sw-eyebrow">Los horarios que propusiste</span>
+          <span className="sw-eyebrow">{app.studio ? 'Los horarios que propuso' : 'Los horarios que propusiste'}</span>
           {m.options.map((o) => (
             <span key={o} className="flex items-center gap-2 rounded-2xl bg-surface-secondary px-3 py-2 text-sm">
               <Clock className="size-4 text-muted" />
@@ -303,7 +325,7 @@ function ReunionHoja({ m, onClose }) {
         </p>
       )}
       {m.studio_note && <p className="rounded-2xl bg-accent/10 px-3 py-2.5 text-sm">«{m.studio_note}» — Schwarck</p>}
-      <p className="text-xs text-muted">{m.origin === 'client' ? isMine(m) ? `La pediste ${ago(m.created_at)}` : `La pidió ${m.author || 'tu equipo'} ${ago(m.created_at)}` : `La agendó Schwarck ${ago(m.created_at)}`}</p>
+      <p className="text-xs text-muted">{m.origin === 'client' ? !app.studio && isMine(m) ? `La pediste ${ago(m.created_at)}` : `La pidió ${m.author || (app.studio ? 'el cliente' : 'tu equipo')} ${ago(m.created_at)}` : `La agendó Schwarck ${ago(m.created_at)}`}</p>
       <ConfirmDialog open={confirm} title="¿Cancelar la reunión?" text="Avisaremos al equipo." confirm="Cancelar la reunión" onConfirm={cancel} onClose={() => setConfirm(false)} />
     </Hoja>
   );
@@ -312,7 +334,7 @@ function ReunionHoja({ m, onClose }) {
 function MeetingRow({ m, onOpen }) {
   const [state, color] = MEETING_STATUS[m.status] || MEETING_STATUS.requested;
   const Icon = MODE_ICON[m.mode] || Calendar;
-  const when = m.starts_at ? `${new Date(m.starts_at).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '')} · ${fTime.format(new Date(m.starts_at))}` : m.options?.length ? `Propusiste ${m.options.length === 1 ? 'un horario' : `${m.options.length} horarios`}` : '';
+  const when = m.starts_at ? `${new Date(m.starts_at).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '')} · ${fTime.format(new Date(m.starts_at))}` : m.options?.length ? `${app.studio ? 'Propuso' : 'Propusiste'} ${m.options.length === 1 ? 'un horario' : `${m.options.length} horarios`}` : '';
   return (
     <li>
       <button type="button" onClick={() => onOpen(m)} className="flex w-full items-center gap-3 rounded-2xl px-2 py-2 text-start outline-none hover:bg-surface-secondary focus-visible:ring-2 focus-visible:ring-focus">
@@ -340,6 +362,8 @@ export function Reuniones({ action }) {
   usePortal();
   const [open, setOpen] = useState(null);
   const asking = action === 'pedir' && canRequest();
+  // Al estudio, la pedida se abre para responderla.
+  const openRow = (m) => (app.studio && m.status === 'requested' ? edit('confirmMeeting', { meeting: m }) : setOpen(m));
   const all = has('meetings') ? [...app.data.meetings] : [];
   const upcoming = all.filter((m) => m.status === 'confirmed' && !isPast(m)).sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
   const asked = all.filter((m) => m.status === 'requested').sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -347,7 +371,7 @@ export function Reuniones({ action }) {
   const list = (items) => (
     <ul className="flex flex-col">
       {items.map((m) => (
-        <MeetingRow key={m.id} m={m} onOpen={setOpen} />
+        <MeetingRow key={m.id} m={m} onOpen={openRow} />
       ))}
     </ul>
   );
@@ -356,8 +380,14 @@ export function Reuniones({ action }) {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Reuniones</h1>
-          <p className="text-sm text-muted">Para hablar con el equipo de Schwarck.</p>
+          <p className="text-sm text-muted">{app.studio ? `Las reuniones con ${app.client.name}.` : 'Para hablar con el equipo de Schwarck.'}</p>
         </div>
+        {app.studio && has('meetings') && (
+          <Button onPress={() => edit('meeting')}>
+            <Plus />
+            Agendar
+          </Button>
+        )}
         {canRequest() && (
           <Button onPress={() => go('#/reuniones/pedir')}>
             <Plus />
@@ -368,7 +398,7 @@ export function Reuniones({ action }) {
       {!has('meetings') && <Empty icon={Calendar} title="Todavía no disponible" text="Las reuniones llegan con la próxima actualización del portal." />}
       {has('meetings') && !all.length && <Empty icon={Calendar} title="Sin reuniones" text="Cuando quieras hablar con el equipo, pide una reunión con los horarios que te vienen bien." />}
       {asked.length > 0 && (
-        <Panel title="Pedidas" description="Te avisamos cuando confirmemos la hora">
+        <Panel title="Pedidas" description={app.studio ? 'Toca una para confirmar la hora' : 'Te avisamos cuando confirmemos la hora'}>
           {list(asked)}
         </Panel>
       )}

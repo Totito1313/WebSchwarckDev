@@ -209,7 +209,7 @@ export function RecursoModal({ onClose }) {
 }
 
 /** Registrar un lead o cambiarle la etapa y los datos. */
-export function LeadModal({ lead, onClose }) {
+export function LeadModal({ lead, onClose, extra }) {
   const [source, setSource] = useState(lead?.source || 'instagram');
   const [stage, setStage] = useState(lead?.stage || 'nuevo');
   const [value, setValue] = useState(lead?.value ?? '');
@@ -218,6 +218,7 @@ export function LeadModal({ lead, onClose }) {
     <FormModal
       title={lead ? 'Editar lead' : 'Nuevo lead'}
       onClose={onClose}
+      extra={extra}
       onSubmit={async ({ name, contact, campaign, notes }) => {
         const row = {
           name: String(name).trim(),
