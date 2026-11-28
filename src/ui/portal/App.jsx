@@ -1,18 +1,31 @@
 // Portal nuevo (/cliente-nuevo/): la app del cliente rehecha con HeroUI. Usa la
 // misma cuenta y los mismos datos que /cliente/ (Supabase, con sus reglas y
-// permisos), y /cliente-nuevo/?demo enseña la demostración. Por ahora es la vista
-// del cliente; el modo estudio sigue en /cliente/.
-import { useEffect, useState } from 'react';
-import { ArrowRightFromSquare, ArrowUpRightFromSquare, Bell, ChartColumn, ChevronDown, CircleExclamation, Folder, Gear, House, ListTimeline, Tray } from '@gravity-ui/icons';
-import { Alert, Avatar, Button, Card, Chip, Description, Dropdown, FieldError, Form, Input, Label, TextField } from '@heroui/react';
+// permisos), y /cliente-nuevo/?demo enseña la demostración. Es la vista del
+// cliente; el modo estudio sigue en /cliente/ (y en Negocio › Portal de clientes).
+//
+// Algunas rutas se abren como hojas encima de la pantalla en la que se estaba
+// (OVERLAYS en store.js): una conversación, Enviar, Buscar, Novedades y Valorar.
+import { useEffect, useRef, useState } from 'react';
+import { ArrowRightFromSquare, ArrowUpRightFromSquare, Bell, ChartColumn, ChevronDown, CircleExclamation, Folder, Gear, House, ListTimeline, Magnifier, PaperPlane, Tray } from '@gravity-ui/icons';
+import { Alert, Avatar, Button, Card, Chip, Description, Dropdown, FieldError, Form, Input, Label, TextField, Tooltip } from '@heroui/react';
 import { Loader, ShimmerText } from '../pro/index.js';
 import { Empty } from '../kit/parts.jsx';
 import { app, can, pendingTasks, toReview, unread, urlOf } from '../../portal/state.js';
-import { openPortal, useBoot, usePortal, useRoute } from './store.js';
+import { OVERLAYS, openPortal, useBoot, usePortal, useRoute } from './store.js';
+import { ensurePush } from './push.js';
 import { Inicio } from './screens/Inicio.jsx';
 import { Cronologia } from './screens/Cronologia.jsx';
 import { Marketing } from './screens/Marketing.jsx';
-import { Peticiones, Perfil, Recursos } from './screens/Resto.jsx';
+import { Peticiones, Recursos } from './screens/Resto.jsx';
+import { Perfil } from './screens/Perfil.jsx';
+import { Proyecto } from './screens/Proyecto.jsx';
+import { Reuniones } from './screens/Reuniones.jsx';
+import { Informe } from './screens/Informe.jsx';
+import { HiloHoja } from './screens/Hilo.jsx';
+import { EnviarHoja } from './screens/Enviar.jsx';
+import { BuscarHoja } from './screens/Buscar.jsx';
+import { NovedadesHoja } from './screens/Novedades.jsx';
+import { ValorarHoja } from './screens/Valoracion.jsx';
 
 const TABS = [
   { id: 'inicio', label: 'Inicio', icon: House, href: '#/' },
@@ -101,18 +114,29 @@ function Screen({ route, onSignOut }) {
       return <Peticiones tab={a} />;
     case 'perfil':
       return <Perfil onSignOut={onSignOut} />;
+    case 'proyecto':
+      return <Proyecto />;
+    case 'reuniones':
+      return <Reuniones action={a} />;
+    case 'informe':
+      return <Informe month={a} />;
     case '':
     case 'inicio':
       return <Inicio />;
     default:
-      return (
-        <Empty
-          title="Esto todavía está en la versión de siempre"
-          text="Proyecto, reuniones, informe del mes y el modo estudio llegan pronto a esta versión."
-          action={<Button onPress={() => (location.href = `/cliente/${location.search}${location.hash}`)}>Abrirlo allí</Button>}
-        />
-      );
+      return <Empty title="Esto no existe" text="El enlace no lleva a ninguna parte de tu proyecto." action={<Button onPress={() => (location.hash = '#/')}>Ir a Inicio</Button>} />;
   }
+}
+
+/** Lo que se abre encima (como hoja), según la ruta. */
+function Overlay({ route, onClose }) {
+  const [section, a, b] = route;
+  if (section === 'hilo' && a && b) return <HiloHoja key={b} target={a} id={b} onClose={onClose} />;
+  if (section === 'enviar') return <EnviarHoja key={a || 'nuevo'} taskId={a} onClose={onClose} />;
+  if (section === 'buscar') return <BuscarHoja onClose={onClose} />;
+  if (section === 'novedades') return <NovedadesHoja onClose={onClose} />;
+  if (section === 'valorar') return <ValorarHoja preset={a} onClose={onClose} />;
+  return null;
 }
 
 /** true al bajar por la página (la cabecera se esconde); false al subir o arriba del todo. */
@@ -139,13 +163,43 @@ function useHideOnScroll() {
   return hidden;
 }
 
-const SECTION_TITLE = { inicio: 'Inicio', cronologia: 'Cronología', marketing: 'Marketing', recursos: 'Recursos', peticiones: 'Peticiones', perfil: 'Tu perfil' };
+const SECTION_TITLE = { inicio: 'Inicio', cronologia: 'Cronología', marketing: 'Marketing', recursos: 'Recursos', peticiones: 'Peticiones', perfil: 'Tu perfil', proyecto: 'Proyecto', reuniones: 'Reuniones', informe: 'Informe del mes' };
 
 function Shell({ onSignOut, demo }) {
   const [, v] = usePortal();
   const route = useRoute();
   const hidden = useHideOnScroll();
-  const section = route[0] || 'inicio';
+  // Con una hoja abierta, debajo sigue la pantalla de antes (o Inicio si se entró por el enlace).
+  const overlay = OVERLAYS.has(route[0]);
+  const base = useRef(overlay ? ['inicio'] : route);
+  const fromApp = useRef(false);
+  if (!overlay) base.current = route;
+  const under = overlay ? base.current : route;
+  const closeOverlay = (to) => {
+    if (to) location.replace(to);
+    else if (fromApp.current) history.back();
+    else location.replace(`#/${base.current.join('/')}`);
+  };
+  useEffect(() => {
+    if (!overlay) fromApp.current = true;
+  }, [overlay]);
+  // «/» o ⌘K / Ctrl+K: buscar (si no se está escribiendo ni hay una ventana abierta).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (document.querySelector('[role=dialog]')) return;
+      const typing = /^(input|textarea|select)$/i.test(document.activeElement?.tagName || '') || document.activeElement?.isContentEditable;
+      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
+        e.preventDefault();
+        location.hash = '#/buscar';
+      }
+    };
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
+  }, []);
+  useEffect(() => {
+    ensurePush();
+  }, []);
+  const section = under[0] || 'inicio';
   const tab = { calendario: 'marketing', documentos: 'recursos', tareas: 'peticiones' }[section] || section;
   const tabs = TABS.filter(visible);
   const at = tabs.findIndex((t) => t.id === tab);
@@ -156,7 +210,7 @@ function Shell({ onSignOut, demo }) {
   return (
     <div className="min-h-dvh pb-28" data-v={v}>
       {/* Cabecera flotante: el proyecto (y cambiar de proyecto), novedades y tu perfil. Se esconde al bajar. */}
-      <header className={`fixed inset-x-0 top-0 z-30 px-3 pt-[max(8px,env(safe-area-inset-top))] transition-transform duration-300 ease-out focus-within:translate-y-0 motion-reduce:transition-none ${hidden ? '-translate-y-[130%]' : ''}`}>
+      <header className={`fixed inset-x-0 top-0 z-30 px-3 pt-[max(8px,env(safe-area-inset-top))] transition-transform duration-300 ease-out focus-within:translate-y-0 motion-reduce:transition-none print:hidden ${hidden ? '-translate-y-[130%]' : ''}`}>
         <div className="sw-glass mx-auto flex max-w-3xl items-center gap-1.5 rounded-full p-1.5 shadow-[var(--overlay-shadow)]">
           <Dropdown>
             <Button variant="ghost" className="h-auto min-w-0 gap-2.5 rounded-full py-1 ps-1 pe-3" aria-label={others.length ? 'Cambiar de proyecto' : app.client.name}>
@@ -190,8 +244,14 @@ function Shell({ onSignOut, demo }) {
               Demostración
             </Chip>
           )}
+          <Tooltip delay={400}>
+            <Button isIconOnly variant="ghost" className="rounded-full text-muted" aria-label="Buscar" onPress={() => (location.hash = '#/buscar')}>
+              <Magnifier className="size-5" />
+            </Button>
+            <Tooltip.Content>Buscar · /</Tooltip.Content>
+          </Tooltip>
           <a
-            href="#/cronologia"
+            href="#/novedades"
             aria-label={news ? `${news} novedades` : 'Novedades'}
             className="relative flex size-9 items-center justify-center rounded-full text-muted outline-none transition-colors hover:bg-default hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus"
           >
@@ -235,12 +295,24 @@ function Shell({ onSignOut, demo }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-4 pb-6 pt-[calc(5rem+env(safe-area-inset-top))]">
-        <Screen route={route} onSignOut={onSignOut} />
+      <main className="mx-auto w-full max-w-3xl px-4 pb-6 pt-[calc(5rem+env(safe-area-inset-top))] print:max-w-none print:p-0">
+        <Screen route={under} onSignOut={onSignOut} />
       </main>
+      {overlay && <Overlay route={route} onClose={closeOverlay} />}
+
+      {/* Enviar a Schwarck: mensajes, enlaces y archivos (si su acceso lo permite). */}
+      {!app.studio && can('send') && !overlay && !['pieza', 'pedir'].includes(route[1]) && (
+        <a
+          href="#/enviar"
+          aria-label="Enviar a Schwarck"
+          className="fixed end-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-30 flex size-14 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-[var(--overlay-shadow)] outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-focus active:scale-95 print:hidden sm:end-[max(1rem,calc(50%-24rem))]"
+        >
+          <PaperPlane className="size-6" />
+        </a>
+      )}
 
       {/* Barra de abajo: la sección abierta va en una píldora que se desliza de una a otra. */}
-      <nav aria-label="Secciones" className="fixed inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+      <nav aria-label="Secciones" className="fixed inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-[max(12px,env(safe-area-inset-bottom))] print:hidden">
         <ul className="sw-glass relative flex w-full max-w-md items-stretch rounded-full p-1.5 shadow-[var(--overlay-shadow)]">
           {at >= 0 && (
             <span

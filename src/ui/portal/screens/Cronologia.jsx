@@ -5,16 +5,17 @@
 // abre su menú: abrirlo, copiarlo, compartirlo y, si es tuyo o eres del estudio,
 // editarlo o borrarlo.
 import { useMemo, useState } from 'react';
-import { ArrowShapeTurnUpRight, ArrowUpRightFromSquare, CircleCheck, Clock, Copy, Pencil, Thunderbolt, TrashBin } from '@gravity-ui/icons';
-import { Card, Chip, Disclosure, Input, Label, Tabs, TextArea, TextField, toast } from '@heroui/react';
+import { ArrowShapeTurnUpRight, ArrowUpRightFromSquare, CircleCheck, Clock, Comments, Copy, Pencil, Plus, Thunderbolt, TrashBin } from '@gravity-ui/icons';
+import { Button, Card, Chip, Disclosure, Input, Label, Tabs, TextArea, TextField, toast } from '@heroui/react';
 import { Empty } from '../../kit/parts.jsx';
 import { useLongPress } from '../../kit/hooks.js';
 import { ago, dayLabel, localDay, minutesText } from '../../../portal/kit.js';
-import { app, feed, isMine, removeLocal, unread } from '../../../portal/state.js';
+import { app, can, commentsOf, feed, isMine, removeLocal, unread } from '../../../portal/state.js';
 import { go, refresh, save, usePortal } from '../store.js';
 import { PointMenu, Timeline } from '../../pro/index.js';
 import { ConfirmDialog, FormModal } from '../../negocio/fields.jsx';
 import { Ico } from '../ui.jsx';
+import { AnuncioModal } from './Crear.jsx';
 
 /** Lo que se puede hacer con algo de la cronología. */
 function itemMenu(it) {
@@ -23,6 +24,7 @@ function itemMenu(it) {
   const canDelete = Boolean(post) && (app.studio || (post.kind === 'announcement' && isMine(post)));
   return [
     it.go && { id: 'open', label: 'Abrir', icon: ArrowUpRightFromSquare },
+    post && { id: 'talk', label: 'Comentar', icon: Comments },
     { id: 'copy', label: 'Copiar el texto', icon: Copy },
     typeof navigator.share === 'function' && { id: 'share', label: 'Compartir', icon: ArrowShapeTurnUpRight },
     (canEdit || canDelete) && '-',
@@ -146,6 +148,7 @@ export function Cronologia({ filter = 'todo' }) {
   const [menu, setMenu] = useState(null); // { at, it }
   const [editing, setEditing] = useState(null);
   const [removing, setRemoving] = useState(null);
+  const [posting, setPosting] = useState(false);
   const current = FILTERS.some(([k]) => k === filter) ? filter : 'todo';
   const { days, fresh } = useMemo(() => {
     const items = feed().filter((x) => current === 'todo' || x.group === current);
@@ -165,6 +168,7 @@ export function Cronologia({ filter = 'todo' }) {
     const it = menu?.it;
     if (!it) return;
     if (id === 'open') go(it.go);
+    if (id === 'talk') go(`#/hilo/post/${it.ref.row.id}`);
     if (id === 'copy') {
       try {
         await navigator.clipboard.writeText(textOf(it));
@@ -180,10 +184,19 @@ export function Cronologia({ filter = 'todo' }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Cronología</h1>
-        <p className="text-sm text-muted">Todo lo que pasó en tu proyecto, por días.</p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Cronología</h1>
+          <p className="text-sm text-muted">Todo lo que pasó en tu proyecto, por días.</p>
+        </div>
+        {!app.studio && can('posts.create') && (
+          <Button variant="secondary" onPress={() => setPosting(true)}>
+            <Plus />
+            Publicar un aviso
+          </Button>
+        )}
       </header>
+      {posting && <AnuncioModal onClose={() => setPosting(false)} />}
       <Tabs selectedKey={current} onSelectionChange={(k) => go(k === 'todo' ? '#/cronologia' : `#/cronologia/${k}`)}>
         <Tabs.ListContainer className="overflow-x-auto">
           <Tabs.List aria-label="Filtrar">
@@ -229,7 +242,18 @@ export function Cronologia({ filter = 'todo' }) {
                   marker: { icon: Icon, color: it.color },
                   badge: isNew ? { label: 'Nuevo', color: 'accent' } : it.label ? { label: it.label } : undefined,
                   trailing: ago(it.at),
-                  description: it.body ? <span className="line-clamp-3">{it.body}</span> : undefined,
+                  description:
+                    it.ref?.type === 'post' ? (
+                      <span className="flex flex-col items-start gap-1.5">
+                        {it.body && <span className="line-clamp-3">{it.body}</span>}
+                        <a href={`#/hilo/post/${it.ref.row.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline">
+                          <Comments className="size-3.5" />
+                          {((n) => (n ? `${n} ${n === 1 ? 'comentario' : 'comentarios'}` : 'Comentar'))(commentsOf('post', it.ref.row.id).length)}
+                        </a>
+                      </span>
+                    ) : it.body ? (
+                      <span className="line-clamp-3">{it.body}</span>
+                    ) : undefined,
                 };
               })}
             />

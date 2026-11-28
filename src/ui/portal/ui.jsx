@@ -33,8 +33,14 @@ import {
   Xmark,
   Clock,
   Ellipsis,
+  Star,
+  Bell,
+  ArrowDownToLine,
 } from '@gravity-ui/icons';
-import { Chip } from '@heroui/react';
+import { useRef, useState } from 'react';
+import { Chip, Sheet, toast } from '@heroui/react';
+import { useOpenAfterGesture } from '../kit/hooks.js';
+import { app } from '../../portal/state.js';
 
 const ICONS = {
   megaphone: Megaphone,
@@ -69,6 +75,9 @@ const ICONS = {
   users: Persons,
   search: Magnifier,
   more: Ellipsis,
+  star: Star,
+  bell: Bell,
+  download: ArrowDownToLine,
 };
 
 export function Ico({ name, className = 'size-4' }) {
@@ -85,6 +94,69 @@ export function Tone({ label, color, size = 'sm' }) {
     </Chip>
   );
 }
+
+/**
+ * La hoja que sube desde abajo (en el ordenador, centrada y más ancha). Se cierra
+ * deslizando, con Escape o con la X, y avisa con onClose cuando ya terminó de irse.
+ * children y footer pueden ser funciones que reciben close(), para cerrarla desde
+ * dentro (después de guardar) con su animación; close('#/otra') la cierra y va allí.
+ */
+export function Hoja({ title, eyebrow, subtitle, onClose, children, footer, wide = false, label, bodyClassName = '' }) {
+  const ready = useOpenAfterGesture();
+  const [closing, setClosing] = useState(false);
+  const done = useRef(false);
+  const dest = useRef(null);
+  const finish = () => {
+    if (done.current) return;
+    done.current = true;
+    onClose?.(dest.current);
+  };
+  const close = (to) => {
+    if (typeof to === 'string') dest.current = to;
+    setClosing(true);
+    // Por si la animación no avisa (movimiento reducido): se cierra igual.
+    setTimeout(finish, 450);
+  };
+  const render = (x) => (typeof x === 'function' ? x(close) : x);
+  return (
+    <Sheet isOpen={ready && !closing} onOpenChange={(open) => !open && close(null)} onAnimationEnd={(open) => !open && closing && finish()}>
+      <Sheet.Backdrop>
+        <Sheet.Content className={`mx-auto max-h-[92vh] w-full ${wide ? 'max-w-[720px]' : 'max-w-[600px]'}`}>
+          <Sheet.Dialog aria-label={label || (typeof title === 'string' ? title : undefined)}>
+            <Sheet.Handle />
+            <Sheet.CloseTrigger aria-label="Cerrar" />
+            {title && (
+              <Sheet.Header className="flex flex-col items-start gap-1 pe-12">
+                {eyebrow && <span className="sw-eyebrow">{eyebrow}</span>}
+                <Sheet.Heading className="text-xl font-semibold leading-tight">{title}</Sheet.Heading>
+                {subtitle && <span className="text-sm text-muted">{subtitle}</span>}
+              </Sheet.Header>
+            )}
+            <Sheet.Body className={`flex flex-col gap-4 overflow-y-auto pb-3 ${bodyClassName}`}>{render(children)}</Sheet.Body>
+            {footer && <Sheet.Footer className="flex flex-wrap items-center justify-end gap-2">{render(footer)}</Sheet.Footer>}
+          </Sheet.Dialog>
+        </Sheet.Content>
+      </Sheet.Backdrop>
+    </Sheet>
+  );
+}
+
+/** Abre un archivo del almacén (recursos, envíos) con una dirección firmada de un solo uso. */
+export async function openFile(path, { download = true } = {}) {
+  const win = window.open('', '_blank');
+  try {
+    const urls = await app.backend.fileUrls([path], download);
+    if (!urls[path]) throw new Error(app.backend.mode === 'demo' ? 'En la demostración los archivos no se abren.' : 'No se encontró el archivo.');
+    if (win) win.location = urls[path];
+    else location.href = urls[path];
+  } catch (err) {
+    win?.close();
+    toast.danger(err.message);
+  }
+}
+
+/** Tamaño de un archivo en palabras. */
+export const sizeOf = (bytes) => (!bytes ? '' : bytes < 1048576 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1048576).toFixed(1).replace('.', ',')} MB`);
 
 /** Icono en un círculo suave del color del tipo de cosa. */
 export function Bubble({ name, color }) {

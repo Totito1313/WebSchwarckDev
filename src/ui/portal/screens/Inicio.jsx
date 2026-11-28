@@ -1,7 +1,9 @@
-// Inicio del cliente: saludo, «Hoy en tu proyecto» con su anillo de progreso, el
-// anuncio fijado, lo que tiene que aprobar, lo que le pedimos, sus documentos
-// pendientes, la próxima reunión, su proyecto y lo último que pasó.
-import { ArrowRight, CircleCheck, Thunderbolt } from '@gravity-ui/icons';
+// Inicio del cliente: saludo, los avisos (activar notificaciones, valorar el mes, el
+// informe listo), «Hoy en tu proyecto» con su anillo de progreso, el tablón, lo que
+// tiene que aprobar, lo que le pedimos, sus documentos pendientes, la próxima reunión,
+// su proyecto y lo último que pasó.
+import { useState } from 'react';
+import { ArrowRight, CircleCheck, Plus, Thunderbolt } from '@gravity-ui/icons';
 import { Alert, Button, Card, Chip, Link, ProgressBar, ProgressCircle } from '@heroui/react';
 import { Panel } from '../../kit/parts.jsx';
 import { ago, cap, dayDate, dueText, fDay, fShort, minutesText, money, todayKey } from '../../../portal/kit.js';
@@ -9,7 +11,7 @@ import {
   CHANNEL,
   CONTENT_STATUS,
   DOC_TYPE,
-  MEETING_MODE,
+  POST_KIND,
   PRIORITY,
   can,
   channelsOf,
@@ -17,7 +19,6 @@ import {
   docState,
   doingNow,
   feed,
-  nextMeeting,
   pendingDocs,
   pendingTasks,
   toReview,
@@ -27,6 +28,11 @@ import {
 } from '../../../portal/state.js';
 import { usePortal } from '../store.js';
 import { Bubble, Tone } from '../ui.jsx';
+import { PushCard } from './Perfil.jsx';
+import { RatingCard } from './Valoracion.jsx';
+import { ReportCard } from './Informe.jsx';
+import { MeetingCard } from './Reuniones.jsx';
+import { AnuncioModal } from './Crear.jsx';
 
 function greeting(name) {
   const h = new Date().getHours();
@@ -67,6 +73,12 @@ export function FeedRow({ item, fresh }) {
 
 export function Inicio() {
   const [app] = usePortal();
+  const [posting, setPosting] = useState(false);
+  const canPost = !app.studio && can('posts.create');
+  const board = app.data.posts
+    .filter((p) => p.kind === 'announcement' && !p.pinned)
+    .sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at))
+    .slice(0, 3);
   const today = workToday();
   const done = today.filter((w) => w.status === 'done');
   const doing = doingNow();
@@ -75,7 +87,6 @@ export function Inicio() {
   const review = can('calendario') ? toReview() : [];
   const asks = can('peticiones') ? pendingTasks() : [];
   const docs = pendingDocs();
-  const meeting = nextMeeting();
   const project = currentProject();
   const upcoming = can('calendario')
     ? visibleContent()
@@ -105,6 +116,10 @@ export function Inicio() {
           </Alert.Content>
         </Alert>
       )}
+
+      <PushCard />
+      <RatingCard />
+      <ReportCard />
 
       {can('reporte') && (
         <Card className="gap-4">
@@ -154,6 +169,42 @@ export function Inicio() {
           </Link>
         </Card>
       )}
+
+      {(board.length > 0 || canPost) && (
+        <Panel
+          title="Tablón"
+          description="Avisos para tu equipo y para el estudio"
+          action={
+            canPost && (
+              <Button size="sm" variant="secondary" onPress={() => setPosting(true)}>
+                <Plus />
+                Publicar
+              </Button>
+            )
+          }
+        >
+          {board.length ? (
+            <ul className="flex flex-col">
+              {board.map((p) => (
+                <li key={p.id}>
+                  <a href="#/cronologia/anuncios" className="flex items-start gap-3 rounded-2xl px-2 py-2 hover:bg-surface-secondary">
+                    <Bubble name={POST_KIND[p.kind]?.[1] || 'megaphone'} color={POST_KIND[p.kind]?.[2]} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-sm font-medium">{p.title}</span>
+                      <span className="text-xs text-muted">
+                        {p.origin === 'client' ? p.author || 'Tu equipo' : 'Schwarck'} · {ago(p.occurred_at)}
+                      </span>
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted">Comparte un aviso con tu equipo y con el estudio.</p>
+          )}
+        </Panel>
+      )}
+      {posting && <AnuncioModal onClose={() => setPosting(false)} />}
 
       {review.length > 0 && (
         <Panel title="Para aprobar" description={`${review.length} ${review.length === 1 ? 'publicación espera' : 'publicaciones esperan'} tu visto bueno`}>
@@ -229,24 +280,7 @@ export function Inicio() {
           </Panel>
         )}
 
-        {meeting && (
-          <Panel title="Próxima reunión">
-            <div className="flex items-start gap-3">
-              <Bubble name={MEETING_MODE[meeting.mode]?.[1] || 'calendar'} color="var(--cf-income)" />
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="font-medium">{meeting.topic}</span>
-                <span className="text-sm text-muted">
-                  {cap(fDay.format(new Date(meeting.starts_at)))} · {new Date(meeting.starts_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })} · {MEETING_MODE[meeting.mode]?.[0]}
-                </span>
-                {meeting.link && (
-                  <Button size="sm" className="mt-1 w-fit" onPress={() => window.open(meeting.link, '_blank', 'noopener')}>
-                    Unirse
-                  </Button>
-                )}
-              </div>
-            </div>
-          </Panel>
-        )}
+        <MeetingCard />
 
         {project && (
           <Panel

@@ -355,3 +355,23 @@ body.sw-dragging * {
   cursor: grabbing !important;
   user-select: none !important;
 }
+
+/* ── Un elemento nuevo (un mensaje enviado) aparece con un pequeño salto ── */
+@keyframes sw-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.sw-pop {
+  animation: sw-pop 280ms var(--ease-out-fluid, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sw-pop {
+    animation: none;
+  }
+}

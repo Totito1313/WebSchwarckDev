@@ -1,36 +1,70 @@
-// Recursos (con facturas y documentos), Peticiones (con filtros por tipo, plazo y
-// prioridad) y Perfil y ajustes del portal nuevo.
-import { useMemo, useState } from 'react';
-import { ArrowRightFromSquare, ArrowUpRightFromSquare, Briefcase, ChevronRight, Folder, Palette, Persons, Sliders, Smartphone, Tray } from '@gravity-ui/icons';
-import { Button, Card, Chip, Description, Disclosure, Label, Link, SearchField, Separator, Slider, Tabs, Tag, TagGroup, toast } from '@heroui/react';
-import { Empty, Panel, Person } from '../../kit/parts.jsx';
+// Recursos (con facturas y documentos, y subir los tuyos si tu portal lo deja) y
+// Peticiones (con filtros por tipo, plazo y prioridad, «Entregar», lo que ya
+// mandaste para cada una y su conversación).
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowDownToLine, ArrowUpFromLine, ArrowUpRightFromSquare, Check, Comments, Eye, Folder, PaperPlane, Sliders, TrashBin, Tray } from '@gravity-ui/icons';
+import { Button, Card, Chip, Disclosure, Label, SearchField, Slider, Tabs, Tag, TagGroup, toast } from '@heroui/react';
+import { Empty } from '../../kit/parts.jsx';
 import { KpiGroup, Widget } from '../../pro/index.js';
-import { ThemeSwitch } from '../../kit/ThemeSwitch.jsx';
-import { isIOS, useInstall } from '../../kit/install.js';
 import { ago, dueText, hostOf, money, safeUrl, shortDate } from '../../../portal/kit.js';
-import { DOC_TYPE, EXPECTS, PRIORITY, RESOURCE_KIND, app, can, docState, has, isOwner, urlOf } from '../../../portal/state.js';
-import { ROLES } from '../../../portal/brand.js';
-import { go, openPortal, save, usePortal } from '../store.js';
-import { Bubble, Ico, Tone } from '../ui.jsx';
+import { DOC_TYPE, EXPECTS, PRIORITY, RESOURCE_KIND, SENT_KIND, app, can, commentsOf, docState, has, isMine, removeLocal, signPaths, urlOf } from '../../../portal/state.js';
+import { go, refresh, save, usePortal } from '../store.js';
+import { ConfirmDialog } from '../../negocio/fields.jsx';
+import { Bubble, Ico, Tone, openFile, sizeOf } from '../ui.jsx';
+import { RecursoModal } from './Crear.jsx';
 
 const plain = (s = '') => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/** Las fotos subidas como recurso necesitan su dirección firmada para verse. */
+const signed = new Set();
+function useResourcePreviews(list, v) {
+  useEffect(() => {
+    const missing = list.filter((r) => r.kind === 'image' && r.storage_path && !app.urls[r.storage_path] && !signed.has(r.storage_path)).map((r) => r.storage_path);
+    if (!missing.length) return;
+    missing.forEach((p) => signed.add(p));
+    signPaths(missing).then(refresh);
+  }, [v]);
+}
 
 export function Recursos() {
   const [, v] = usePortal();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState(new Set(['todas']));
+  const [uploading, setUploading] = useState(false);
+  const [removing, setRemoving] = useState(null);
+  const canUpload = !app.studio && can('resources.upload');
   const all = app.data.resources || [];
   const cats = useMemo(() => [...new Set(all.map((r) => r.category).filter(Boolean))], [all, v]);
   const chosen = [...cat][0] || 'todas';
   const list = all.filter((r) => (chosen === 'todas' || r.category === chosen) && (!q.trim() || plain(`${r.title} ${r.description} ${r.category}`).includes(plain(q.trim()))));
   const docs = has('documents') && can('docs.view') ? [...app.data.documents].sort((a, b) => (b.issue_date || '').localeCompare(a.issue_date || '')) : [];
   const owed = docs.filter((d) => d.type === 'invoice' && ['open', 'partial', 'viewed'].includes(d.status)).reduce((s, d) => s + Math.max(0, (d.total || 0) - (d.paid || 0)), 0);
+  useResourcePreviews(all, v);
+  const remove = async (r) => {
+    try {
+      await app.backend.remove('resources', r.id);
+      if (r.storage_path) await app.backend.removeFiles([r.storage_path]);
+      removeLocal('resources', r.id);
+      refresh();
+      toast.success('Recurso quitado');
+    } catch (err) {
+      toast.danger('No se quitó', { description: err.message });
+    }
+  };
 
   return (
     <div className="flex flex-col gap-5">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Recursos</h1>
-        <p className="text-sm text-muted">Guías, manuales, fotos, vídeos, enlaces y tus documentos.</p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Recursos</h1>
+          <p className="text-sm text-muted">Guías, manuales, fotos, vídeos, enlaces y tus documentos.</p>
+        </div>
+        {canUpload && (
+          <Button variant="secondary" onPress={() => setUploading(true)}>
+            <ArrowUpFromLine />
+            Subir un recurso
+          </Button>
+        )}
       </header>
 
       {docs.length > 0 && (
@@ -95,40 +129,88 @@ export function Recursos() {
         <div className="grid auto-rows-fr gap-3 sm:grid-cols-2">
           {list.map((r) => {
             const [kind, ico, color] = RESOURCE_KIND[r.kind] || RESOURCE_KIND.file;
-            const url = urlOf(r.url || r.path);
-            const isImage = r.kind === 'image' && url;
-            const Wrap = url ? 'a' : 'div';
+            // Un enlace se abre tal cual; un archivo subido, con una dirección firmada al tocarlo.
+            const url = safeUrl(r.url);
+            const file = r.storage_path;
+            const preview = r.kind === 'image' ? urlOf(file) || url : null;
+            const own = !app.studio && r.origin === 'client' && isMine(r);
+            const open = url ? { href: url, target: '_blank', rel: 'noopener noreferrer' } : file ? { href: '#', onClick: (e) => (e.preventDefault(), openFile(file)) } : {};
+            const Wrap = url || file ? 'a' : 'div';
             return (
+              <div key={r.id} className="relative">
               <Wrap
-                key={r.id}
-                {...(url ? { href: url, target: '_blank', rel: 'noopener noreferrer' } : {})}
+                {...open}
                 className="group flex h-full flex-col overflow-hidden rounded-3xl bg-surface shadow-[var(--surface-shadow)] outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-focus"
               >
                 {/* Arriba, la cara del recurso: la imagen o su tipo, en su color. */}
                 <div className="relative flex h-28 items-center justify-center overflow-hidden" style={{ background: `color-mix(in oklab, ${color} 14%, transparent)` }}>
-                  {isImage ? <img src={url} alt="" loading="lazy" className="size-full object-cover" /> : <Bubble name={ico} color={color} />}
+                  {preview ? <img src={preview} alt="" loading="lazy" className="size-full object-cover" /> : <Bubble name={ico} color={color} />}
                   <span className="absolute start-2 top-2 rounded-full bg-surface/90 px-2 py-0.5 text-[11px] font-medium backdrop-blur">{kind}</span>
                 </div>
                 <div className="flex flex-1 flex-col gap-1 p-4">
                   <span className="font-medium">{r.title}</span>
                   <span className="text-xs text-muted">
-                    {r.category ? `${r.category} · ` : ''}
-                    {ago(r.created_at)}
+                    {[r.category, sizeOf(r.size), ago(r.created_at)].filter(Boolean).join(' · ')}
                   </span>
                   {r.description && <p className="line-clamp-2 text-sm text-muted">{r.description}</p>}
-                  {url && (
+                  {(url || file) && (
                     <span className="mt-auto flex items-center gap-1 pt-2 text-sm font-medium text-accent">
-                      Abrir {hostOf(url) ? `en ${hostOf(url)}` : ''}
-                      <ArrowUpRightFromSquare className="size-3.5" />
+                      {file ? 'Descargar' : `Abrir${hostOf(url) ? ` en ${hostOf(url)}` : ''}`}
+                      {file ? <ArrowDownToLine className="size-3.5" /> : <ArrowUpRightFromSquare className="size-3.5" />}
                     </span>
                   )}
                 </div>
               </Wrap>
+              {own && (
+                <Button isIconOnly size="sm" variant="secondary" aria-label={`Quitar «${r.title}»`} onPress={() => setRemoving(r)} className="absolute end-2 top-2 rounded-full">
+                  <TrashBin />
+                </Button>
+              )}
+              </div>
             );
           })}
         </div>
       )}
+      {uploading && <RecursoModal onClose={() => setUploading(false)} />}
+      <ConfirmDialog open={Boolean(removing)} title={`¿Quitar «${removing?.title || ''}»?`} text="El estudio dejará de verlo en tus recursos." confirm="Quitar" onConfirm={() => remove(removing)} onClose={() => setRemoving(null)} />
     </div>
+  );
+}
+
+/** Lo que se mandó (para una petición o suelto): abrirlo, si ya lo vio el estudio y, si no, borrarlo. */
+function SentRow({ s, onRemove }) {
+  const [kind] = SENT_KIND[s.kind] || SENT_KIND.message;
+  const url = safeUrl(s.url);
+  return (
+    <li className="flex items-center gap-3 py-2">
+      <Bubble name={SENT_KIND[s.kind]?.[1] || 'send'} color="var(--accent)" />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm font-medium">{s.file_name || (url ? hostOf(url) : '') || (s.body || '').slice(0, 90) || kind}</span>
+        <span className="truncate text-xs text-muted">{[kind, sizeOf(s.size), ago(s.created_at)].filter(Boolean).join(' · ')}</span>
+      </span>
+      {s.storage_path && (
+        <Button isIconOnly size="sm" variant="ghost" aria-label="Descargar" onPress={() => openFile(s.storage_path)}>
+          <ArrowDownToLine />
+        </Button>
+      )}
+      {url && (
+        <Button isIconOnly size="sm" variant="ghost" aria-label="Abrir" onPress={() => window.open(url, '_blank', 'noopener')}>
+          <ArrowUpRightFromSquare />
+        </Button>
+      )}
+      {s.seen_at ? (
+        <Chip size="sm" variant="soft" color="success">
+          <Eye className="size-3" />
+          Visto
+        </Chip>
+      ) : (
+        onRemove && (
+          <Button isIconOnly size="sm" variant="ghost" aria-label="Borrar el envío" onPress={() => onRemove(s)}>
+            <TrashBin />
+          </Button>
+        )
+      )}
+    </li>
   );
 }
 
@@ -216,6 +298,7 @@ export function Peticiones({ tab }) {
   const [kinds, setKinds] = useState(() => new Set());
   const [due, setDue] = useState('todas');
   const [prio, setPrio] = useState(0);
+  const [dropping, setDropping] = useState(null);
   const current = ['pendientes', 'enviadas', 'hechas'].includes(tab) ? tab : 'pendientes';
   const status = { pendientes: 'pending', enviadas: 'submitted', hechas: 'done' }[current];
   const all = app.data.tasks || [];
@@ -243,6 +326,18 @@ export function Peticiones({ tab }) {
     }
   };
   const filters = <TaskFilters all={all} kinds={kinds} setKinds={setKinds} due={due} setDue={setDue} prio={prio} setPrio={setPrio} />;
+  const subs = app.data.submissions || [];
+  const loose = subs.filter((x) => !x.task_id);
+  const dropSub = async (x) => {
+    try {
+      await app.backend.removeSubmission(x);
+      removeLocal('submissions', x.id);
+      refresh();
+      toast.success('Envío borrado');
+    } catch (err) {
+      toast.danger('No se borró', { description: err.message });
+    }
+  };
 
   return (
     <div className="flex flex-col gap-5" data-v={v}>
@@ -303,6 +398,8 @@ export function Peticiones({ tab }) {
             list.map((t) => {
               const [when, lateCls] = t.due_date ? dueText(t.due_date) : ['Sin fecha', ''];
               const [phase, tone] = phaseOf(t);
+              const sent = subs.filter((x) => x.task_id === t.id);
+              const talk = commentsOf('task', t.id).length;
               return (
                 <Card key={t.id} className="gap-3 p-4">
                   <div className="flex items-start gap-3">
@@ -332,14 +429,46 @@ export function Peticiones({ tab }) {
                   </div>
                   {t.description && <p className="whitespace-pre-line text-sm text-muted">{t.description}</p>}
                   {t.client_note && <p className="rounded-2xl bg-surface-secondary px-3 py-2 text-sm">«{t.client_note}»</p>}
-                  {t.status === 'pending' && can('tasks.submit') && (
-                    <Button className="w-fit" isPending={busy === t.id} onPress={() => submit(t)}>
-                      Ya lo envié
-                    </Button>
+                  {sent.length > 0 && (
+                    <div className="flex flex-col rounded-2xl bg-surface-secondary px-3 py-1">
+                      <span className="pt-2 text-xs font-medium text-muted">Lo que enviaste</span>
+                      <ul className="flex flex-col divide-y divide-border">
+                        {sent.map((x) => (
+                          <SentRow key={x.id} s={x} onRemove={!app.studio ? setDropping : null} />
+                        ))}
+                      </ul>
+                    </div>
                   )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {t.status === 'pending' && can('tasks.submit') && t.expects !== 'none' && can('send') && (
+                      <Button onPress={() => go(`#/enviar/${t.id}`)}>
+                        <PaperPlane />
+                        Entregar
+                      </Button>
+                    )}
+                    {t.status === 'pending' && can('tasks.submit') && (
+                      <Button variant={t.expects === 'none' ? 'primary' : 'secondary'} isPending={busy === t.id} onPress={() => submit(t)}>
+                        <Check />
+                        {t.expects === 'none' ? 'Hecho' : 'Ya lo envié'}
+                      </Button>
+                    )}
+                    <Button variant="ghost" onPress={() => go(`#/hilo/task/${t.id}`)}>
+                      <Comments />
+                      {talk ? `Conversación · ${talk}` : 'Comentar'}
+                    </Button>
+                  </div>
                 </Card>
               );
             })
+          )}
+          {current !== 'hechas' && loose.length > 0 && (
+            <Widget title="Lo que nos has enviado" description="Mensajes, enlaces y archivos sin petición">
+              <ul className="flex flex-col divide-y divide-border">
+                {loose.slice(0, 30).map((x) => (
+                  <SentRow key={x.id} s={x} onRemove={!app.studio ? setDropping : null} />
+                ))}
+              </ul>
+            </Widget>
           )}
         </div>
         <aside className="sticky top-24 hidden flex-col gap-4 rounded-3xl bg-surface-secondary p-4 md:flex" aria-label="Filtros">
@@ -363,144 +492,7 @@ export function Peticiones({ tab }) {
           )}
         </aside>
       </div>
-    </div>
-  );
-}
-
-/** Una fila de ajustes: icono, texto y lo que va a la derecha. */
-function Row({ icon: Icon, title, text, children, onPress }) {
-  const inner = (
-    <>
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-surface-secondary">
-        <Icon className="size-4" />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-sm font-medium">{title}</span>
-        {text && <span className="truncate text-xs text-muted">{text}</span>}
-      </span>
-      {children}
-      {onPress && <ChevronRight className="size-4 text-muted" />}
-    </>
-  );
-  return onPress ? (
-    <button type="button" onClick={onPress} className="flex w-full items-center gap-3 px-4 py-3 text-start outline-none transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover">
-      {inner}
-    </button>
-  ) : (
-    <div className="flex items-center gap-3 px-4 py-3">{inner}</div>
-  );
-}
-/** Instalar la app: con el aviso del navegador cuando lo hay; si no, cómo hacerlo a mano. */
-function InstallRow() {
-  const { canInstall, installed, done, install } = useInstall();
-  const text = installed
-    ? 'Ya la estás usando como app'
-    : done
-      ? 'Ábrela desde tu pantalla de inicio'
-      : canInstall
-        ? 'Con su icono, como cualquier app'
-        : isIOS()
-          ? 'Compartir › «Añadir a pantalla de inicio»'
-          : 'Menú del navegador › «Instalar» o «Añadir a inicio»';
-  return (
-    <Row icon={Smartphone} title={installed || done ? 'Instalada' : 'Instálala en tu teléfono'} text={text}>
-      {canInstall && (
-        <Button size="sm" variant="secondary" onPress={() => install().then((ok) => ok && toast.success('Listo: ya la tienes en tu pantalla de inicio.'))}>
-          Instalar
-        </Button>
-      )}
-    </Row>
-  );
-}
-function Group({ title, children }) {
-  return (
-    <section className="flex flex-col gap-2">
-      <h2 className="sw-eyebrow px-1">{title}</h2>
-      <div className="flex flex-col divide-y divide-border overflow-hidden rounded-3xl bg-surface shadow-[var(--surface-shadow)]">{children}</div>
-    </section>
-  );
-}
-
-export function Perfil({ onSignOut }) {
-  usePortal();
-  const m = app.member || {};
-  const c = app.client || {};
-  const business = [
-    ['Sector', c.industry],
-    ['Web', c.website],
-    ['Instagram', c.instagram],
-    ['Teléfono', c.phone],
-    ['Dirección', c.address],
-    ['Horario', c.hours],
-  ].filter(([, x]) => x);
-  const others = app.portals.filter((p) => p.client.id !== c.id);
-
-  return (
-    <div className="flex flex-col gap-6">
-      {/* Tu tarjeta: foto, nombre, cargo, correo y tu papel en el proyecto. */}
-      <Card className="relative overflow-hidden p-0">
-        <div aria-hidden className="h-20" style={{ background: `linear-gradient(120deg, ${c.accent || 'var(--accent)'}, color-mix(in oklab, ${c.accent || 'var(--accent)'} 40%, transparent))` }} />
-        <div className="-mt-10 flex flex-col items-start gap-2 px-5 pb-5">
-          <span className="rounded-full ring-4 ring-[var(--surface)]">
-            <Person name={m.name || app.user?.email} src={urlOf(m.avatar_path) || undefined} size="lg" />
-          </span>
-          <div className="flex min-w-0 flex-col">
-            <span className="truncate text-xl font-semibold">{m.name || 'Sin nombre'}</span>
-            <span className="truncate text-sm text-muted">{[m.position, app.user?.email].filter(Boolean).join(' · ')}</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {!app.studio && m.role && (
-              <Chip size="sm" variant="soft" color="accent">
-                {ROLES[m.role]?.[0] || m.role}
-              </Chip>
-            )}
-            <Chip size="sm" variant="secondary">
-              {c.name}
-            </Chip>
-          </div>
-        </div>
-      </Card>
-
-      <Group title="Tu negocio">
-        {business.length ? (
-          <dl className="grid gap-3 px-4 py-3 sm:grid-cols-2">
-            {business.map(([label, x]) => (
-              <div key={label} className="flex flex-col">
-                <dt className="text-xs text-muted">{label}</dt>
-                <dd className="break-words text-sm">{x}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : (
-          <Row icon={Briefcase} title="Sin datos todavía" text={isOwner() ? 'Puedes completarlos en la versión de siempre.' : 'Los completa el estudio o quien edita tu negocio.'} />
-        )}
-        {c.description && <p className="px-4 py-3 text-sm">{c.description}</p>}
-        {isOwner() && <Row icon={Briefcase} title="Editar los datos del negocio" text="Sector, web, redes, horario…" onPress={() => (location.href = `/cliente/${location.search}#/perfil`)} />}
-      </Group>
-
-      {others.length > 0 && (
-        <Group title="Tus proyectos">
-          {app.portals.map((p) => (
-            <Row key={p.client.id} icon={Persons} title={p.client.name} text={p.client.id === c.id ? 'El que tienes abierto' : 'Cambiar a este'} onPress={p.client.id === c.id ? undefined : () => openPortal(p)} />
-          ))}
-        </Group>
-      )}
-
-      <Group title="Apariencia">
-        <Row icon={Palette} title="Tema" text="Claro, oscuro o el de tu teléfono">
-          <ThemeSwitch />
-        </Row>
-      </Group>
-
-      <Group title="La app">
-        <InstallRow />
-        <Row icon={ArrowUpRightFromSquare} title="Versión de siempre" text="La app anterior, con todo lo que aún no está aquí" onPress={() => (location.href = `/cliente/${location.search}`)} />
-      </Group>
-
-      <Button variant="danger-soft" className="self-start" onPress={onSignOut}>
-        <ArrowRightFromSquare />
-        Salir
-      </Button>
+      <ConfirmDialog open={Boolean(dropping)} title="¿Borrar este envío?" text="El estudio todavía no lo ha visto." confirm="Borrar" onConfirm={() => dropSub(dropping)} onClose={() => setDropping(null)} />
     </div>
   );
 }

@@ -116,13 +116,32 @@ export async function save(table, row) {
   return saved;
 }
 
+/** Las rutas que se abren encima de la pantalla en la que se estaba (como hojas). */
+export const OVERLAYS = new Set(['hilo', 'enviar', 'buscar', 'novedades', 'valorar']);
+
 export function useRoute() {
   const read = () => location.hash.replace(/^#\/?/, '').split('?')[0].split('/').map(decodeURIComponent);
   const [parts, setParts] = useState(read);
   useEffect(() => {
+    // La pantalla que queda debajo de las hojas: abrir una hoja o volver de ella a esa
+    // misma pantalla no la mueve; ir a otra sí empieza arriba.
+    let base = OVERLAYS.has(read()[0]) ? null : read().join('/');
+    let fromSheet = OVERLAYS.has(read()[0]);
     const on = () => {
-      setParts(read());
-      window.scrollTo({ top: 0 });
+      const next = read();
+      setParts(next);
+      if (OVERLAYS.has(next[0])) {
+        fromSheet = true;
+        return;
+      }
+      const key = next.join('/');
+      // Al cerrarse, la hoja devuelve el desplazamiento que había: subir después de eso.
+      if (key !== base) {
+        if (fromSheet) setTimeout(() => window.scrollTo({ top: 0 }), 80);
+        else window.scrollTo({ top: 0 });
+      }
+      base = key;
+      fromSheet = false;
     };
     addEventListener('hashchange', on);
     return () => removeEventListener('hashchange', on);
@@ -133,3 +152,11 @@ export function useRoute() {
 export const go = (hash) => {
   location.hash = hash;
 };
+
+/** Marca como visto todo lo que había (el punto de la campana y la insignia del icono). */
+export async function markSeen() {
+  app.member = { ...app.member, last_seen_at: new Date().toISOString() };
+  refresh();
+  navigator.clearAppBadge?.().catch(() => {});
+  await app.backend.markSeen(app.client.id).catch(() => {});
+}

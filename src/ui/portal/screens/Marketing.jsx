@@ -1,9 +1,10 @@
 // Marketing del cliente: el calendario (por día, por semana o el mes entero, con el
 // equilibrio entre atracción, autoridad, conversión y comunidad), el rendimiento
 // frente al mes anterior en cifras y gráficos, y los leads. Cada publicación se abre en una hoja con todo lo que lleva, y lo que está
-// para revisar se aprueba o se piden cambios desde ahí.
+// para revisar se aprueba o se piden cambios desde ahí, con su conversación debajo. Si el portal lo permite,
+// el cliente propone publicaciones y añade o mueve leads.
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, CircleCheck, Copy, Pencil, Xmark } from '@gravity-ui/icons';
+import { ChevronLeft, ChevronRight, CircleCheck, Copy, Pencil, Plus, Sparkles, Xmark } from '@gravity-ui/icons';
 import { Button, Card, Chip, Form, Label, Meter, ScrollShadow, Sheet, Tabs, TextArea, TextField, ToggleButton, ToggleButtonGroup, toast } from '@heroui/react';
 import { BarsChart } from '../../kit/BarsChart.jsx';
 import { Empty, Panel, Stat } from '../../kit/parts.jsx';
@@ -27,6 +28,8 @@ import { go, save, usePortal } from '../store.js';
 import { Tone } from '../ui.jsx';
 import { useOpenAfterGesture } from '../../kit/hooks.js';
 import { ApprovalCard, ComposedChart, DonutChart, KpiGroup, Stepper, Widget } from '../../pro/index.js';
+import { Conversacion } from './Hilo.jsx';
+import { LeadModal, ProponerModal } from './Crear.jsx';
 
 const TABS = [
   ['calendario', 'Calendario', 'calendario'],
@@ -301,8 +304,25 @@ function Rendimiento() {
 
 function Leads() {
   const [, v] = usePortal();
+  const [editing, setEditing] = useState(null);
   const leads = useMemo(() => [...(app.data.leads || [])].sort((a, b) => (b.date || '').localeCompare(a.date || '')), [v]);
-  if (!leads.length) return <Empty title="Todavía no hay leads" text="Las personas interesadas que lleguen por tus redes saldrán aquí." />;
+  const canAdd = !app.studio && can('leads.add');
+  const canEdit = !app.studio && can('leads.edit');
+  const modal = editing && <LeadModal lead={editing === 'nuevo' ? null : editing} onClose={() => setEditing(null)} />;
+  const add = canAdd && (
+    <Button variant="secondary" className="self-start" onPress={() => setEditing('nuevo')}>
+      <Plus />
+      Nuevo lead
+    </Button>
+  );
+  if (!leads.length) {
+    return (
+      <>
+        <Empty title="Todavía no hay leads" text="Las personas interesadas que lleguen por tus redes saldrán aquí." action={add} />
+        {modal}
+      </>
+    );
+  }
   const won = leads.filter((l) => l.stage === 'ganado');
   const closed = leads.filter((l) => l.stage === 'ganado' || l.stage === 'perdido');
   return (
@@ -312,9 +332,14 @@ function Leads() {
         <Stat label="Ganados" value={String(won.length)} />
         <Stat label="Conversión" value={closed.length ? `${Math.round((won.length / closed.length) * 100)} %` : '—'} />
       </div>
+      {add}
       <ul className="flex flex-col gap-1.5">
         {leads.map((l) => (
-          <li key={l.id} className="flex items-center gap-3 rounded-2xl bg-surface px-3 py-2.5 shadow-[var(--surface-shadow)]">
+          <li
+            key={l.id}
+            {...(canEdit ? { role: 'button', tabIndex: 0, onClick: () => setEditing(l), onKeyDown: (e) => e.key === 'Enter' && setEditing(l) } : {})}
+            className={`flex items-center gap-3 rounded-2xl bg-surface px-3 py-2.5 shadow-[var(--surface-shadow)] ${canEdit ? 'cursor-pointer outline-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-focus' : ''}`}
+          >
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-sm font-medium">{l.name}</span>
               <span className="truncate text-xs text-muted">
@@ -327,6 +352,7 @@ function Leads() {
           </li>
         ))}
       </ul>
+      {modal}
     </div>
   );
 }
@@ -505,6 +531,15 @@ function Pieza({ id }) {
                   </div>
                 </Form>
               )}
+              {c.notes && c.origin === 'client' && (
+                <div className="flex flex-col gap-1">
+                  <span className="sw-eyebrow">La idea</span>
+                  <p className="whitespace-pre-line text-sm">{c.notes}</p>
+                </div>
+              )}
+              <div className="border-t border-border pt-4">
+                <Conversacion target="content" id={c.id} />
+              </div>
             </Sheet.Body>
             {!canDecide && canReject && !asking && (
               <Sheet.Footer className="flex flex-wrap gap-2">
@@ -525,16 +560,27 @@ function Pieza({ id }) {
 
 export function Marketing({ tab, arg }) {
   usePortal();
+  const [proposing, setProposing] = useState(false);
+  const canPropose = !app.studio && can('content.propose') && can('calendario');
   const tabs = TABS.filter(([, , perm]) => can(perm));
   const pieceId = tab === 'pieza' ? arg : null;
   const current = tabs.find(([k]) => k === tab)?.[0] || tabs[0]?.[0];
   if (!tabs.length) return <Empty title="Esta sección no está activada" text="Pídele a Schwarck que la active en tu portal." />;
   return (
     <div className="flex flex-col gap-5">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Marketing</h1>
-        <p className="text-sm text-muted">Tu calendario de contenido y cómo le va a tu marca.</p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Marketing</h1>
+          <p className="text-sm text-muted">Tu calendario de contenido y cómo le va a tu marca.</p>
+        </div>
+        {canPropose && (
+          <Button variant="secondary" onPress={() => setProposing(true)}>
+            <Sparkles />
+            Proponer una publicación
+          </Button>
+        )}
       </header>
+      {proposing && <ProponerModal onClose={() => setProposing(false)} />}
       <Tabs selectedKey={pieceId ? 'calendario' : current} onSelectionChange={(k) => go(`#/marketing/${k}`)}>
         <Tabs.ListContainer>
           <Tabs.List aria-label="Marketing">
